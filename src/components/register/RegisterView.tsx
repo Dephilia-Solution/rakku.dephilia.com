@@ -6,7 +6,7 @@ import { ProductWithCategory, Category, Modifier } from "@/types";
 import CategoryTabs from "@/components/register/CategoryTabs";
 import ProductGrid from "@/components/register/ProductGrid";
 import OrderSidebar from "@/components/register/OrderSidebar";
-import FloatingCartButton from "@/components/register/FloatingCartButton";
+import MobileCartBar from "@/components/register/MobileCartBar";
 import PaymentModal from "@/components/register/PaymentModal";
 import { Search, Command } from "lucide-react";
 
@@ -70,7 +70,7 @@ export default function RegisterView({
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left: Product area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden pt-safe">
         {/* Search */}
         <div className="px-4 sm:px-6 pt-4 pb-3">
           <div className="relative">
@@ -102,7 +102,7 @@ export default function RegisterView({
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 lg:pb-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-[140px] lg:pb-6">
           <ProductGrid
             products={filteredProducts}
             onSelect={handleSelectProduct}
@@ -124,8 +124,11 @@ export default function RegisterView({
         }}
       />
 
-      {/* Mobile: Floating Cart Button */}
-      <FloatingCartButton onClick={() => setShowCartDrawer(true)} />
+      {/* Mobile: Persistent Cart Bar */}
+      <MobileCartBar
+        onViewCart={() => setShowCartDrawer(true)}
+        onCheckout={() => setShowPayment(true)}
+      />
 
       {/* Payment Modal */}
       <PaymentModal
@@ -135,7 +138,7 @@ export default function RegisterView({
 
       {/* Modifier Selection Modal */}
       {showModifierModal && selectedProduct && (
-        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="min-h-full flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-6">
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-4">

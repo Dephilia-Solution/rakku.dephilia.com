@@ -214,8 +214,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[90] flex flex-col justify-end">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
         <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90vh] animate-slide-up pb-safe">
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-neutral-300" />
@@ -227,7 +227,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto">
       <div className="min-h-full flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-md w-full max-w-md">
           {content}
