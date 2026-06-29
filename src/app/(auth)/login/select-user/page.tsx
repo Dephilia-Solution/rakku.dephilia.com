@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Coffee, User, ChevronRight, LogOut } from "lucide-react";
 
 interface Account {
@@ -71,10 +72,12 @@ export default function SelectUserPage() {
             >
               <div className="w-10 h-10 rounded-xl bg-forest/10 text-forest flex items-center justify-center shrink-0">
                 {account.avatar_url ? (
-                  <img
+                  <Image
                     src={account.avatar_url}
                     alt=""
-                    className="w-10 h-10 rounded-xl object-cover"
+                    width={40}
+                    height={40}
+                    className="rounded-xl object-cover"
                   />
                 ) : (
                   <User size={20} />
