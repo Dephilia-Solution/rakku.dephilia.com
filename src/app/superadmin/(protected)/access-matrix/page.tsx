@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { showToast } from "@/components/shared/Toast";
 
 interface Company {
@@ -44,12 +44,7 @@ export default function AccessMatrixPage() {
       .catch(() => showToast("error", "Gagal memuat perusahaan"));
   }, []);
 
-  useEffect(() => {
-    if (!selectedCompany) return;
-    loadMatrix();
-  }, [selectedCompany]);
-
-  const loadMatrix = async () => {
+  const loadMatrix = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/superadmin/access-matrix?company_id=${selectedCompany}`);
@@ -61,7 +56,12 @@ export default function AccessMatrixPage() {
       showToast("error", "Gagal memuat matrix akses");
     }
     setLoading(false);
-  };
+  }, [selectedCompany]);
+
+  useEffect(() => {
+    if (!selectedCompany) return;
+    loadMatrix();
+  }, [selectedCompany, loadMatrix]);
 
   const hasAccess = (roleId: string, menuId: string): boolean => {
     return access.some((a) => a.role_id === roleId && a.menu_id === menuId && a.can_view);

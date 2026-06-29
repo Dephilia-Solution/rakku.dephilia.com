@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CartItem, OrderType, PaymentMethod } from "@/types";
+import { CartItem } from "@/types";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
