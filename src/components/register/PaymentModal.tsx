@@ -40,7 +40,29 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const change = cashAmount ? Number(cashAmount) - total : 0;
   const isCashEnough = change >= 0;
 
-  const quickAmounts = [5000, 10000, 20000, 50000];
+  // Generate dynamic payment suggestions based on total
+  const paymentSuggestions = (() => {
+    const suggestions: number[] = [];
+
+    // 1. Saran "pas" - sesuai total
+    suggestions.push(total);
+
+    // 2. Pembulatan ke atas ke pecahan terdekat (10rb, 50rb, 100rb, 200rb, 500rb)
+    for (const denom of [10000, 50000, 100000, 200000, 500000]) {
+      const rounded = Math.ceil(total / denom) * denom;
+      if (rounded > total && rounded <= total * 3) {
+        suggestions.push(rounded);
+      }
+    }
+
+    // 3. Tambahkan pecahan umum yang relevan (dekat dengan total)
+    const denominations = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+    const nextDenominations = denominations.filter((d) => d > total && d <= total * 2);
+    suggestions.push(...nextDenominations);
+
+    // 4. Deduplicate dan sort, ambil maksimal 6 saran
+    return Array.from(new Set(suggestions)).sort((a, b) => a - b).slice(0, 6);
+  })();
 
   const handleSubmit = async () => {
     if (!method) return;
@@ -177,18 +199,18 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                   />
                 </div>
 
-                <div className="flex gap-2">
-                  {quickAmounts.map((amt) => (
+                <div className="flex gap-2 flex-wrap">
+                  {paymentSuggestions.map((amt) => (
                     <button
                       key={amt}
-                      onClick={() =>
-                        setCashAmount((prev) =>
-                          (Number(prev) + amt).toString()
-                        )
-                      }
-                      className="flex-1 text-xs font-medium bg-neutral-100 hover:bg-neutral-200 rounded-lg py-2 text-neutral-600 transition-colors"
+                      onClick={() => setCashAmount(amt.toString())}
+                      className={`flex-1 min-w-[80px] text-xs font-medium rounded-lg py-2 transition-colors ${
+                        cashAmount === amt.toString()
+                          ? "bg-forest text-white"
+                          : "bg-neutral-100 hover:bg-neutral-200 text-neutral-600"
+                      }`}
                     >
-                      +{formatCurrency(amt)}
+                      {formatCurrency(amt)}
                     </button>
                   ))}
                 </div>
