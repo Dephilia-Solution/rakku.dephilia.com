@@ -102,7 +102,7 @@ export default function RegisterView({
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-[140px] lg:pb-6">
+        <div className="flex-1 overflow-y-auto pt-2 px-4 sm:px-6 pb-[140px] lg:pb-6">
           <ProductGrid
             products={filteredProducts}
             onSelect={handleSelectProduct}
