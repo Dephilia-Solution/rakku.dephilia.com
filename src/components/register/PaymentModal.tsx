@@ -46,6 +46,20 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     if (!method) return;
     setIsSubmitting(true);
 
+    // Get tenant session for tenant-scoped order
+    let companyId: string | undefined;
+    let outletId: string | undefined;
+    let cashierId: string | undefined;
+    try {
+      const res = await fetch("/api/auth/tenant/session");
+      if (res.ok) {
+        const s = await res.json();
+        companyId = s.company_id;
+        outletId = s.outlet_id;
+        cashierId = s.user_id;
+      }
+    } catch {}
+
     try {
       await createOrder({
         orderType,
@@ -54,6 +68,9 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         subtotal,
         taxAmount,
         total,
+        companyId,
+        outletId,
+        cashierId,
       });
 
       setIsSuccess(true);

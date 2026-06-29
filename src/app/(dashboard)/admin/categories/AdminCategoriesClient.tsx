@@ -31,8 +31,20 @@ export default function AdminCategoriesClient({ initialCategories }: Props) {
 
   const handleAdd = async () => {
     if (!newCategory.trim()) return;
+
+    let companyId = "";
+    let outletId = "";
     try {
-      const data = await createCategory(newCategory.trim());
+      const res = await fetch("/api/auth/tenant/session");
+      if (res.ok) {
+        const s = await res.json();
+        companyId = s.company_id;
+        outletId = s.outlet_id;
+      }
+    } catch {}
+
+    try {
+      const data = await createCategory(newCategory.trim(), companyId, outletId);
       setCategories((prev) => [
         ...prev,
         { id: data.id, name: data.name, sort_order: data.sort_order },

@@ -2,29 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  ShoppingCart,
-  ClipboardList,
-  BarChart3,
-  Package,
-  LogOut,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
+import type { Menu } from "@/types";
 
-const navItems = [
-  { href: "/register", icon: ShoppingCart, label: "Register" },
-  { href: "/orders", icon: ClipboardList, label: "Orders" },
-  { href: "/reports", icon: BarChart3, label: "Reports" },
-  { href: "/admin/products", icon: Package, label: "Menu" },
-];
+interface SidebarProps {
+  menus: Menu[];
+}
+
+function getIcon(iconName: string | null) {
+  if (!iconName) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const icons = require("lucide-react");
+    return icons[iconName] || null;
+  } catch {
+    return null;
+  }
+}
 
 function isActive(href: string, pathname: string): boolean {
   if (href === "/register") return pathname === "/register";
-  if (href === "/admin/products")
-    return pathname.startsWith("/admin");
+  if (href.startsWith("/admin")) return pathname.startsWith("/admin");
   return pathname.startsWith(href);
 }
 
-export default function Sidebar() {
+export default function Sidebar({ menus }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -39,21 +41,22 @@ export default function Sidebar() {
       <div className="w-8 h-px bg-neutral-200 mb-2" />
 
       <nav className="flex flex-col gap-1 items-center flex-1">
-        {navItems.map((item) => {
-          const active = isActive(item.href, pathname);
+        {menus.map((item) => {
+          const active = isActive(item.path, pathname);
+          const Icon = getIcon(item.icon);
 
           return (
             <Link
-              key={item.label}
-              href={item.href}
+              key={item.id}
+              href={item.path}
               className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                 active
                   ? "bg-forest text-white shadow-sm"
                   : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
               }`}
-              title={item.label}
+              title={item.name}
             >
-              <item.icon size={20} />
+              {Icon ? <Icon size={20} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
             </Link>
           );
         })}
@@ -61,7 +64,7 @@ export default function Sidebar() {
 
       <div className="w-8 h-px bg-neutral-200 mb-2" />
 
-      <form action="/api/auth/logout" method="post">
+      <form action="/api/auth/tenant/logout" method="post">
         <button
           type="submit"
           className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-400 hover:text-danger hover:bg-red-50 transition-colors"

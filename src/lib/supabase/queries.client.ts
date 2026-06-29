@@ -1,5 +1,14 @@
-import { createClient } from "@/lib/supabase/client";
 import { CartItem, OrderType, PaymentMethod } from "@/types";
+
+async function api(url: string, options?: RequestInit) {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Terjadi kesalahan");
+  return data;
+}
 
 export async function createOrder(data: {
   orderType: OrderType;
@@ -10,74 +19,32 @@ export async function createOrder(data: {
   total: number;
   customerName?: string;
   note?: string;
+  companyId?: string;
+  outletId?: string;
+  cashierId?: string;
 }) {
-  const supabase = createClient();
-
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      order_type: data.orderType,
-      payment_method: data.paymentMethod,
-      subtotal: data.subtotal,
-      tax_rate: Number(process.env.NEXT_PUBLIC_TAX_RATE) || 10,
-      tax_amount: data.taxAmount,
-      total_price: data.total,
-      customer_name: data.customerName || null,
-      note: data.note || null,
-    })
-    .select()
-    .single();
-
-  if (orderError || !order) throw new Error(orderError?.message ?? "Gagal membuat order");
-
-  const orderItems = data.items.map((item) => ({
-    order_id: order.id,
-    product_id: item.product.id,
-    product_name: item.product.name,
-    unit_price: item.product.price,
-    quantity: item.quantity,
-    modifier_label: item.modifier_label,
-    subtotal: item.subtotal,
-  }));
-
-  const { error: itemsError } = await supabase
-    .from("order_items")
-    .insert(orderItems);
-
-  if (itemsError) throw new Error(itemsError.message);
-
-  return order;
+  return api("/api/admin/orders", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
-export async function createCategory(name: string) {
-  const supabase = createClient();
-  const { data: max, error: maxError } = await supabase
-    .from("categories")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .single();
-  if (maxError && maxError.code !== "PGRST116") throw new Error(maxError.message);
-
-  const { data, error } = await supabase
-    .from("categories")
-    .insert({ name, sort_order: (max?.sort_order ?? 0) + 1 })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+export async function createCategory(name: string, companyId: string, outletId: string) {
+  return api("/api/admin/categories", {
+    method: "POST",
+    body: JSON.stringify({ name, company_id: companyId, outlet_id: outletId }),
+  });
 }
 
 export async function updateCategory(id: string, name: string) {
-  const supabase = createClient();
-  const { error } = await supabase.from("categories").update({ name }).eq("id", id);
-  if (error) throw new Error(error.message);
+  return api("/api/admin/categories", {
+    method: "PATCH",
+    body: JSON.stringify({ id, name }),
+  });
 }
 
 export async function deleteCategory(id: string) {
-  const supabase = createClient();
-  const { error } = await supabase.from("categories").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  return api(`/api/admin/categories?id=${id}`, { method: "DELETE" });
 }
 
 export async function createProduct(product: {
@@ -86,21 +53,21 @@ export async function createProduct(product: {
   category_id: string;
   description?: string;
   is_active?: boolean;
+  companyId?: string;
+  outletId?: string;
 }) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .insert({
+  return api("/api/admin/products", {
+    method: "POST",
+    body: JSON.stringify({
       name: product.name,
       price: product.price,
       category_id: product.category_id,
-      description: product.description ?? null,
-      is_active: product.is_active ?? true,
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+      description: product.description,
+      is_active: product.is_active,
+      company_id: product.companyId,
+      outlet_id: product.outletId,
+    }),
+  });
 }
 
 export async function updateProduct(
@@ -114,69 +81,30 @@ export async function updateProduct(
     image_url?: string | null;
   }
 ) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("products")
-    .update({ ...product, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  return api("/api/admin/products", {
+    method: "PATCH",
+    body: JSON.stringify({ id, ...product }),
+  });
 }
 
 export async function toggleProductActive(id: string, is_active: boolean) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("products")
-    .update({ is_active, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  return api("/api/admin/products", {
+    method: "PUT",
+    body: JSON.stringify({ id, is_active }),
+  });
 }
 
 export async function getModifiersByProduct(productId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("modifiers")
-    .select("*")
-    .eq("product_id", productId)
-    .order("name");
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((m) => ({
-    id: m.id,
-    product_id: m.product_id,
-    name: m.name,
-    price_delta: Number(m.price_delta),
-  }));
+  return api(`/api/admin/modifiers?product_id=${productId}`);
 }
 
 export async function createModifier(productId: string, name: string, priceDelta: number) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("modifiers")
-    .insert({ product_id: productId, name, price_delta: priceDelta })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return {
-    id: data.id,
-    product_id: data.product_id,
-    name: data.name,
-    price_delta: Number(data.price_delta),
-  };
-}
-
-export async function updateModifier(id: string, name: string, priceDelta: number) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("modifiers")
-    .update({ name, price_delta: priceDelta })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  return api("/api/admin/modifiers", {
+    method: "POST",
+    body: JSON.stringify({ product_id: productId, name, price_delta: priceDelta }),
+  });
 }
 
 export async function deleteModifier(id: string) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("modifiers")
-    .delete()
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  return api(`/api/admin/modifiers?id=${id}`, { method: "DELETE" });
 }

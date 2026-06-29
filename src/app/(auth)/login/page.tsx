@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coffee, Lock, Eye, EyeOff } from "lucide-react";
+import { Coffee, Lock, Eye, EyeOff, Building2 } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
 import ToastContainer from "@/components/shared/Toast";
-import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
+export default function CompanyLoginPage() {
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,26 +15,32 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      showToast("error", "Email dan password harus diisi");
+    if (!code || !password) {
+      showToast("error", "Kode perusahaan dan password harus diisi");
       return;
     }
     setIsLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const res = await fetch("/api/auth/tenant/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, password }),
+      });
 
-    if (error) {
-      showToast("error", error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast("error", data.error || "Login gagal");
+        setIsLoading(false);
+        return;
+      }
+
+      router.push("/login/select-outlet");
+    } catch {
+      showToast("error", "Terjadi kesalahan, coba lagi");
       setIsLoading(false);
-      return;
     }
-
-    showToast("success", "Login berhasil");
-    router.push("/register");
   };
 
   return (
@@ -48,25 +53,28 @@ export default function LoginPage() {
           <h1 className="font-display font-bold text-2xl text-neutral-900">
             Stocko
           </h1>
-          <p className="text-sm text-neutral-400 mt-1">Point of Sale System</p>
+          <p className="text-sm text-neutral-400 mt-1">Masuk ke perusahaan Anda</p>
         </div>
 
         <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
           <div>
             <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">
-              Email
+              Kode Perusahaan
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="kasir@stocko.id"
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
-            />
+            <div className="relative">
+              <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="KOPIKITA"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest uppercase"
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">
-              Password
+              Password Perusahaan
             </label>
             <div className="relative">
               <input

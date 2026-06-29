@@ -1,0 +1,11 @@
+import { NextRequest, NextResponse } from "next/server";
+import { clearSessionCookie } from "@/lib/auth/tenant-session";
+import { clearPendingLoginCookie } from "@/lib/auth/pending-login";
+
+export async function POST(request: NextRequest) {
+  return NextResponse.redirect(new URL("/login", request.url), {
+    headers: {
+      "Set-Cookie": [clearSessionCookie(), clearPendingLoginCookie()].join(", "),
+    },
+  });
+}

@@ -11,6 +11,9 @@ import {
   updateProduct,
   createModifier,
   deleteModifier,
+  createCategory,
+  updateCategory,
+  deleteCategory,
 } from "@/lib/supabase/queries.client";
 import { uploadProductImage } from "@/lib/supabase/storage";
 import Badge from "@/components/shared/Badge";
@@ -28,6 +31,7 @@ import {
   Trash2,
   Upload,
   GripHorizontal,
+  Settings,
 } from "lucide-react";
 
 interface Props {
@@ -36,9 +40,14 @@ interface Props {
   modifiers: Modifier[];
 }
 
-export default function AdminProductsClient({ products: initialProducts, categories, modifiers: initialModifiers }: Props) {
+export default function AdminProductsClient({ products: initialProducts, categories: initialCategories, modifiers: initialModifiers }: Props) {
   const [productList, setProductList] = useState(initialProducts);
   const [modifierList, setModifierList] = useState(initialModifiers);
+  const [catList, setCatList] = useState(initialCategories);
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [catNewName, setCatNewName] = useState("");
+  const [catEditId, setCatEditId] = useState<string | null>(null);
+  const [catEditName, setCatEditName] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -97,7 +106,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
     setForm({
       name: "",
       price: "",
-      category_id: categories[0]?.id ?? "",
+      category_id: catList[0]?.id ?? "",
       description: "",
       is_active: true,
     });
@@ -137,6 +146,17 @@ export default function AdminProductsClient({ products: initialProducts, categor
     setSaving(true);
 
     try {
+      let companyId: string | undefined;
+      let outletId: string | undefined;
+      try {
+        const res = await fetch("/api/auth/tenant/session");
+        if (res.ok) {
+          const s = await res.json();
+          companyId = s.company_id;
+          outletId = s.outlet_id;
+        }
+      } catch {}
+
       if (editingProduct) {
         const updates: Record<string, string | number | boolean | null> = {
           name: form.name,
@@ -162,7 +182,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
                   ...p,
                   ...updates,
                   category_name:
-                    categories.find((c) => c.id === form.category_id)?.name ?? "",
+                    catList.find((c) => c.id === form.category_id)?.name ?? "",
                 }
               : p
           )
@@ -175,6 +195,8 @@ export default function AdminProductsClient({ products: initialProducts, categor
           category_id: form.category_id,
           description: form.description,
           is_active: form.is_active,
+          companyId,
+          outletId,
         });
 
         let imageUrl: string | null = null;
@@ -194,7 +216,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
           is_active: data.is_active,
           description: data.description,
           category_name:
-            categories.find((c) => c.id === data.category_id)?.name ?? "",
+            catList.find((c) => c.id === data.category_id)?.name ?? "",
         };
         setProductList((prev) => [...prev, newProduct]);
         showToast("success", "Produk berhasil ditambahkan");
@@ -261,6 +283,62 @@ export default function AdminProductsClient({ products: initialProducts, categor
     }
   };
 
+  const handleCatAdd = async () => {
+    const name = catNewName.trim();
+    if (!name) return;
+    try {
+      const res = await fetch("/api/auth/tenant/session");
+      let companyId = "";
+      let outletId = "";
+      if (res.ok) {
+        const s = await res.json();
+        companyId = s.company_id;
+        outletId = s.outlet_id;
+      }
+      const data = await createCategory(name, companyId, outletId);
+      setCatList((prev) => [...prev, { id: data.id, name: data.name, sort_order: data.sort_order }]);
+      setForm((prev) => ({ ...prev, category_id: data.id }));
+      setCatNewName("");
+      showToast("success", "Kategori berhasil ditambahkan");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal menambah kategori";
+      showToast("error", msg);
+    }
+  };
+
+  const handleCatStartEdit = (cat: Category) => {
+    setCatEditId(cat.id);
+    setCatEditName(cat.name);
+  };
+
+  const handleCatSaveEdit = async () => {
+    if (!catEditId || !catEditName.trim()) return;
+    try {
+      await updateCategory(catEditId, catEditName.trim());
+      setCatList((prev) => prev.map((c) => (c.id === catEditId ? { ...c, name: catEditName.trim() } : c)));
+      setCatEditId(null);
+      setCatEditName("");
+      showToast("success", "Kategori berhasil diupdate");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal mengupdate kategori";
+      showToast("error", msg);
+    }
+  };
+
+  const handleCatDelete = async (id: string) => {
+    try {
+      await deleteCategory(id);
+      setCatList((prev) => prev.filter((c) => c.id !== id));
+      if (form.category_id === id) {
+        setForm((prev) => ({ ...prev, category_id: catList.find((c) => c.id !== id)?.id ?? "" }));
+      }
+      showToast("success", "Kategori berhasil dihapus");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal menghapus kategori";
+      showToast("error", msg);
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -293,7 +371,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
           className="w-full sm:w-auto bg-white border border-neutral-200 rounded-xl px-4 py-2.5 sm:py-2 text-sm text-neutral-600 focus:outline-none focus:border-forest"
         >
           <option value="all">Semua Kategori</option>
-          {categories.map((c) => (
+          {catList.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -481,10 +559,17 @@ export default function AdminProductsClient({ products: initialProducts, categor
                   <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Kategori</label>
                   <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-forest">
-                    {categories.map((c) => (
+                    {catList.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setShowCatModal(true)}
+                    className="text-xs text-forest font-medium mt-1.5 hover:underline flex items-center gap-1"
+                  >
+                    <Settings size={12} />
+                    Atur Kategori
+                  </button>
                 </div>
               </div>
 
@@ -578,6 +663,88 @@ export default function AdminProductsClient({ products: initialProducts, categor
               </div>
             </div>
           </div>
+          </div>
+        </div>
+      )}
+
+      {showCatModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+          <div className="min-h-full flex items-end sm:items-center justify-center sm:p-4">
+            <div className="bg-white sm:rounded-2xl shadow-md w-full sm:max-w-sm sm:p-6 p-4 pb-safe">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-display font-semibold text-base text-neutral-900">Atur Kategori</h3>
+                <button onClick={() => { setShowCatModal(false); setCatNewName(""); setCatEditId(null); }}
+                  className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={catNewName}
+                  onChange={(e) => setCatNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCatAdd()}
+                  placeholder="Nama kategori baru..."
+                  className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                />
+                <button
+                  onClick={handleCatAdd}
+                  disabled={!catNewName.trim()}
+                  className="bg-forest text-white rounded-xl px-3 py-2 text-sm font-semibold hover:bg-forest-dark active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-1"
+                >
+                  <Plus size={15} />
+                  Tambah
+                </button>
+              </div>
+
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {catList.length === 0 ? (
+                  <p className="text-sm text-neutral-400 text-center py-6">Belum ada kategori</p>
+                ) : (
+                  catList
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((cat) => (
+                      <div key={cat.id} className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-neutral-50 group">
+                        {catEditId === cat.id ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="text"
+                              value={catEditName}
+                              onChange={(e) => setCatEditName(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleCatSaveEdit()}
+                              className="flex-1 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm text-neutral-900 focus:outline-none focus:border-forest"
+                              autoFocus
+                            />
+                            <button onClick={handleCatSaveEdit}
+                              className="w-7 h-7 rounded-lg bg-forest text-white flex items-center justify-center">
+                              <Check size={13} />
+                            </button>
+                            <button onClick={() => setCatEditId(null)}
+                              className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-400 flex items-center justify-center">
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="flex-1 text-sm text-neutral-900 truncate">{cat.name}</span>
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleCatStartEdit(cat)}
+                                className="w-7 h-7 rounded-lg hover:bg-neutral-200 flex items-center justify-center text-neutral-400 hover:text-neutral-700 transition-colors">
+                                <Pencil size={13} />
+                              </button>
+                              <button onClick={() => handleCatDelete(cat.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
