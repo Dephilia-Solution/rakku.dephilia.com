@@ -7,9 +7,12 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   await supabase.auth.signOut();
 
-  return NextResponse.redirect(new URL("/login", request.url), {
-    headers: {
-      "Set-Cookie": [clearSessionCookie(), clearPendingLoginCookie()].join(", "),
-    },
+  const response = NextResponse.redirect(new URL("/login", request.url), {
+    status: 303,
   });
+  response.headers.set(
+    "Set-Cookie",
+    [clearSessionCookie(), clearPendingLoginCookie()].join(", "),
+  );
+  return response;
 }
