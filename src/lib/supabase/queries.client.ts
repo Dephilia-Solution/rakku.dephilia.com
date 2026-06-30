@@ -19,6 +19,8 @@ export async function createOrder(data: {
   total: number;
   customerName?: string;
   note?: string;
+  status?: string;
+  paymentStatus?: string;
   companyId?: string;
   outletId?: string;
   cashierId?: string;

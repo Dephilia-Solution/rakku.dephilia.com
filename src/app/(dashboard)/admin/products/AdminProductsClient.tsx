@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ProductWithCategory, Category, Modifier } from "@/types";
+import { ProductWithCategory, Category, Modifier, PricingOption } from "@/types";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
 import {
@@ -18,6 +18,7 @@ import {
 import { uploadProductImage } from "@/lib/supabase/storage";
 import Badge from "@/components/shared/Badge";
 import EmptyState from "@/components/shared/EmptyState";
+import PricingOptionsManager from "@/components/admin/PricingOptionsManager";
 import {
   Plus,
   Search,
@@ -66,16 +67,38 @@ export default function AdminProductsClient({ products: initialProducts, categor
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [productModifiers, setProductModifiers] = useState<Modifier[]>([]);
+  const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, priceDelta: number}>>([]);
   const [modifierForm, setModifierForm] = useState({ name: "", priceDelta: "" });
+
+  const [pricingOptions, setPricingOptions] = useState<PricingOption[]>([]);
+  const [newProductPricingOptions, setNewProductPricingOptions] = useState<Array<{name: string, price: number}>>([]);
+  const [pricingOptionForm, setPricingOptionForm] = useState({ name: "", price: "" });
 
   useEffect(() => {
     if (editingProduct) {
       setProductModifiers(modifierList.filter((m) => m.product_id === editingProduct.id));
+      setNewProductModifiers([]);
+      setNewProductPricingOptions([]);
+      fetchPricingOptions(editingProduct.id);
     } else {
       setProductModifiers([]);
+      setNewProductModifiers([]);
+      setPricingOptions([]);
+      setNewProductPricingOptions([]);
     }
     setModifierForm({ name: "", priceDelta: "" });
+    setPricingOptionForm({ name: "", price: "" });
   }, [editingProduct, modifierList]);
+
+  const fetchPricingOptions = async (productId: string) => {
+    try {
+      const res = await fetch(`/api/admin/pricing-options?product_id=${productId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPricingOptions(data);
+      }
+    } catch {}
+  };
 
   const filtered = productList.filter((p) => {
     if (categoryFilter !== "all" && p.category_id !== categoryFilter)
@@ -219,6 +242,35 @@ export default function AdminProductsClient({ products: initialProducts, categor
             catList.find((c) => c.id === data.category_id)?.name ?? "",
         };
         setProductList((prev) => [...prev, newProduct]);
+
+        if (newProductModifiers.length > 0) {
+          for (const mod of newProductModifiers) {
+            try {
+              const created = await createModifier(data.id, mod.name, mod.priceDelta);
+              setModifierList((prev) => [...prev, created]);
+            } catch {}
+          }
+          setNewProductModifiers([]);
+        }
+
+        if (newProductPricingOptions.length > 0) {
+          for (const opt of newProductPricingOptions) {
+            try {
+              await fetch("/api/admin/pricing-options", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  product_id: data.id,
+                  name: opt.name,
+                  price: opt.price,
+                  company_id: companyId,
+                  outlet_id: outletId,
+                }),
+              });
+            } catch {}
+          }
+          setNewProductPricingOptions([]);
+        }
         showToast("success", "Produk berhasil ditambahkan");
       }
 
@@ -250,7 +302,6 @@ export default function AdminProductsClient({ products: initialProducts, categor
   };
 
   const handleAddModifier = async () => {
-    if (!editingProduct) return;
     const name = modifierForm.name.trim();
     const priceDelta = Number(modifierForm.priceDelta);
     if (!name) {
@@ -261,15 +312,38 @@ export default function AdminProductsClient({ products: initialProducts, categor
       showToast("error", "Harga tambahan tidak valid");
       return;
     }
-    try {
-      const created = await createModifier(editingProduct.id, name, priceDelta);
-      setModifierList((prev) => [...prev, created]);
+
+    if (editingProduct) {
+      try {
+        const created = await createModifier(editingProduct.id, name, priceDelta);
+        setModifierList((prev) => [...prev, created]);
+        setModifierForm({ name: "", priceDelta: "" });
+        showToast("success", "Add-on berhasil ditambahkan");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Gagal menambah add-on";
+        showToast("error", msg);
+      }
+    } else {
+      setNewProductModifiers((prev) => [...prev, { name, priceDelta }]);
       setModifierForm({ name: "", priceDelta: "" });
-      showToast("success", "Add-on berhasil ditambahkan");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Gagal menambah add-on";
-      showToast("error", msg);
+      showToast("success", "Add-on ditambahkan (akan disimpan saat produk dibuat)");
     }
+  };
+
+  const handleAddPricingOption = () => {
+    const name = pricingOptionForm.name.trim();
+    const price = Number(pricingOptionForm.price);
+    if (!name) {
+      showToast("error", "Nama opsi harga harus diisi");
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      showToast("error", "Harga tidak valid");
+      return;
+    }
+    setNewProductPricingOptions((prev) => [...prev, { name, price }]);
+    setPricingOptionForm({ name: "", price: "" });
+    showToast("success", "Opsi harga ditambahkan (akan disimpan saat produk dibuat)");
   };
 
   const handleDeleteModifier = async (mod: Modifier) => {
@@ -588,63 +662,149 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 </button>
               </div>
 
-              {editingProduct && (
-                <div className="border-t border-neutral-200 pt-4 mt-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <GripHorizontal size={14} className="text-neutral-400" />
-                    <span className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                      Add-ons / Modifier
-                    </span>
-                  </div>
+              {/* ── ADD-ONS / MODIFIER ── */}
+              <div className="border-t border-neutral-200 pt-4 mt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <GripHorizontal size={14} className="text-neutral-400" />
+                  <span className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                    Add-ons / Modifier
+                  </span>
+                </div>
 
-                  {productModifiers.length > 0 && (
-                    <div className="space-y-1.5 mb-3">
-                      {productModifiers.map((mod) => (
-                        <div key={mod.id} className="flex items-center justify-between bg-neutral-50 rounded-xl px-3 py-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
-                            <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
-                              +{formatCurrency(mod.price_delta)}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteModifier(mod)}
-                            className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                {productModifiers.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {productModifiers.map((mod) => (
+                      <div key={mod.id} className="flex items-center justify-between bg-neutral-50 rounded-xl px-3 py-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                          <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
+                            +{formatCurrency(mod.price_delta)}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <button
+                          onClick={() => handleDeleteModifier(mod)}
+                          className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                  <div className="flex items-center gap-2">
+                {newProductModifiers.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {newProductModifiers.map((mod, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                          <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
+                            +{formatCurrency(mod.priceDelta)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setNewProductModifiers((prev) => prev.filter((_, i) => i !== idx))}
+                          className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={modifierForm.name}
+                    onChange={(e) => setModifierForm({ ...modifierForm, name: e.target.value })}
+                    placeholder="Nama add-on"
+                    className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest min-w-0"
+                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">+</span>
                     <input
-                      type="text"
-                      value={modifierForm.name}
-                      onChange={(e) => setModifierForm({ ...modifierForm, name: e.target.value })}
-                      placeholder="Nama add-on"
-                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest min-w-0"
+                      type="number"
+                      value={modifierForm.priceDelta}
+                      onChange={(e) => setModifierForm({ ...modifierForm, priceDelta: e.target.value })}
+                      placeholder="0"
+                      className="w-24 bg-neutral-50 border border-neutral-200 rounded-xl pl-6 pr-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                     />
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">+</span>
+                  </div>
+                  <button
+                    onClick={handleAddModifier}
+                    className="w-9 h-9 rounded-xl bg-forest text-white flex items-center justify-center hover:bg-forest-dark active:scale-[0.97] transition-all flex-shrink-0"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── OPSI HARGA TAMBAHAN ── */}
+              <div className="border-t border-neutral-200 pt-4 mt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <GripHorizontal size={14} className="text-neutral-400" />
+                  <span className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                    Opsi Harga Tambahan (opsional)
+                  </span>
+                </div>
+
+                {editingProduct && (
+                  <PricingOptionsManager
+                    productId={editingProduct.id}
+                    options={pricingOptions}
+                    onOptionsChange={setPricingOptions}
+                  />
+                )}
+
+                {!editingProduct && (
+                  <>
+                    {newProductPricingOptions.length > 0 && (
+                      <div className="space-y-1.5 mb-3">
+                        {newProductPricingOptions.map((opt, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-sm text-neutral-900 truncate">{opt.name}</span>
+                              <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
+                                {formatCurrency(opt.price)}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setNewProductPricingOptions((prev) => prev.filter((_, i) => i !== idx))}
+                              className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={pricingOptionForm.name}
+                        onChange={(e) => setPricingOptionForm({ ...pricingOptionForm, name: e.target.value })}
+                        placeholder="Nama opsi (Gojek Regular)"
+                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest min-w-0"
+                      />
                       <input
                         type="number"
-                        value={modifierForm.priceDelta}
-                        onChange={(e) => setModifierForm({ ...modifierForm, priceDelta: e.target.value })}
-                        placeholder="0"
-                        className="w-24 bg-neutral-50 border border-neutral-200 rounded-xl pl-6 pr-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                        value={pricingOptionForm.price}
+                        onChange={(e) => setPricingOptionForm({ ...pricingOptionForm, price: e.target.value })}
+                        placeholder="Harga"
+                        className="w-24 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                       />
+                      <button
+                        onClick={handleAddPricingOption}
+                        className="w-9 h-9 rounded-xl bg-forest text-white flex items-center justify-center hover:bg-forest-dark active:scale-[0.97] transition-all flex-shrink-0"
+                      >
+                        <Plus size={16} />
+                      </button>
                     </div>
-                    <button
-                      onClick={handleAddModifier}
-                      className="w-9 h-9 rounded-xl bg-forest text-white flex items-center justify-center hover:bg-forest-dark active:scale-[0.97] transition-all flex-shrink-0"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
+                  </>
+                )}
+              </div>
 
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { setShowForm(false); setEditingProduct(null); }}

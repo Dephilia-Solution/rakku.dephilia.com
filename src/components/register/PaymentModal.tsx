@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useCartStore, useCartTotals } from "@/lib/store/cartStore";
+import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/cartStore";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
 import { createOrder } from "@/lib/supabase/queries.client";
 import { PaymentMethod } from "@/types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { Banknote, QrCode, CreditCard, X, CheckCircle } from "lucide-react";
+import { Banknote, QrCode, CreditCard, Clock, X, CheckCircle } from "lucide-react";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ const paymentMethods: {
   { value: "cash", label: "Tunai", icon: Banknote },
   { value: "qris", label: "QRIS", icon: QrCode },
   { value: "card", label: "Kartu", icon: CreditCard },
+  { value: "later", label: "Bayar Nanti", icon: Clock },
 ];
 
 export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
@@ -32,8 +33,11 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const items = useCartStore((s) => s.items);
   const orderType = useCartStore((s) => s.orderType);
+  const customerName = useCartStore((s) => s.customerName);
+  const setCustomerName = useCartStore((s) => s.setCustomerName);
   const { subtotal, taxAmount, total } = useCartTotals();
   const clear = useCartStore((s) => s.clear);
+  const groupedCart = useCartGroupedArray();
 
   const isMobile = useIsMobile();
 
@@ -66,7 +70,13 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const handleSubmit = async () => {
     if (!method) return;
+    if (!customerName.trim()) {
+      showToast("error", "Nama customer wajib diisi");
+      return;
+    }
     setIsSubmitting(true);
+
+    const isPayLater = method === "later";
 
     // Get tenant session for tenant-scoped order
     let companyId: string | undefined;
@@ -90,6 +100,9 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         subtotal,
         taxAmount,
         total,
+        customerName: customerName.trim(),
+        status: isPayLater ? "draft" : "completed",
+        paymentStatus: isPayLater ? "unpaid" : "paid",
         companyId,
         outletId,
         cashierId,
@@ -103,7 +116,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         onClose();
         setMethod(null);
         setCashAmount("");
-        showToast("success", "Transaksi berhasil!");
+        showToast("success", isPayLater ? "Pesanan disimpan sebagai draft!" : "Transaksi berhasil!");
       }, 1500);
     } catch {
       showToast("error", "Gagal menyimpan transaksi");
@@ -144,6 +157,45 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               <p className="font-mono text-3xl font-bold text-neutral-900">
                 {formatCurrency(total)}
               </p>
+            </div>
+
+            {/* Customer Name */}
+            <div>
+              <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">
+                Nama Customer <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Masukkan nama customer"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+              />
+            </div>
+
+            {/* Order Summary Grouped */}
+            <div>
+              <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-2">
+                Ringkasan Pesanan
+              </p>
+              <div className="bg-neutral-50 rounded-xl p-3 space-y-2 max-h-40 overflow-y-auto">
+                {groupedCart.map(({ category, items: catItems }) => (
+                  <div key={category}>
+                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+                      {category}
+                    </p>
+                    {catItems.map((item) => (
+                      <div key={item.id} className="flex justify-between text-xs text-neutral-700 ml-2 mb-0.5">
+                        <span className="truncate">
+                          {item.quantity}x {item.product.name}
+                          {item.pricing_option_name && ` (${item.pricing_option_name})`}
+                        </span>
+                        <span className="font-mono ml-2">{formatCurrency(item.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -235,7 +287,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             <button
               onClick={handleSubmit}
               disabled={
-                !method || (method === "cash" && (!cashAmount || !isCashEnough))
+                !method || !customerName.trim() || (method === "cash" && (!cashAmount || !isCashEnough))
               }
               className="w-full bg-forest text-white rounded-xl px-6 py-3.5 font-semibold text-sm hover:bg-forest-dark active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >

@@ -26,7 +26,21 @@ export interface Modifier {
 }
 
 export type OrderType = "dine_in" | "delivery";
-export type PaymentMethod = "cash" | "qris" | "card";
+export type PaymentMethod = "cash" | "qris" | "card" | "later";
+export type OrderStatus = "draft" | "pending_payment" | "completed" | "cancelled";
+export type PaymentStatus = "unpaid" | "partial" | "paid" | "refunded";
+
+export interface PricingOption {
+  id: string;
+  product_id: string;
+  name: string;
+  price: number;
+  is_active: boolean;
+  company_id: string;
+  outlet_id: string;
+  sort_order: number;
+  created_at: string;
+}
 
 export interface Order {
   id: string;
@@ -38,7 +52,11 @@ export interface Order {
   tax_amount: number;
   total_price: number;
   note: string | null;
-  customer_name: string | null;
+  customer_name: string;
+  status: OrderStatus;
+  payment_status: PaymentStatus;
+  reserved_until: string | null;
+  pricing_option_id: string | null;
   created_at: string;
 }
 
@@ -65,6 +83,8 @@ export interface CartItem {
   modifier_label: string | null;
   unit_price: number;
   subtotal: number;
+  pricing_option_id?: string;
+  pricing_option_name?: string;
 }
 
 export interface Company {

@@ -6,11 +6,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     orderType, paymentMethod, items, subtotal, taxAmount, total,
-    customerName, note, companyId, outletId, cashierId,
+    customerName, note, status, paymentStatus, companyId, outletId, cashierId,
   } = body;
 
   if (!orderType || !paymentMethod || !items || !items.length) {
     return NextResponse.json({ error: "Data order tidak lengkap" }, { status: 400 });
+  }
+
+  if (!customerName || !customerName.trim()) {
+    return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -24,8 +28,10 @@ export async function POST(request: NextRequest) {
       tax_rate: Number(process.env.NEXT_PUBLIC_TAX_RATE) || 10,
       tax_amount: taxAmount,
       total_price: total,
-      customer_name: customerName || null,
+      customer_name: customerName.trim(),
       note: note || null,
+      status: status || "completed",
+      payment_status: paymentStatus || "paid",
       company_id: companyId || null,
       outlet_id: outletId || null,
       cashier_id: cashierId || null,

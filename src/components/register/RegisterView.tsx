@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useCartStore } from "@/lib/store/cartStore";
-import { ProductWithCategory, Category, Modifier } from "@/types";
+import { ProductWithCategory, Category, Modifier, PricingOption } from "@/types";
 import CategoryTabs from "@/components/register/CategoryTabs";
 import ProductGrid from "@/components/register/ProductGrid";
 import OrderSidebar from "@/components/register/OrderSidebar";
 import MobileCartBar from "@/components/register/MobileCartBar";
 import PaymentModal from "@/components/register/PaymentModal";
+import DraftOrdersPanel from "@/components/register/DraftOrdersPanel";
+import PricingOptionSelector from "@/components/register/PricingOptionSelector";
 import { Search, Command } from "lucide-react";
 
 interface RegisterViewProps {
@@ -25,11 +27,15 @@ export default function RegisterView({
   const [searchQuery, setSearchQuery] = useState("");
   const [showPayment, setShowPayment] = useState(false);
   const [showCartDrawer, setShowCartDrawer] = useState(false);
+  const [showDraftPanel, setShowDraftPanel] = useState(false);
 
   const [showModifierModal, setShowModifierModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithCategory | null>(null);
 
   const addProduct = useCartStore((s) => s.addProduct);
+
+  const [selectedPricingOption, setSelectedPricingOption] = useState<PricingOption | null>(null);
+  const [productPricingOptions, setProductPricingOptions] = useState<PricingOption[]>([]);
 
   const filteredProducts = products.filter((p) => {
     if (!p.is_active) return false;
@@ -45,10 +51,24 @@ export default function RegisterView({
     return true;
   });
 
-  const handleSelectProduct = (product: ProductWithCategory) => {
+  const handleSelectProduct = async (product: ProductWithCategory) => {
     const productMods = modifiers.filter((m) => m.product_id === product.id);
-    if (productMods.length > 0) {
+    const hasMods = productMods.length > 0;
+
+    // Fetch pricing options
+    let hasPricingOptions = false;
+    try {
+      const res = await fetch(`/api/admin/pricing-options?product_id=${product.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProductPricingOptions(data);
+        hasPricingOptions = data.length > 0;
+      }
+    } catch {}
+
+    if (hasMods || hasPricingOptions) {
       setSelectedProduct(product);
+      setSelectedPricingOption(null);
       setShowModifierModal(true);
     } else {
       addProduct(product);
@@ -57,14 +77,36 @@ export default function RegisterView({
 
   const handleAddWithModifier = (modifier?: Modifier) => {
     if (selectedProduct) {
-      addProduct(selectedProduct, modifier);
+      addProduct(selectedProduct, modifier, selectedPricingOption ?? undefined);
     }
     setShowModifierModal(false);
     setSelectedProduct(null);
+    setSelectedPricingOption(null);
+    setProductPricingOptions([]);
   };
 
   const handleCheckout = () => {
     setShowPayment(true);
+  };
+
+  const handleSelectDraft = async (draft: { id: string; customer_name: string; order_items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number; modifier_label: string | null }> }) => {
+    const clear = useCartStore.getState().clear;
+    const setDraftOrderId = useCartStore.getState().setDraftOrderId;
+    const setCustomerName = useCartStore.getState().setCustomerName;
+
+    clear();
+    setDraftOrderId(draft.id);
+    setCustomerName(draft.customer_name);
+
+    // Reload items from draft order items into cart
+    for (const item of draft.order_items) {
+      const product = products.find((p) => p.name === item.product_name);
+      if (product) {
+        useCartStore.getState().addProduct(product);
+      }
+    }
+
+    setShowDraftPanel(false);
   };
 
   return (
@@ -111,7 +153,7 @@ export default function RegisterView({
       </div>
 
       {/* Desktop: Order Sidebar */}
-      <OrderSidebar onCheckout={handleCheckout} />
+      <OrderSidebar onCheckout={handleCheckout} onOpenDraft={() => setShowDraftPanel(true)} />
 
       {/* Mobile: Cart Drawer */}
       <OrderSidebar
@@ -122,12 +164,22 @@ export default function RegisterView({
           setShowCartDrawer(false);
           setShowPayment(true);
         }}
+        onOpenDraft={() => setShowDraftPanel(true)}
       />
 
       {/* Mobile: Persistent Cart Bar */}
       <MobileCartBar
         onViewCart={() => setShowCartDrawer(true)}
         onCheckout={() => setShowPayment(true)}
+      />
+
+
+
+      {/* Draft Orders Panel */}
+      <DraftOrdersPanel
+        isOpen={showDraftPanel}
+        onClose={() => setShowDraftPanel(false)}
+        onSelectDraft={handleSelectDraft}
       />
 
       {/* Payment Modal */}
@@ -144,6 +196,19 @@ export default function RegisterView({
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-4">
               {selectedProduct.name}
             </h3>
+
+            {/* Pricing Options */}
+            {productPricingOptions.length > 0 && (
+              <div className="mb-4">
+                <PricingOptionSelector
+                  options={productPricingOptions}
+                  selectedId={selectedPricingOption?.id}
+                  basePrice={selectedProduct.price}
+                  onSelect={setSelectedPricingOption}
+                />
+              </div>
+            )}
+
             <p className="text-sm text-neutral-600 mb-4">Pilih tambahan:</p>
             <div className="space-y-2">
               <button
@@ -173,6 +238,8 @@ export default function RegisterView({
               onClick={() => {
                 setShowModifierModal(false);
                 setSelectedProduct(null);
+                setSelectedPricingOption(null);
+                setProductPricingOptions([]);
               }}
               className="mt-4 w-full text-sm text-neutral-400 hover:text-neutral-600 py-2"
             >

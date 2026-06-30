@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { OrderType, PaymentMethod } from "@/types";
+import { OrderType, PaymentMethod, OrderStatus, PaymentStatus } from "@/types";
 
 type JsonLike = Record<string, unknown>;
 
@@ -113,7 +113,11 @@ export async function getOrders() {
       tax_amount: Number(o.tax_amount),
       total_price: Number(o.total_price),
       note: o.note as string | null,
-      customer_name: o.customer_name as string | null,
+      customer_name: (o.customer_name as string) ?? "",
+      status: (o.status as OrderStatus) ?? "completed",
+      payment_status: (o.payment_status as PaymentStatus) ?? "paid",
+      reserved_until: o.reserved_until as string | null,
+      pricing_option_id: o.pricing_option_id as string | null,
       created_at: o.created_at as string,
       items: ((o.order_items ?? []) as JsonLike[]).map((i) => ({
         id: i.id as string,
