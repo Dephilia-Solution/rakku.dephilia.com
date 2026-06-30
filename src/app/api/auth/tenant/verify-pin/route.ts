@@ -3,16 +3,55 @@ import { getPendingLoginFromCookies, clearPendingLoginCookie } from "@/lib/auth/
 import { verifyPin, isLocked, getLockoutConfig, computeLockedUntil } from "@/lib/auth/pin";
 import { signSession, setSessionCookie } from "@/lib/auth/tenant-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAuthEvent } from "@/lib/auth/audit-log";
+
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const cfConnectingIp = request.headers.get("cf-connecting-ip");
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  if (realIp) return realIp;
+  if (cfConnectingIp) return cfConnectingIp;
+
+  return request.headers.get("host") || "unknown";
+}
 
 export async function POST(request: NextRequest) {
   const { pin, user_id } = await request.json();
   const pending = await getPendingLoginFromCookies();
+  const ipAddress = getClientIp(request);
+  const userAgent = request.headers.get("user-agent") || undefined;
 
   if (!pending || !pending.outlet_id) {
+    await logAuthEvent({
+      company_id: pending?.company_id,
+      outlet_id: pending?.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "session_invalid",
+      metadata: {},
+    });
     return NextResponse.json({ error: "Sesi login tidak ditemukan" }, { status: 401 });
   }
 
   if (!pin || pin.length !== 6) {
+    await logAuthEvent({
+      company_id: pending.company_id,
+      outlet_id: pending.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "pin_invalid_format",
+      metadata: { pin_length: pin?.length },
+    });
     return NextResponse.json({ error: "PIN harus 6 digit" }, { status: 400 });
   }
 
@@ -26,14 +65,47 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!user) {
+    await logAuthEvent({
+      company_id: pending.company_id,
+      outlet_id: pending.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "user_not_found",
+      metadata: {},
+    });
     return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
   }
 
   if (user.status !== "active") {
+    await logAuthEvent({
+      company_id: pending.company_id,
+      outlet_id: pending.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "user_inactive",
+      metadata: { user_status: user.status },
+    });
     return NextResponse.json({ error: "Akun tidak aktif" }, { status: 403 });
   }
 
   if (isLocked(user.locked_until)) {
+    await logAuthEvent({
+      company_id: pending.company_id,
+      outlet_id: pending.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "pin_locked",
+      metadata: { locked_until: user.locked_until },
+    });
     return NextResponse.json({ error: "Akun terkunci hingga " + new Date(user.locked_until).toLocaleTimeString("id-ID") }, { status: 423 });
   }
 
@@ -52,6 +124,18 @@ export async function POST(request: NextRequest) {
         })
         .eq("id", user.id);
 
+      await logAuthEvent({
+        company_id: pending.company_id,
+        outlet_id: pending.outlet_id,
+        user_id: user_id,
+        event_type: "pin_verify",
+        success: false,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        failure_reason: "locked_after_max_attempts",
+        metadata: { attempts: newAttempts, max_attempts: maxAttempts },
+      });
+
       return NextResponse.json(
         { error: "Akun terkunci 15 menit karena 5 kali salah PIN" },
         { status: 423 }
@@ -64,6 +148,17 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id);
 
     const remaining = maxAttempts - newAttempts;
+    await logAuthEvent({
+      company_id: pending.company_id,
+      outlet_id: pending.outlet_id,
+      user_id: user_id,
+      event_type: "pin_verify",
+      success: false,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      failure_reason: "wrong_pin",
+      metadata: { attempts: newAttempts, remaining_attempts: remaining },
+    });
     return NextResponse.json(
       { error: `PIN salah. Sisa percobaan: ${remaining}` },
       { status: 401 }
@@ -97,6 +192,29 @@ export async function POST(request: NextRequest) {
   const firstMenu = allowedSlug
     ? `/${allowedSlug === "products" ? "admin/products" : allowedSlug}`
     : "/register";
+
+  // Log successful PIN verification and session creation
+  await logAuthEvent({
+    company_id: pending.company_id,
+    outlet_id: pending.outlet_id,
+    user_id: user.id,
+    event_type: "pin_verify",
+    success: true,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+    metadata: { first_menu: firstMenu },
+  });
+
+  await logAuthEvent({
+    company_id: pending.company_id,
+    outlet_id: pending.outlet_id,
+    user_id: user.id,
+    event_type: "session_created",
+    success: true,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+    metadata: { session_duration: "12h", idle_timeout: "30m" },
+  });
 
   return NextResponse.json(
     { redirect: firstMenu },

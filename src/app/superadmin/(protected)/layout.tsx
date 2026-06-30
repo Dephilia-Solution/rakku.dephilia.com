@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   LogOut,
   Settings,
+  FileText,
 } from "lucide-react";
 import ToastContainer from "@/components/shared/Toast";
 
@@ -19,6 +20,7 @@ const superadminNav = [
   { href: "/superadmin/roles", icon: Users, label: "Roles" },
   { href: "/superadmin/access-matrix", icon: ShieldCheck, label: "Access" },
   { href: "/superadmin/users", icon: Settings, label: "Users" },
+  { href: "/superadmin/audit-logs", icon: FileText, label: "Audit Logs" },
 ];
 
 export default async function SuperadminLayout({

@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCompanyLogin } from "@/lib/auth/company";
 import { signPendingLogin, setPendingLoginCookie } from "@/lib/auth/pending-login";
 
+/**
+ * Extracts the client IP address from various headers.
+ * Checks X-Forwarded-For, X-Real-IP, and CF-Connecting-IP headers.
+ */
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const cfConnectingIp = request.headers.get("cf-connecting-ip");
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  if (realIp) return realIp;
+  if (cfConnectingIp) return cfConnectingIp;
+
+  return request.headers.get("host") || "unknown";
+}
+
 export async function POST(request: NextRequest) {
   const { code, password } = await request.json();
 
@@ -12,7 +30,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { company, error } = await verifyCompanyLogin(code.toUpperCase(), password);
+  // Extract IP and User Agent for audit logging
+  const ipAddress = getClientIp(request);
+  const userAgent = request.headers.get("user-agent") || undefined;
+
+  const { company, error } = await verifyCompanyLogin(
+    code.toUpperCase(),
+    password,
+    ipAddress,
+    userAgent
+  );
 
   if (error || !company) {
     return NextResponse.json({ error }, { status: 401 });
