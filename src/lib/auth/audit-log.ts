@@ -23,7 +23,7 @@ interface LogAuthEventParams {
   ip_address?: string | null;
   user_agent?: string | null;
   failure_reason?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -62,7 +62,7 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
  * @param request - The NextRequest object
  * @returns The client IP address or "unknown"
  */
-export function getClientIp(request: Request): string {
+export function getClientIp(): string {
   // Note: In Next.js server components/API routes, we need to handle headers differently
   // This is a placeholder - the actual implementation will be in the route handlers
   return "unknown";

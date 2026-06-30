@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { refreshSessionActivity, setSessionCookie } from "@/lib/auth/tenant-session";
 
 /**
@@ -12,7 +12,7 @@ import { refreshSessionActivity, setSessionCookie } from "@/lib/auth/tenant-sess
  * - 200: Session refreshed successfully
  * - 401: Session is invalid or expired
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   const newToken = await refreshSessionActivity();
 
   if (!newToken) {

@@ -15,7 +15,7 @@ async function requireSuperadmin() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireSuperadmin();
+    await requireSuperadmin();
     const supabase = await createClient();
 
     const { searchParams } = new URL(request.url);
@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Collect all unique IDs for batch fetching
-    const companyIds = [...new Set(logs.map((l) => l.company_id).filter((id): id is string => !!id))];
-    const userIds = [...new Set(logs.map((l) => l.user_id).filter((id): id is string => !!id))];
-    const outletIds = [...new Set(logs.map((l) => l.outlet_id).filter((id): id is string => !!id))];
+    const companyIds = Array.from(new Set(logs.map((l) => l.company_id).filter((id): id is string => !!id)));
+    const userIds = Array.from(new Set(logs.map((l) => l.user_id).filter((id): id is string => !!id)));
+    const outletIds = Array.from(new Set(logs.map((l) => l.outlet_id).filter((id): id is string => !!id)));
 
     // Fetch related data in parallel
     const [companiesResult, usersResult, outletsResult] = await Promise.allSettled([
@@ -90,9 +90,9 @@ export async function GET(request: NextRequest) {
       outletsResult.status === "fulfilled" ? outletsResult.value.data || [] : [];
 
     // Create lookup maps
-    const companyMap = new Map(companiesData.map((c: any) => [c.id, c.name]));
-    const userMap = new Map(usersData.map((u: any) => [u.id, u.name]));
-    const outletMap = new Map(outletsData.map((o: any) => [o.id, o.name]));
+    const companyMap = new Map(companiesData.map((c: { id: string; name: string }) => [c.id, c.name]));
+    const userMap = new Map(usersData.map((u: { id: string; name: string }) => [u.id, u.name]));
+    const outletMap = new Map(outletsData.map((o: { id: string; name: string }) => [o.id, o.name]));
 
     // Enrich logs with related names
     const enrichedLogs = logs.map((log) => ({

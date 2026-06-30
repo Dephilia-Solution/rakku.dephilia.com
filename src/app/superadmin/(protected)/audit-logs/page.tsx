@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { showToast } from "@/components/shared/Toast";
 import {
   Search,
   ShieldCheck,
   ShieldAlert,
   Calendar,
-  ChevronDown,
 } from "lucide-react";
 
 interface AuditLog {
@@ -20,7 +19,7 @@ interface AuditLog {
   ip_address: string | null;
   user_agent: string | null;
   failure_reason: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   companies?: { name: string } | null;
   users?: { name: string } | null;
@@ -55,12 +54,7 @@ export default function AuditLogsPage() {
     { value: "logout", label: "Logout" },
   ];
 
-  useEffect(() => {
-    fetchLogs();
-    fetchCompanies();
-  }, []);
-
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     try {
       const res = await fetch("/api/superadmin/companies");
       const data = await res.json();
@@ -68,7 +62,7 @@ export default function AuditLogsPage() {
     } catch {
       showToast("error", "Gagal memuat data companies");
     }
-  };
+  }, []);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -103,12 +97,20 @@ export default function AuditLogsPage() {
     setLoading(false);
   };
 
+  // Initial load
+  useEffect(() => {
+    fetchLogs();
+    fetchCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Apply filters when filter values change
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchLogs();
     }, 300);
     return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyFilter, eventTypeFilter, successFilter, dateFrom, dateTo]);
 
   const filtered = logs.filter((log) => {
