@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { CartItem } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   if (!customerName || !customerName.trim()) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
   }
+
+  const session = await getTenantSessionFromCookies();
+  const cashierName = session?.user_name ?? null;
 
   const supabase = createAdminClient();
 
@@ -35,6 +39,7 @@ export async function POST(request: NextRequest) {
       company_id: companyId || null,
       outlet_id: outletId || null,
       cashier_id: cashierId || null,
+      cashier_name: cashierName,
     })
     .select()
     .single();

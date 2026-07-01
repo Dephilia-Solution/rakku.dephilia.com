@@ -5,9 +5,10 @@ import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/ca
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
 import { createOrder } from "@/lib/supabase/queries.client";
+import InvoiceReceipt from "@/components/register/InvoiceReceipt";
 import { PaymentMethod } from "@/types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { Banknote, QrCode, CreditCard, Clock, X, CheckCircle } from "lucide-react";
+import { Banknote, QrCode, CreditCard, X } from "lucide-react";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -22,7 +23,6 @@ const paymentMethods: {
   { value: "cash", label: "Tunai", icon: Banknote },
   { value: "qris", label: "QRIS", icon: QrCode },
   { value: "card", label: "Kartu", icon: CreditCard },
-  { value: "later", label: "Bayar Nanti", icon: Clock },
 ];
 
 export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
@@ -30,6 +30,11 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const [cashAmount, setCashAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const [invoiceData, setInvoiceData] = useState<{
+    orderNumber: number;
+    createdAt: string;
+  } | null>(null);
 
   const items = useCartStore((s) => s.items);
   const orderType = useCartStore((s) => s.orderType);
@@ -68,6 +73,15 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     return Array.from(new Set(suggestions)).sort((a, b) => a - b).slice(0, 6);
   })();
 
+  const handleClose = () => {
+    setIsSuccess(false);
+    setInvoiceData(null);
+    setMethod(null);
+    setCashAmount("");
+    clear();
+    onClose();
+  };
+
   const handleSubmit = async () => {
     if (!method) return;
     if (!customerName.trim()) {
@@ -75,8 +89,6 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
       return;
     }
     setIsSubmitting(true);
-
-    const isPayLater = method === "later";
 
     // Get tenant session for tenant-scoped order
     let companyId: string | undefined;
@@ -93,7 +105,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     } catch {}
 
     try {
-      await createOrder({
+      const order = await createOrder({
         orderType,
         paymentMethod: method,
         items,
@@ -101,23 +113,25 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         taxAmount,
         total,
         customerName: customerName.trim(),
-        status: isPayLater ? "draft" : "completed",
-        paymentStatus: isPayLater ? "unpaid" : "paid",
+        status: "completed",
+        paymentStatus: "paid",
         companyId,
         outletId,
         cashierId,
       });
 
+      setInvoiceData({
+        orderNumber: order.order_number,
+        createdAt: new Date().toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
       setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        setIsSubmitting(false);
-        clear();
-        onClose();
-        setMethod(null);
-        setCashAmount("");
-        showToast("success", isPayLater ? "Pesanan disimpan sebagai draft!" : "Transaksi berhasil!");
-      }, 1500);
+      setIsSubmitting(false);
     } catch {
       showToast("error", "Gagal menyimpan transaksi");
       setIsSubmitting(false);
@@ -128,15 +142,26 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const content = (
     <>
-      {isSuccess ? (
-        <div className="py-16 px-8 flex flex-col items-center">
-          <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center mb-4">
-            <CheckCircle size={40} className="text-success" />
-          </div>
-          <p className="font-display font-bold text-lg text-neutral-900">
-            Transaksi Berhasil!
-          </p>
-        </div>
+      {isSuccess && invoiceData ? (
+        <InvoiceReceipt
+          orderNumber={invoiceData.orderNumber}
+          customerName={customerName}
+          cashierName={null}
+          items={items.map((i) => ({
+            product_name: i.product.name,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            subtotal: i.subtotal,
+            modifier_label: i.modifier_label,
+          }))}
+          subtotal={subtotal}
+          taxAmount={taxAmount}
+          total={total}
+          paymentMethod={method ?? "cash"}
+          orderType={orderType}
+          createdAt={invoiceData.createdAt}
+          onClose={handleClose}
+        />
       ) : (
         <>
           <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
@@ -144,7 +169,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               Pembayaran
             </h3>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
               <X size={16} />
@@ -306,7 +331,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
         <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90vh] animate-slide-up pb-safe">
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-neutral-300" />

@@ -114,6 +114,7 @@ export async function getOrders() {
       total_price: Number(o.total_price),
       note: o.note as string | null,
       customer_name: (o.customer_name as string) ?? "",
+      cashier_name: (o.cashier_name as string) ?? null,
       status: (o.status as OrderStatus) ?? "completed",
       payment_status: (o.payment_status as PaymentStatus) ?? "paid",
       reserved_until: o.reserved_until as string | null,

@@ -25,7 +25,7 @@ export interface Modifier {
   price_delta: number;
 }
 
-export type OrderType = "dine_in" | "delivery";
+export type OrderType = "dine_in" | "take_away" | "delivery" | "gojek" | "grab" | "shopee";
 export type PaymentMethod = "cash" | "qris" | "card" | "later";
 export type OrderStatus = "draft" | "pending_payment" | "completed" | "cancelled";
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "refunded";
@@ -53,6 +53,7 @@ export interface Order {
   total_price: number;
   note: string | null;
   customer_name: string;
+  cashier_name: string | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   reserved_until: string | null;
@@ -85,6 +86,8 @@ export interface CartItem {
   subtotal: number;
   pricing_option_id?: string;
   pricing_option_name?: string;
+  note?: string;
+  source?: 'draft' | 'new';
 }
 
 export interface Company {

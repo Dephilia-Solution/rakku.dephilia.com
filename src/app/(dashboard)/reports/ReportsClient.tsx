@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { OrderWithItems } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/dummy-data";
-import { BarChart3, TrendingUp, CupSoda } from "lucide-react";
+import EmailReportModal from "@/components/reports/EmailReportModal";
+import { BarChart3, TrendingUp, CupSoda, Mail } from "lucide-react";
 
 export default function ReportsClient({ orders }: { orders: OrderWithItems[] }) {
   const [dateRange, setDateRange] = useState("today");
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   const today = new Date();
   const filtered = orders.filter((o) => {
@@ -65,8 +67,21 @@ export default function ReportsClient({ orders }: { orders: OrderWithItems[] }) 
               {r.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowEmailModal(true)}
+            className="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center gap-1.5"
+          >
+            <Mail size={13} />
+            Kirim Email
+          </button>
         </div>
       </div>
+
+      <EmailReportModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        dateRange={dateRange}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-2xl shadow-sm p-5">

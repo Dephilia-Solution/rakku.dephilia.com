@@ -5,7 +5,8 @@ import { formatCurrency, formatDate } from "@/lib/dummy-data";
 import { OrderWithItems } from "@/types";
 import Badge from "@/components/shared/Badge";
 import EmptyState from "@/components/shared/EmptyState";
-import { Search, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ClipboardList, ChevronDown, ChevronUp, Printer } from "lucide-react";
+import Link from "next/link";
 
 const orderTypeLabels: Record<string, string> = {
   dine_in: "Walk-in",
@@ -16,6 +17,15 @@ const paymentLabels: Record<string, string> = {
   cash: "Tunai",
   qris: "QRIS",
   card: "Kartu",
+};
+
+const orderTypeLabelsAll: Record<string, string> = {
+  dine_in: "Dine In",
+  take_away: "Take Away",
+  delivery: "Delivery",
+  gojek: "Gojek",
+  grab: "Grab",
+  shopee: "Shopee",
 };
 
 interface OrdersClientProps {
@@ -112,7 +122,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-neutral-200">
-                  {["Order", "Waktu", "Tipe", "Items", "Pembayaran", "Total", ""].map((h) => (
+                  {["Order", "Waktu", "Tipe", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
                     <th
                       key={h}
                       className="text-left text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3"
@@ -143,34 +153,48 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                         <td className="px-4 py-3">
                           <Badge
                             variant={
-                              order.order_type === "delivery"
+                              order.order_type === "delivery" || order.order_type === "gojek" || order.order_type === "grab" || order.order_type === "shopee"
                                 ? "warning"
                                 : "active"
                             }
                           >
-                            {orderTypeLabels[order.order_type]}
+                            {orderTypeLabelsAll[order.order_type] ?? order.order_type}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-600">
                           {order.items.length} item
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-600">
-                          {paymentLabels[order.payment_method]}
+                          {order.cashier_name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-neutral-600">
+                          {paymentLabels[order.payment_method] ?? order.payment_method}
                         </td>
                         <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">
                           {formatCurrency(order.total_price)}
                         </td>
-                        <td className="px-4 py-3 text-neutral-400">
-                          {isExpanded ? (
-                            <ChevronUp size={16} />
-                          ) : (
-                            <ChevronDown size={16} />
-                          )}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Link
+                              href={`/orders/${order.id}/invoice`}
+                              className="p-1.5 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 transition-colors"
+                              title="Print Invoice"
+                            >
+                              <Printer size={14} />
+                            </Link>
+                            <span className="text-neutral-300">
+                              {isExpanded ? (
+                                <ChevronUp size={16} />
+                              ) : (
+                                <ChevronDown size={16} />
+                              )}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr key={`${order.id}-detail`}>
-                          <td colSpan={7} className="px-4 py-3 bg-neutral-50">
+                          <td colSpan={8} className="px-4 py-3 bg-neutral-50">
                             <div className="pl-4 border-l-2 border-forest/30 space-y-2">
                               {order.items.map((item) => (
                                 <div
@@ -226,24 +250,37 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                         #{order.order_number}
                       </span>
                       <Badge
-                        variant={order.order_type === "delivery" ? "warning" : "active"}
+                        variant={order.order_type === "delivery" || order.order_type === "gojek" || order.order_type === "grab" || order.order_type === "shopee" ? "warning" : "active"}
                       >
-                        {orderTypeLabels[order.order_type]}
+                        {orderTypeLabelsAll[order.order_type] ?? order.order_type}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold text-sm text-forest">
-                        {formatCurrency(order.total_price)}
-                      </span>
-                      {isExpanded ? <ChevronUp size={16} className="text-neutral-400" /> : <ChevronDown size={16} className="text-neutral-400" />}
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/orders/${order.id}/invoice`}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-forest transition-colors"
+                          title="Print Invoice"
+                        >
+                          <Printer size={14} />
+                        </Link>
+                        <span className="font-mono font-semibold text-sm text-forest">
+                          {formatCurrency(order.total_price)}
+                        </span>
+                        {isExpanded ? <ChevronUp size={16} className="text-neutral-400" /> : <ChevronDown size={16} className="text-neutral-400" />}
+                      </div>
                   </button>
                   <div className="px-4 pb-2 flex items-center gap-3 text-xs text-neutral-400">
                     <span>{formatDate(order.created_at)}</span>
                     <span>&middot;</span>
                     <span>{order.items.length} item</span>
                     <span>&middot;</span>
-                    <span>{paymentLabels[order.payment_method]}</span>
+                    <span>{paymentLabels[order.payment_method] ?? order.payment_method}</span>
+                    {order.cashier_name && (
+                      <>
+                        <span>&middot;</span>
+                        <span>{order.cashier_name}</span>
+                      </>
+                    )}
                   </div>
                   {isExpanded && (
                     <div className="px-4 pb-3 pt-1 border-t border-neutral-100">

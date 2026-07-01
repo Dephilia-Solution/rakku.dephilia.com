@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
   }
 
+  const session = await getTenantSessionFromCookies();
+  const cashierName = session?.user_name ?? null;
+
   const supabase = createAdminClient();
 
   const subtotal = items.reduce((sum: number, item: { unit_price: number; quantity: number }) => sum + (item.unit_price * item.quantity), 0);
@@ -57,6 +60,7 @@ export async function POST(request: NextRequest) {
       company_id: companyId || null,
       outlet_id: outletId || null,
       cashier_id: cashierId || null,
+      cashier_name: cashierName,
       reserved_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h expiry
     })
     .select()
