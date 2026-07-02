@@ -54,6 +54,14 @@ export interface ModifierTierPrice {
   price_delta: number;
 }
 
+export interface SplitPaymentItem {
+  cart_item_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
 export interface SplitPayment {
   id: string;
   order_id: string;
@@ -61,6 +69,7 @@ export interface SplitPayment {
   payment_method: PaymentMethod;
   status: "unpaid" | "paid";
   customer_name: string | null;
+  items: SplitPaymentItem[];
   created_at: string;
 }
 

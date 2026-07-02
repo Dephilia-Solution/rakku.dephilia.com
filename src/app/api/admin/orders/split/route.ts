@@ -11,12 +11,13 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  const inserts = splitPayments.map((sp: { amount: number; payment_method: string; customer_name?: string }) => ({
+  const inserts = splitPayments.map((sp: { amount: number; payment_method: string; customer_name?: string; items?: unknown[] }) => ({
     order_id: orderId,
     amount: sp.amount,
     payment_method: sp.payment_method,
     status: "paid",
     customer_name: sp.customer_name || null,
+    items: sp.items || [],
   }));
 
   const { data, error } = await supabase

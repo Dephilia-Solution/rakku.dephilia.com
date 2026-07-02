@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       payment_method: sp.payment_method,
       status: "paid",
       customer_name: sp.customer_name || null,
+      items: sp.items || [],
     }));
 
     const { error: splitError } = await supabase

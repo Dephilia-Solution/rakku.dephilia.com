@@ -336,6 +336,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
             {splitBillMode && (
               <SplitBillPanel
+                items={items}
                 total={total}
                 onSplitChange={setSplitPayments}
                 onCancel={() => {
