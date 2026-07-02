@@ -8,11 +8,6 @@ import EmptyState from "@/components/shared/EmptyState";
 import { Search, ClipboardList, ChevronDown, ChevronUp, Printer } from "lucide-react";
 import Link from "next/link";
 
-const orderTypeLabels: Record<string, string> = {
-  dine_in: "Walk-in",
-  delivery: "Delivery",
-};
-
 const paymentLabels: Record<string, string> = {
   cash: "Tunai",
   qris: "QRIS",

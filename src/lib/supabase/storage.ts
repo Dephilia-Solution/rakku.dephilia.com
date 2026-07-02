@@ -6,24 +6,22 @@ export async function uploadProductImage(
   productId: string,
   file: File
 ): Promise<string> {
-  const supabase = createClient();
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const filePath = `${productId}/${Date.now()}.${ext}`;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("productId", productId);
 
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: true,
-    });
+  const res = await fetch("/api/admin/products/upload", {
+    method: "POST",
+    body: formData,
+  });
 
-  if (error) throw error;
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error ?? "Upload gagal");
+  }
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-
-  return publicUrl;
+  const { url } = await res.json();
+  return url;
 }
 
 export async function deleteProductImage(imageUrl: string) {

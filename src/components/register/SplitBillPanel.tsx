@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { SplitPayment, PaymentMethod } from "@/types";
 import { formatCurrency } from "@/lib/dummy-data";
-import { X, Plus, Minus, Banknote, QrCode, CreditCard } from "lucide-react";
+import { X, Plus } from "lucide-react";
 
 interface SplitBillPanelProps {
   total: number;

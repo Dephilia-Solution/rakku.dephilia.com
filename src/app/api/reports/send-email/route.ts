@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Gagal mengirim email" }, { status: 500 });
   }
 }
