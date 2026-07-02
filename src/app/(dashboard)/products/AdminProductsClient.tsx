@@ -2,14 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ProductWithCategory, Category, Modifier, PricingOption } from "@/types";
+import { ProductWithCategory, Category, Modifier, PricingTier } from "@/types";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
 import {
   toggleProductActive,
   createProduct,
   updateProduct,
-  createModifier,
   deleteModifier,
   createCategory,
   updateCategory,
@@ -18,7 +17,6 @@ import {
 import { uploadProductImage } from "@/lib/supabase/storage";
 import Badge from "@/components/shared/Badge";
 import EmptyState from "@/components/shared/EmptyState";
-import PricingOptionsManager from "@/components/admin/PricingOptionsManager";
 import {
   Plus,
   Search,
@@ -38,13 +36,29 @@ import {
 interface Props {
   products: ProductWithCategory[];
   categories: Category[];
-  modifiers: Modifier[];
+  modifiers: (Modifier & { tier_prices?: { modifier_id: string; tier_id: string; price_delta: number }[] })[];
+  pricingTiers: PricingTier[];
+  productTierPrices: { product_id: string; tier_id: string; price: number }[];
 }
 
-export default function AdminProductsClient({ products: initialProducts, categories: initialCategories, modifiers: initialModifiers }: Props) {
+export default function AdminProductsClient({ products: initialProducts, categories: initialCategories, modifiers: initialModifiers, pricingTiers: initialPricingTiers, productTierPrices: initialProductTierPrices }: Props) {
   const [productList, setProductList] = useState(initialProducts);
   const [modifierList, setModifierList] = useState(initialModifiers);
   const [catList, setCatList] = useState(initialCategories);
+  const [pricingTiers] = useState<PricingTier[]>(initialPricingTiers);
+  const [productTierPrices, setProductTierPrices] = useState(initialProductTierPrices);
+  const [modifierTierDeltas, setModifierTierDeltas] = useState<Record<string, Record<string, number>>>(() => {
+    const map: Record<string, Record<string, number>> = {};
+    for (const mod of initialModifiers) {
+      if (mod.tier_prices) {
+        map[mod.id] = {};
+        for (const tp of mod.tier_prices) {
+          map[mod.id][tp.tier_id] = tp.price_delta;
+        }
+      }
+    }
+    return map;
+  });
   const [showCatModal, setShowCatModal] = useState(false);
   const [catNewName, setCatNewName] = useState("");
   const [catEditId, setCatEditId] = useState<string | null>(null);
@@ -55,49 +69,57 @@ export default function AdminProductsClient({ products: initialProducts, categor
   const [editingProduct, setEditingProduct] = useState<ProductWithCategory | null>(null);
   const [form, setForm] = useState({
     name: "",
-    price: "",
     category_id: "",
     description: "",
     is_active: true,
   });
+  const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [productModifiers, setProductModifiers] = useState<Modifier[]>([]);
-  const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, priceDelta: number}>>([]);
-  const [modifierForm, setModifierForm] = useState({ name: "", priceDelta: "" });
-
-  const [pricingOptions, setPricingOptions] = useState<PricingOption[]>([]);
-  const [newProductPricingOptions, setNewProductPricingOptions] = useState<Array<{name: string, price: number}>>([]);
-  const [pricingOptionForm, setPricingOptionForm] = useState({ name: "", price: "" });
+  const [productModifiers, setProductModifiers] = useState<(typeof initialModifiers)[number][]>([]);
+  const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, tierDeltas: Record<string, number>}>>([]);
+  const [modifierForm, setModifierForm] = useState<{ name: string; tierDeltas: Record<string, string> }>({ name: "", tierDeltas: {} });
 
   useEffect(() => {
     if (editingProduct) {
       setProductModifiers(modifierList.filter((m) => m.product_id === editingProduct.id));
       setNewProductModifiers([]);
-      setNewProductPricingOptions([]);
-      fetchPricingOptions(editingProduct.id);
+      const existingTierPrices = productTierPrices.filter((p) => p.product_id === editingProduct.id);
+      const tp: Record<string, string> = {};
+      for (const tier of pricingTiers) {
+        const found = existingTierPrices.find((p) => p.tier_id === tier.id);
+        tp[tier.id] = found ? String(found.price) : "";
+      }
+      setTierPrices(tp);
     } else {
       setProductModifiers([]);
       setNewProductModifiers([]);
-      setPricingOptions([]);
-      setNewProductPricingOptions([]);
-    }
-    setModifierForm({ name: "", priceDelta: "" });
-    setPricingOptionForm({ name: "", price: "" });
-  }, [editingProduct, modifierList]);
-
-  const fetchPricingOptions = async (productId: string) => {
-    try {
-      const res = await fetch(`/api/admin/pricing-options?product_id=${productId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPricingOptions(data);
+      const tp: Record<string, string> = {};
+      for (const tier of pricingTiers) {
+        tp[tier.id] = "";
       }
-    } catch {}
+      setTierPrices(tp);
+    }
+    const mf: Record<string, string> = {};
+    for (const tier of pricingTiers) {
+      mf[tier.id] = "";
+    }
+    setModifierForm({ name: "", tierDeltas: mf });
+  }, [editingProduct, modifierList, pricingTiers, productTierPrices]);
+
+  const getProductTierPriceDisplay = (productId: string): string => {
+    const prices = productTierPrices
+      .filter((p) => p.product_id === productId)
+      .map((p) => p.price);
+    if (prices.length === 0) return "-";
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    if (min === max) return formatCurrency(min);
+    return `${formatCurrency(min)} - ${formatCurrency(max)}`;
   };
 
   const filtered = productList.filter((p) => {
@@ -114,7 +136,6 @@ export default function AdminProductsClient({ products: initialProducts, categor
     setEditingProduct(product);
     setForm({
       name: product.name,
-      price: product.price.toString(),
       category_id: product.category_id,
       description: product.description ?? "",
       is_active: product.is_active,
@@ -128,7 +149,6 @@ export default function AdminProductsClient({ products: initialProducts, categor
     setEditingProduct(null);
     setForm({
       name: "",
-      price: "",
       category_id: catList[0]?.id ?? "",
       description: "",
       is_active: true,
@@ -162,8 +182,13 @@ export default function AdminProductsClient({ products: initialProducts, categor
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.price) {
-      showToast("error", "Nama dan harga harus diisi");
+    if (!form.name) {
+      showToast("error", "Nama produk harus diisi");
+      return;
+    }
+    const hasAnyTierPrice = Object.values(tierPrices).some((v) => v !== "" && Number(v) >= 0);
+    if (pricingTiers.length > 0 && !hasAnyTierPrice) {
+      showToast("error", "Minimal satu harga tier harus diisi");
       return;
     }
     setSaving(true);
@@ -180,10 +205,13 @@ export default function AdminProductsClient({ products: initialProducts, categor
         }
       } catch {}
 
+      const firstTierPrice = Object.values(tierPrices).find((v) => v !== "" && Number(v) >= 0);
+      const basePrice = firstTierPrice ? Number(firstTierPrice) : 0;
+
       if (editingProduct) {
         const updates: Record<string, string | number | boolean | null> = {
           name: form.name,
-          price: Number(form.price),
+          price: basePrice,
           category_id: form.category_id,
           description: form.description,
           is_active: form.is_active,
@@ -197,6 +225,20 @@ export default function AdminProductsClient({ products: initialProducts, categor
         }
 
         await updateProduct(editingProduct.id, updates);
+
+        const tierPriceArray = Object.entries(tierPrices)
+          .filter(([, v]) => v !== "" && Number(v) >= 0)
+          .map(([tierId, price]) => ({ tier_id: tierId, price: Number(price) }));
+        await fetch("/api/admin/product-tier-prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: editingProduct.id, prices: tierPriceArray }),
+        });
+
+        setProductTierPrices((prev) => {
+          const filtered = prev.filter((p) => p.product_id !== editingProduct.id);
+          return [...filtered, ...tierPriceArray.map((p) => ({ product_id: editingProduct.id, tier_id: p.tier_id, price: p.price }))];
+        });
 
         setProductList((prev) =>
           prev.map((p) =>
@@ -214,7 +256,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
       } else {
         const data = await createProduct({
           name: form.name,
-          price: Number(form.price),
+          price: basePrice,
           category_id: form.category_id,
           description: form.description,
           is_active: form.is_active,
@@ -230,10 +272,26 @@ export default function AdminProductsClient({ products: initialProducts, categor
           setUploadProgress(false);
         }
 
+        const tierPriceArray = Object.entries(tierPrices)
+          .filter(([, v]) => v !== "" && Number(v) >= 0)
+          .map(([tierId, price]) => ({ tier_id: tierId, price: Number(price) }));
+        if (tierPriceArray.length > 0) {
+          await fetch("/api/admin/product-tier-prices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId: data.id, prices: tierPriceArray }),
+          });
+        }
+
+        setProductTierPrices((prev) => [
+          ...prev,
+          ...tierPriceArray.map((p) => ({ product_id: data.id, tier_id: p.tier_id, price: p.price })),
+        ]);
+
         const newProduct: ProductWithCategory = {
           id: data.id,
           name: data.name,
-          price: Number(data.price),
+          price: basePrice,
           category_id: data.category_id,
           image_url: imageUrl,
           is_active: data.is_active,
@@ -246,31 +304,23 @@ export default function AdminProductsClient({ products: initialProducts, categor
         if (newProductModifiers.length > 0) {
           for (const mod of newProductModifiers) {
             try {
-              const created = await createModifier(data.id, mod.name, mod.priceDelta);
-              setModifierList((prev) => [...prev, created]);
+              const prices = Object.entries(mod.tierDeltas)
+                .filter(([, v]) => v !== undefined)
+                .map(([tierId, delta]) => ({ tier_id: tierId, price_delta: delta }));
+              const res = await fetch("/api/admin/modifiers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ product_id: data.id, name: mod.name, prices }),
+              });
+              if (res.ok) {
+                const created = await res.json();
+                setModifierList((prev) => [...prev, created]);
+              }
             } catch {}
           }
           setNewProductModifiers([]);
         }
 
-        if (newProductPricingOptions.length > 0) {
-          for (const opt of newProductPricingOptions) {
-            try {
-              await fetch("/api/admin/pricing-options", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  product_id: data.id,
-                  name: opt.name,
-                  price: opt.price,
-                  company_id: companyId,
-                  outlet_id: outletId,
-                }),
-              });
-            } catch {}
-          }
-          setNewProductPricingOptions([]);
-        }
         showToast("success", "Produk berhasil ditambahkan");
       }
 
@@ -303,47 +353,45 @@ export default function AdminProductsClient({ products: initialProducts, categor
 
   const handleAddModifier = async () => {
     const name = modifierForm.name.trim();
-    const priceDelta = Number(modifierForm.priceDelta);
     if (!name) {
       showToast("error", "Nama add-on harus diisi");
       return;
     }
-    if (isNaN(priceDelta) || priceDelta < 0) {
-      showToast("error", "Harga tambahan tidak valid");
-      return;
+
+    const tierDeltas: Record<string, number> = {};
+    for (const [tierId, val] of Object.entries(modifierForm.tierDeltas)) {
+      const n = Number(val);
+      if (!isNaN(n)) tierDeltas[tierId] = n;
     }
 
     if (editingProduct) {
       try {
-        const created = await createModifier(editingProduct.id, name, priceDelta);
-        setModifierList((prev) => [...prev, created]);
-        setModifierForm({ name: "", priceDelta: "" });
+        const prices = Object.entries(tierDeltas).map(([tierId, delta]) => ({ tier_id: tierId, price_delta: delta }));
+        const res = await fetch("/api/admin/modifiers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_id: editingProduct.id, name, prices }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setModifierList((prev) => [...prev, created]);
+          setModifierTierDeltas((prev) => ({ ...prev, [created.id]: tierDeltas }));
+        }
+        const mf: Record<string, string> = {};
+        for (const tier of pricingTiers) mf[tier.id] = "";
+        setModifierForm({ name: "", tierDeltas: mf });
         showToast("success", "Add-on berhasil ditambahkan");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Gagal menambah add-on";
         showToast("error", msg);
       }
     } else {
-      setNewProductModifiers((prev) => [...prev, { name, priceDelta }]);
-      setModifierForm({ name: "", priceDelta: "" });
+      setNewProductModifiers((prev) => [...prev, { name, tierDeltas }]);
+      const mf: Record<string, string> = {};
+      for (const tier of pricingTiers) mf[tier.id] = "";
+      setModifierForm({ name: "", tierDeltas: mf });
       showToast("success", "Add-on ditambahkan (akan disimpan saat produk dibuat)");
     }
-  };
-
-  const handleAddPricingOption = () => {
-    const name = pricingOptionForm.name.trim();
-    const price = Number(pricingOptionForm.price);
-    if (!name) {
-      showToast("error", "Nama opsi harga harus diisi");
-      return;
-    }
-    if (isNaN(price) || price <= 0) {
-      showToast("error", "Harga tidak valid");
-      return;
-    }
-    setNewProductPricingOptions((prev) => [...prev, { name, price }]);
-    setPricingOptionForm({ name: "", price: "" });
-    showToast("success", "Opsi harga ditambahkan (akan disimpan saat produk dibuat)");
   };
 
   const handleDeleteModifier = async (mod: Modifier) => {
@@ -490,7 +538,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-neutral-600">{product.category_name}</td>
-                    <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">{formatCurrency(product.price)}</td>
+                    <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">{getProductTierPriceDisplay(product.id)}</td>
                     <td className="px-4 py-3">
                       <Badge variant={product.is_active ? "active" : "inactive"}>
                         {product.is_active ? "Aktif" : "Nonaktif"}
@@ -536,7 +584,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="font-mono text-sm font-bold text-forest">{formatCurrency(product.price)}</span>
+                    <span className="font-mono text-sm font-bold text-forest">{getProductTierPriceDisplay(product.id)}</span>
                     <div className="flex items-center gap-1">
                       <button onClick={() => handleEdit(product)}
                         className="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors">
@@ -622,30 +670,42 @@ export default function AdminProductsClient({ products: initialProducts, categor
                   className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Harga</label>
-                  <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    placeholder="45000"
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Kategori</label>
-                  <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-forest">
-                    {catList.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => setShowCatModal(true)}
-                    className="text-xs text-forest font-medium mt-1.5 hover:underline flex items-center gap-1"
-                  >
-                    <Settings size={12} />
-                    Atur Kategori
-                  </button>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Kategori</label>
+                <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-forest">
+                  {catList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowCatModal(true)}
+                  className="text-xs text-forest font-medium mt-1.5 hover:underline flex items-center gap-1"
+                >
+                  <Settings size={12} />
+                  Atur Kategori
+                </button>
               </div>
+
+              {pricingTiers.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Harga per Tier</label>
+                  <div className="space-y-2">
+                    {pricingTiers.map((tier) => (
+                      <div key={tier.id} className="flex items-center gap-2">
+                        <span className="text-sm text-neutral-600 w-24 flex-shrink-0">{tier.name}</span>
+                        <input
+                          type="number"
+                          value={tierPrices[tier.id] ?? ""}
+                          onChange={(e) => setTierPrices({ ...tierPrices, [tier.id]: e.target.value })}
+                          placeholder="0"
+                          className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Deskripsi</label>
@@ -674,19 +734,26 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 {productModifiers.length > 0 && (
                   <div className="space-y-1.5 mb-3">
                     {productModifiers.map((mod) => (
-                      <div key={mod.id} className="flex items-center justify-between bg-neutral-50 rounded-xl px-3 py-2">
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div key={mod.id} className="bg-neutral-50 rounded-xl px-3 py-2">
+                        <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
-                          <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
-                            +{formatCurrency(mod.price_delta)}
-                          </span>
+                          <button
+                            onClick={() => handleDeleteModifier(mod)}
+                            className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleDeleteModifier(mod)}
-                          className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        <div className="flex flex-wrap gap-1.5">
+                          {pricingTiers.map((tier) => {
+                            const delta = modifierTierDeltas[mod.id]?.[tier.id] ?? mod.price_delta ?? 0;
+                            return (
+                              <span key={tier.id} className="text-[10px] font-mono text-forest bg-primary-50 px-1.5 py-0.5 rounded">
+                                {tier.name}: +{formatCurrency(delta)}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -695,115 +762,63 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 {newProductModifiers.length > 0 && (
                   <div className="space-y-1.5 mb-3">
                     {newProductModifiers.map((mod, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div key={idx} className="bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
+                        <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
-                          <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
-                            +{formatCurrency(mod.priceDelta)}
-                          </span>
+                          <button
+                            onClick={() => setNewProductModifiers((prev) => prev.filter((_, i) => i !== idx))}
+                            className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setNewProductModifiers((prev) => prev.filter((_, i) => i !== idx))}
-                          className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        <div className="flex flex-wrap gap-1.5">
+                          {pricingTiers.map((tier) => (
+                            <span key={tier.id} className="text-[10px] font-mono text-forest bg-white px-1.5 py-0.5 rounded">
+                              {tier.name}: +{formatCurrency(mod.tierDeltas[tier.id] ?? 0)}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
+                <div className="space-y-2">
                   <input
                     type="text"
                     value={modifierForm.name}
                     onChange={(e) => setModifierForm({ ...modifierForm, name: e.target.value })}
                     placeholder="Nama add-on"
-                    className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest min-w-0"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                   />
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">+</span>
-                    <input
-                      type="number"
-                      value={modifierForm.priceDelta}
-                      onChange={(e) => setModifierForm({ ...modifierForm, priceDelta: e.target.value })}
-                      placeholder="0"
-                      className="w-24 bg-neutral-50 border border-neutral-200 rounded-xl pl-6 pr-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
-                    />
-                  </div>
+                  {pricingTiers.length > 0 && (
+                    <div className="space-y-1.5">
+                      {pricingTiers.map((tier) => (
+                        <div key={tier.id} className="flex items-center gap-2">
+                          <span className="text-xs text-neutral-500 w-24 flex-shrink-0">{tier.name}</span>
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">+</span>
+                            <input
+                              type="number"
+                              value={modifierForm.tierDeltas[tier.id] ?? ""}
+                              onChange={(e) => setModifierForm({ ...modifierForm, tierDeltas: { ...modifierForm.tierDeltas, [tier.id]: e.target.value } })}
+                              placeholder="0"
+                              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-6 pr-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={handleAddModifier}
-                    className="w-9 h-9 rounded-xl bg-forest text-white flex items-center justify-center hover:bg-forest-dark active:scale-[0.97] transition-all flex-shrink-0"
+                    className="w-full py-2 rounded-xl bg-forest text-white text-sm font-semibold hover:bg-forest-dark active:scale-[0.97] transition-all flex items-center justify-center gap-1"
                   >
                     <Plus size={16} />
+                    Tambah Add-on
                   </button>
                 </div>
-              </div>
-
-              {/* ── OPSI HARGA TAMBAHAN ── */}
-              <div className="border-t border-neutral-200 pt-4 mt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <GripHorizontal size={14} className="text-neutral-400" />
-                  <span className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                    Opsi Harga Tambahan (opsional)
-                  </span>
-                </div>
-
-                {editingProduct && (
-                  <PricingOptionsManager
-                    productId={editingProduct.id}
-                    options={pricingOptions}
-                    onOptionsChange={setPricingOptions}
-                  />
-                )}
-
-                {!editingProduct && (
-                  <>
-                    {newProductPricingOptions.length > 0 && (
-                      <div className="space-y-1.5 mb-3">
-                        {newProductPricingOptions.map((opt, idx) => (
-                          <div key={idx} className="flex items-center justify-between bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-sm text-neutral-900 truncate">{opt.name}</span>
-                              <span className="text-xs font-mono text-forest font-semibold whitespace-nowrap">
-                                {formatCurrency(opt.price)}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => setNewProductPricingOptions((prev) => prev.filter((_, i) => i !== idx))}
-                              className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={pricingOptionForm.name}
-                        onChange={(e) => setPricingOptionForm({ ...pricingOptionForm, name: e.target.value })}
-                        placeholder="Nama opsi (Gojek Regular)"
-                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest min-w-0"
-                      />
-                      <input
-                        type="number"
-                        value={pricingOptionForm.price}
-                        onChange={(e) => setPricingOptionForm({ ...pricingOptionForm, price: e.target.value })}
-                        placeholder="Harga"
-                        className="w-24 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm font-mono text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
-                      />
-                      <button
-                        onClick={handleAddPricingOption}
-                        className="w-9 h-9 rounded-xl bg-forest text-white flex items-center justify-center hover:bg-forest-dark active:scale-[0.97] transition-all flex-shrink-0"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
 
               <div className="flex gap-3 pt-2">

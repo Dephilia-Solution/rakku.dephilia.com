@@ -28,7 +28,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { items, customerName, note, companyId, outletId, cashierId } = body;
+  const { items, customerName, note, companyId, outletId, cashierId, pricingTierId } = body;
 
   if (!customerName || !customerName.trim()) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       outlet_id: outletId || null,
       cashier_id: cashierId || null,
       cashier_name: cashierName,
+      pricing_tier_id: pricingTierId || null,
       reserved_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h expiry
     })
     .select()
@@ -70,11 +71,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: orderError?.message ?? "Gagal membuat draft" }, { status: 500 });
   }
 
-  const orderItems = items.map((item: { product: { id: string; name: string; price: number }; modifier_label?: string | null; quantity: number; subtotal: number }) => ({
+  const orderItems = items.map((item: { product: { id: string; name: string }; modifier_label?: string | null; unit_price: number; quantity: number; subtotal: number }) => ({
     order_id: order.id,
     product_id: item.product.id,
     product_name: item.product.name,
-    unit_price: item.product.price,
+    unit_price: item.unit_price,
     quantity: item.quantity,
     modifier_label: item.modifier_label || null,
     subtotal: item.subtotal,

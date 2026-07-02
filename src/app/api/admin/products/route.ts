@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncProductTierPrices } from "@/lib/pricing/tiers";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -26,6 +27,13 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Auto-seed product_tier_prices for all active tiers in this outlet
+  if (company_id && outlet_id) {
+    await syncProductTierPrices(supabase, data.id, company_id, outlet_id, price).catch((err) =>
+      console.error("syncProductTierPrices failed:", err.message)
+    );
   }
 
   return NextResponse.json(data, { status: 201 });

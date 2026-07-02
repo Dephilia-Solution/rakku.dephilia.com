@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { CartItem } from "@/types";
+import { CartItem, SplitPayment } from "@/types";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     orderType, paymentMethod, items, subtotal, taxAmount, total,
     customerName, note, status, paymentStatus, companyId, outletId, cashierId,
+    pricingTierId, splitPayments,
   } = body;
 
   if (!orderType || !paymentMethod || !items || !items.length) {
@@ -40,6 +41,8 @@ export async function POST(request: NextRequest) {
       outlet_id: outletId || null,
       cashier_id: cashierId || null,
       cashier_name: cashierName,
+      pricing_tier_id: pricingTierId || null,
+      split_bill: (splitPayments?.length ?? 0) > 0,
     })
     .select()
     .single();
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
     order_id: order.id,
     product_id: item.product.id,
     product_name: item.product.name,
-    unit_price: item.product.price,
+    unit_price: item.unit_price,
     quantity: item.quantity,
     modifier_label: item.modifier_label,
     subtotal: item.subtotal,
@@ -65,6 +68,26 @@ export async function POST(request: NextRequest) {
   if (itemsError) {
     await supabase.from("orders").delete().eq("id", order.id);
     return NextResponse.json({ error: itemsError.message }, { status: 500 });
+  }
+
+  // Insert split payments if any
+  if (splitPayments?.length > 0) {
+    const splitInserts = splitPayments.map((sp: SplitPayment) => ({
+      order_id: order.id,
+      amount: sp.amount,
+      payment_method: sp.payment_method,
+      status: "paid",
+      customer_name: sp.customer_name || null,
+    }));
+
+    const { error: splitError } = await supabase
+      .from("split_payments")
+      .insert(splitInserts);
+
+    if (splitError) {
+      // Log error but don't fail the order
+      console.error("Failed to insert split payments:", splitError);
+    }
   }
 
   return NextResponse.json(order, { status: 201 });

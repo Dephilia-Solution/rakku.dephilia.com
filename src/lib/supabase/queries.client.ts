@@ -1,4 +1,4 @@
-import { CartItem, OrderType, PaymentMethod } from "@/types";
+import { CartItem, OrderType, PaymentMethod, SplitPayment } from "@/types";
 
 async function api(url: string, options?: RequestInit) {
   const res = await fetch(url, {
@@ -24,6 +24,8 @@ export async function createOrder(data: {
   companyId?: string;
   outletId?: string;
   cashierId?: string;
+  pricingTierId?: string | null;
+  splitPayments?: SplitPayment[];
 }) {
   return api("/api/admin/orders", {
     method: "POST",

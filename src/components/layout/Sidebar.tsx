@@ -21,9 +21,8 @@ function getIcon(iconName: string | null) {
 }
 
 function isActive(href: string, pathname: string): boolean {
-  if (href === "/register") return pathname === "/register";
-  if (href.startsWith("/admin")) return pathname.startsWith("/admin");
-  return pathname.startsWith(href);
+  if (pathname === href) return true;
+  return pathname.startsWith(href + "/");
 }
 
 export default function Sidebar({ menus }: SidebarProps) {

@@ -82,13 +82,67 @@ export async function getCategories() {
 
 export async function getAllModifiers() {
   const supabase = createAdminClient();
-  const { data } = await supabase.from("modifiers").select("*");
+  const { data } = await supabase
+    .from("modifiers")
+    .select("*, modifier_tier_prices(*)");
   return (
     (data as JsonLike[])?.map((m) => ({
       id: m.id as string,
       product_id: m.product_id as string,
       name: m.name as string,
-      price_delta: Number(m.price_delta),
+      price_delta: Number(m.price_delta ?? 0),
+      tier_prices: ((m.modifier_tier_prices as JsonLike[]) ?? []).map((tp) => ({
+        modifier_id: tp.modifier_id as string,
+        tier_id: tp.tier_id as string,
+        price_delta: Number(tp.price_delta),
+      })),
+    })) ?? []
+  );
+}
+
+export async function getPricingTiers() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("pricing_tiers")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("is_active", true)
+    .order("sort_order");
+  return (
+    (data as JsonLike[])?.map((t) => ({
+      id: t.id as string,
+      company_id: t.company_id as string,
+      outlet_id: t.outlet_id as string,
+      name: t.name as string,
+      slug: t.slug as string,
+      is_active: t.is_active as boolean,
+      sort_order: t.sort_order as number,
+    })) ?? []
+  );
+}
+
+export async function getProductTierPrices() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data: tiers } = await supabase
+    .from("pricing_tiers")
+    .select("id")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id);
+  const tierIds = (tiers as JsonLike[])?.map((t) => t.id as string) ?? [];
+  if (tierIds.length === 0) return [];
+  const { data } = await supabase
+    .from("product_tier_prices")
+    .select("*")
+    .in("tier_id", tierIds);
+  return (
+    (data as JsonLike[])?.map((p) => ({
+      id: p.id as string,
+      product_id: p.product_id as string,
+      tier_id: p.tier_id as string,
+      price: Number(p.price),
     })) ?? []
   );
 }
@@ -118,7 +172,8 @@ export async function getOrders() {
       status: (o.status as OrderStatus) ?? "completed",
       payment_status: (o.payment_status as PaymentStatus) ?? "paid",
       reserved_until: o.reserved_until as string | null,
-      pricing_option_id: o.pricing_option_id as string | null,
+      pricing_tier_id: o.pricing_tier_id as string | null,
+      split_bill: (o.split_bill as boolean) ?? false,
       created_at: o.created_at as string,
       items: ((o.order_items ?? []) as JsonLike[]).map((i) => ({
         id: i.id as string,

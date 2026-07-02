@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useCartStore, useCartTotals, useCartGroupedByProduct } from "@/lib/store/cartStore";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
-import QtyControl from "@/components/shared/QtyControl";
 import EmptyState from "@/components/shared/EmptyState";
 import ItemDetailModal from "@/components/register/ItemDetailModal";
 import { Product, CartItem } from "@/types";
@@ -28,8 +27,7 @@ export default function OrderSidebar({
   onEditItem,
 }: OrderSidebarProps) {
   const items = useCartStore((s) => s.items);
-  const orderType = useCartStore((s) => s.orderType);
-  const setOrderType = useCartStore((s) => s.setOrderType);
+  const pricingTierId = useCartStore((s) => s.pricingTierId);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const incrementQty = useCartStore((s) => s.incrementQty);
@@ -73,6 +71,7 @@ export default function OrderSidebar({
           companyId,
           outletId,
           cashierId,
+          pricingTierId,
         }),
       });
 
@@ -143,28 +142,6 @@ export default function OrderSidebar({
               </button>
             )}
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setOrderType("dine_in")}
-            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-              orderType === "dine_in"
-                ? "bg-forest text-white"
-                : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-            }`}
-          >
-            Walk-in
-          </button>
-          <button
-            onClick={() => setOrderType("delivery")}
-            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-              orderType === "delivery"
-                ? "bg-forest text-white"
-                : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-            }`}
-          >
-            Delivery
-          </button>
         </div>
       </div>
 
@@ -273,8 +250,6 @@ export default function OrderSidebar({
                           <span className="text-neutral-600 truncate ml-1">
                             {v.modifier_label
                               ? v.modifier_label
-                              : v.pricing_option_name
-                              ? `(${v.pricing_option_name})`
                               : "Regular"}
                           </span>
                           {v.note && (

@@ -29,11 +29,7 @@ export default function MobileBottomNav({ menus }: MobileBottomNavProps) {
     <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-neutral-200/60 flex items-stretch z-50 safe-bottom lg:hidden">
       {menus.map((item) => {
         const active =
-          item.path === "/register"
-            ? pathname === "/register"
-            : item.path.startsWith("/admin")
-              ? pathname.startsWith("/admin")
-              : pathname.startsWith(item.path);
+          pathname === item.path || pathname.startsWith(item.path + "/");
 
         const Icon = getIcon(item.icon);
 

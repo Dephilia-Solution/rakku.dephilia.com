@@ -57,9 +57,9 @@ export default function ItemDetailModal({ product, variants, onClose }: ItemDeta
                         </span>
                       )}
                     </div>
-                    {variant.pricing_option_name && (
+                    {variant.pricing_tier_id && (
                       <p className="text-xs text-neutral-400 mt-0.5">
-                        ({variant.pricing_option_name})
+                        (Tier pricing)
                       </p>
                     )}
                     {variant.note && (

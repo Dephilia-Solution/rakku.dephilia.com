@@ -9,8 +9,10 @@ interface DraftOrder {
   customer_name: string;
   total_price: number;
   created_at: string;
+  pricing_tier_id: string | null;
   order_items: Array<{
     id: string;
+    product_id: string;
     product_name: string;
     quantity: number;
     unit_price: number;

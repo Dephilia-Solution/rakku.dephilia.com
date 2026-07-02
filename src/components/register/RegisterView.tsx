@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useCartStore } from "@/lib/store/cartStore";
-import { ProductWithCategory, Category, Modifier, PricingOption } from "@/types";
+import { ProductWithCategory, Category, Modifier, PricingTier, CartItem } from "@/types";
 import CategoryTabs from "@/components/register/CategoryTabs";
 import ProductGrid from "@/components/register/ProductGrid";
 import OrderSidebar from "@/components/register/OrderSidebar";
 import MobileCartBar from "@/components/register/MobileCartBar";
 import PaymentModal from "@/components/register/PaymentModal";
 import DraftOrdersPanel from "@/components/register/DraftOrdersPanel";
-import PricingOptionSelector from "@/components/register/PricingOptionSelector";
 import { Search, Command } from "lucide-react";
 
 interface RegisterViewProps {
@@ -36,13 +35,57 @@ export default function RegisterView({
   const addProduct = useCartStore((s) => s.addProduct);
   const updateItemModifier = useCartStore((s) => s.updateItemModifier);
   const cartItems = useCartStore((s) => s.items);
-
-  const [selectedPricingOption, setSelectedPricingOption] = useState<PricingOption | null>(null);
-  const [productPricingOptions, setProductPricingOptions] = useState<PricingOption[]>([]);
+  const pricingTierId = useCartStore((s) => s.pricingTierId);
+  const setPricingTiers = useCartStore((s) => s.setPricingTiers);
 
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customPrice, setCustomPrice] = useState("0");
+
+  const [pricingTiers, setLocalTiers] = useState<PricingTier[]>([]);
+
+  useEffect(() => {
+    const loadTiers = async () => {
+      try {
+        const sessionRes = await fetch("/api/auth/tenant/session");
+        if (!sessionRes.ok) return;
+        const session = await sessionRes.json();
+        const res = await fetch(
+          `/api/admin/pricing-tiers?company_id=${session.company_id}&outlet_id=${session.outlet_id}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setLocalTiers(data.tiers);
+
+          const tierPriceMap: Record<string, Record<string, number>> = {};
+          for (const ptp of data.productTierPrices) {
+            if (!tierPriceMap[ptp.product_id]) {
+              tierPriceMap[ptp.product_id] = {};
+            }
+            tierPriceMap[ptp.product_id][ptp.tier_id] = ptp.price;
+          }
+
+          const modifierDeltaMap: Record<string, Record<string, number>> = {};
+          for (const mtp of data.modifierTierPrices ?? []) {
+            if (!modifierDeltaMap[mtp.modifier_id]) {
+              modifierDeltaMap[mtp.modifier_id] = {};
+            }
+            modifierDeltaMap[mtp.modifier_id][mtp.tier_id] = mtp.price_delta;
+          }
+
+          setPricingTiers(data.tiers, tierPriceMap, modifierDeltaMap);
+        }
+      } catch {}
+    };
+    loadTiers();
+  }, [setPricingTiers]);
+
+  const modifierTierDeltaMap = useCartStore((s) => s.modifierTierDeltaMap);
+
+  const getModDelta = (mod: Modifier) => {
+    if (!pricingTierId) return mod.price_delta ?? 0;
+    return modifierTierDeltaMap[mod.id]?.[pricingTierId] ?? mod.price_delta ?? 0;
+  };
 
   const filteredProducts = products.filter((p) => {
     if (!p.is_active) return false;
@@ -60,22 +103,8 @@ export default function RegisterView({
 
   const handleSelectProduct = async (product: ProductWithCategory) => {
     const productMods = modifiers.filter((m) => m.product_id === product.id);
-    const hasMods = productMods.length > 0;
-
-    // Fetch pricing options
-    let hasPricingOptions = false;
-    try {
-      const res = await fetch(`/api/admin/pricing-options?product_id=${product.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProductPricingOptions(data);
-        hasPricingOptions = data.length > 0;
-      }
-    } catch {}
-
-    if (hasMods || hasPricingOptions) {
+    if (productMods.length > 0) {
       setSelectedProduct(product);
-      setSelectedPricingOption(null);
       setShowModifierModal(true);
     } else {
       addProduct(product);
@@ -90,29 +119,15 @@ export default function RegisterView({
 
     setSelectedProduct(product);
     setEditingItemId(itemId);
-
-    if (item.pricing_option_id) {
-      const pricingOpt = productPricingOptions.find((p) => p.id === item.pricing_option_id);
-      setSelectedPricingOption(pricingOpt ?? null);
-    } else {
-      setSelectedPricingOption(null);
-    }
-
-    // Fetch pricing options for the product
-    fetch(`/api/admin/pricing-options?product_id=${product.id}`)
-      .then((res) => res.ok && res.json())
-      .then((data) => setProductPricingOptions(data ?? []))
-      .catch(() => {});
-
     setShowModifierModal(true);
-  }, [cartItems, products, productPricingOptions]);
+  }, [cartItems, products]);
 
   const handleAddWithModifier = (modifier?: Modifier) => {
     if (selectedProduct) {
       if (editingItemId) {
-        updateItemModifier(editingItemId, modifier, selectedPricingOption ?? undefined);
+        updateItemModifier(editingItemId, modifier);
       } else {
-        addProduct(selectedProduct, modifier, selectedPricingOption ?? undefined);
+        addProduct(selectedProduct, modifier);
       }
     }
     closeModifierModal();
@@ -127,9 +142,9 @@ export default function RegisterView({
       price_delta: Number(customPrice) || 0,
     };
     if (editingItemId) {
-      updateItemModifier(editingItemId, customMod, selectedPricingOption ?? undefined);
+      updateItemModifier(editingItemId, customMod);
     } else {
-      addProduct(selectedProduct, customMod, selectedPricingOption ?? undefined);
+      addProduct(selectedProduct, customMod);
     }
     closeModifierModal();
   };
@@ -138,8 +153,6 @@ export default function RegisterView({
     setShowModifierModal(false);
     setEditingItemId(null);
     setSelectedProduct(null);
-    setSelectedPricingOption(null);
-    setProductPricingOptions([]);
     setShowCustomInput(false);
     setCustomName("");
     setCustomPrice("");
@@ -149,32 +162,69 @@ export default function RegisterView({
     setShowPayment(true);
   };
 
-  const handleSelectDraft = async (draft: { id: string; customer_name: string; order_items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number; modifier_label: string | null }> }) => {
+  const handleSelectDraft = async (draft: { id: string; customer_name: string; pricing_tier_id: string | null; order_items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; subtotal: number; modifier_label: string | null }> }) => {
     const clear = useCartStore.getState().clear;
     const setDraftOrderId = useCartStore.getState().setDraftOrderId;
     const setCustomerName = useCartStore.getState().setCustomerName;
+    const restoreDraftItem = useCartStore.getState().restoreDraftItem;
 
     clear();
     setDraftOrderId(draft.id);
     setCustomerName(draft.customer_name);
 
-    // Reload items from draft order items into cart (marked as draft source)
+    // Restore items preserving saved tier & prices (no recompute)
     for (const item of draft.order_items) {
-      const product = products.find((p) => p.name === item.product_name);
-      if (product) {
-        useCartStore.getState().addProduct(product, undefined, undefined, true);
-      }
+      const product = products.find((p) => p.id === item.product_id)
+        ?? products.find((p) => p.name === item.product_name);
+      if (!product) continue;
+
+      const cartItem: CartItem = {
+        id: "",
+        product,
+        quantity: item.quantity,
+        modifier: null,
+        modifier_label: item.modifier_label,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+        source: "draft",
+      };
+      restoreDraftItem(cartItem, draft.pricing_tier_id);
     }
 
     setShowDraftPanel(false);
+  };
+
+  const handleSelectTier = (tierId: string | null) => {
+    useCartStore.getState().setPricingTier(tierId);
   };
 
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left: Product area */}
       <div className="flex-1 flex flex-col overflow-hidden pt-safe">
+        {/* Tier Selector */}
+        {pricingTiers.length > 0 && (
+          <div className="px-4 sm:px-6 pt-4 pb-2">
+            <div className="flex gap-2">
+              {pricingTiers.map((tier) => (
+                <button
+                  key={tier.id}
+                  onClick={() => handleSelectTier(tier.id)}
+                  className={`flex-1 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all ${
+                    pricingTierId === tier.id
+                      ? "bg-forest text-white shadow-sm"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  }`}
+                >
+                  {tier.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Search */}
-        <div className="px-4 sm:px-6 pt-4 pb-3">
+        <div className="px-4 sm:px-6 pt-2 pb-3">
           <div className="relative">
             <Search
               size={18}
@@ -213,7 +263,11 @@ export default function RegisterView({
       </div>
 
       {/* Desktop: Order Sidebar */}
-      <OrderSidebar onCheckout={handleCheckout} onOpenDraft={() => setShowDraftPanel(true)} onEditItem={handleEditItem} />
+      <OrderSidebar
+        onCheckout={handleCheckout}
+        onOpenDraft={() => setShowDraftPanel(true)}
+        onEditItem={handleEditItem}
+      />
 
       {/* Mobile: Cart Drawer */}
       <OrderSidebar
@@ -258,18 +312,6 @@ export default function RegisterView({
               {editingItemId ? "Edit" : "Tambah"} — {selectedProduct.name}
             </h3>
 
-            {/* Pricing Options */}
-            {productPricingOptions.length > 0 && (
-              <div className="mb-4">
-                <PricingOptionSelector
-                  options={productPricingOptions}
-                  selectedId={selectedPricingOption?.id}
-                  basePrice={selectedProduct.price}
-                  onSelect={setSelectedPricingOption}
-                />
-              </div>
-            )}
-
             <p className="text-sm text-neutral-600 mb-4">Pilih tambahan:</p>
             <div className="space-y-2">
               <button
@@ -280,7 +322,9 @@ export default function RegisterView({
               </button>
               {modifiers
                 .filter((m) => m.product_id === selectedProduct.id)
-                .map((mod) => (
+                .map((mod) => {
+                  const delta = getModDelta(mod);
+                  return (
                   <button
                     key={mod.id}
                     onClick={() => handleAddWithModifier(mod)}
@@ -290,10 +334,11 @@ export default function RegisterView({
                       {mod.name}
                     </span>
                     <span className="text-sm font-mono text-forest font-semibold">
-                      +{mod.price_delta.toLocaleString("id-ID")}
+                      +{delta.toLocaleString("id-ID")}
                     </span>
                   </button>
-                ))}
+                  );
+                })}
               <button
                 onClick={() => setShowCustomInput(!showCustomInput)}
                 className={`w-full text-left px-4 py-3 rounded-xl border transition-colors text-sm font-medium ${

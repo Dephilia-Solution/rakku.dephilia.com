@@ -6,9 +6,10 @@ import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
 import { createOrder } from "@/lib/supabase/queries.client";
 import InvoiceReceipt from "@/components/register/InvoiceReceipt";
-import { PaymentMethod } from "@/types";
+import { PaymentMethod, SplitPayment } from "@/types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { Banknote, QrCode, CreditCard, X } from "lucide-react";
+import SplitBillPanel from "@/components/register/SplitBillPanel";
+import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const [cashAmount, setCashAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [splitBillMode, setSplitBillMode] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([]);
 
   const [invoiceData, setInvoiceData] = useState<{
     orderNumber: number;
@@ -40,6 +43,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const orderType = useCartStore((s) => s.orderType);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
+  const pricingTierId = useCartStore((s) => s.pricingTierId);
+  const setCartSplitPayments = useCartStore((s) => s.setSplitPayments);
   const { subtotal, taxAmount, total } = useCartTotals();
   const clear = useCartStore((s) => s.clear);
   const groupedCart = useCartGroupedArray();
@@ -78,6 +83,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     setInvoiceData(null);
     setMethod(null);
     setCashAmount("");
+    setSplitBillMode(false);
+    setSplitPayments([]);
     clear();
     onClose();
   };
@@ -104,6 +111,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
       }
     } catch {}
 
+    const finalSplitPayments = splitBillMode ? splitPayments : [];
+
     try {
       const order = await createOrder({
         orderType,
@@ -114,11 +123,17 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         total,
         customerName: customerName.trim(),
         status: "completed",
-        paymentStatus: "paid",
+        paymentStatus: finalSplitPayments.length > 0 ? "partial" : "paid",
         companyId,
         outletId,
         cashierId,
+        pricingTierId,
+        splitPayments: finalSplitPayments,
       });
+
+      if (finalSplitPayments.length > 0) {
+        setCartSplitPayments(finalSplitPayments);
+      }
 
       setInvoiceData({
         orderNumber: order.order_number,
@@ -213,7 +228,6 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                       <div key={item.id} className="flex justify-between text-xs text-neutral-700 ml-2 mb-0.5">
                         <span className="truncate">
                           {item.quantity}x {item.product.name}
-                          {item.pricing_option_name && ` (${item.pricing_option_name})`}
                         </span>
                         <span className="font-mono ml-2">{formatCurrency(item.subtotal)}</span>
                       </div>
@@ -309,10 +323,33 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               </div>
             )}
 
+            {/* Split Bill Toggle */}
+            {!splitBillMode && (
+              <button
+                onClick={() => setSplitBillMode(true)}
+                className="w-full flex items-center justify-center gap-2 text-sm font-medium text-neutral-500 bg-neutral-50 rounded-xl px-4 py-3 hover:bg-neutral-100 transition-colors border border-dashed border-neutral-300"
+              >
+                <Users size={16} />
+                Split Bill
+              </button>
+            )}
+
+            {splitBillMode && (
+              <SplitBillPanel
+                total={total}
+                onSplitChange={setSplitPayments}
+                onCancel={() => {
+                  setSplitBillMode(false);
+                  setSplitPayments([]);
+                }}
+              />
+            )}
+
             <button
               onClick={handleSubmit}
               disabled={
-                !method || !customerName.trim() || (method === "cash" && (!cashAmount || !isCashEnough))
+                !method || !customerName.trim() || (method === "cash" && (!cashAmount || !isCashEnough)) ||
+                (splitBillMode && splitPayments.length === 0)
               }
               className="w-full bg-forest text-white rounded-xl px-6 py-3.5 font-semibold text-sm hover:bg-forest-dark active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >

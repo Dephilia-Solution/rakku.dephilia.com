@@ -22,13 +22,47 @@ export interface Modifier {
   id: string;
   product_id: string;
   name: string;
-  price_delta: number;
+  price_delta?: number;
 }
 
 export type OrderType = "dine_in" | "take_away" | "delivery" | "gojek" | "grab" | "shopee";
 export type PaymentMethod = "cash" | "qris" | "card" | "later";
 export type OrderStatus = "draft" | "pending_payment" | "completed" | "cancelled";
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "refunded";
+
+export interface PricingTier {
+  id: string;
+  company_id: string;
+  outlet_id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface ProductTierPrice {
+  id: string;
+  product_id: string;
+  tier_id: string;
+  price: number;
+}
+
+export interface ModifierTierPrice {
+  id: string;
+  modifier_id: string;
+  tier_id: string;
+  price_delta: number;
+}
+
+export interface SplitPayment {
+  id: string;
+  order_id: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  status: "unpaid" | "paid";
+  customer_name: string | null;
+  created_at: string;
+}
 
 export interface PricingOption {
   id: string;
@@ -57,7 +91,8 @@ export interface Order {
   status: OrderStatus;
   payment_status: PaymentStatus;
   reserved_until: string | null;
-  pricing_option_id: string | null;
+  pricing_tier_id: string | null;
+  split_bill: boolean;
   created_at: string;
 }
 
@@ -74,6 +109,7 @@ export interface OrderItem {
 
 export interface OrderWithItems extends Order {
   items: OrderItem[];
+  split_payments?: SplitPayment[];
 }
 
 export interface CartItem {
@@ -84,8 +120,7 @@ export interface CartItem {
   modifier_label: string | null;
   unit_price: number;
   subtotal: number;
-  pricing_option_id?: string;
-  pricing_option_name?: string;
+  pricing_tier_id?: string;
   note?: string;
   source?: 'draft' | 'new';
 }

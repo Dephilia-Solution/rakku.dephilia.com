@@ -4,7 +4,7 @@ import { verifySession } from "@/lib/auth/tenant-session";
 
 const tenantAuthPaths = ["/login", "/login/select-outlet", "/login/select-user", "/login/enter-pin"];
 const superadminPaths = ["/superadmin"];
-const dashboardPaths = ["/register", "/orders", "/reports", "/admin"];
+const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/categories", "/pricing-tiers", "/settings"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -88,14 +88,6 @@ export async function middleware(request: NextRequest) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-
-    // Check menu access for dashboard pages
-    // Allow admin prefix for products page
-    const menuSlug = pathname.startsWith("/admin") ? "products" : pathname.split("/")[1];
-
-    // We'll do a lightweight check using a fetch to avoid DB in middleware
-    // For the middleware, we just verify the session exists
-    // Full access control happens in the page/layout layer
 
     return supabaseResponse;
   }

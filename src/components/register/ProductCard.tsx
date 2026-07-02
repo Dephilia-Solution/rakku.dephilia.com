@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { ProductWithCategory } from "@/types";
 import { formatCurrency } from "@/lib/dummy-data";
+import { useCartStore, getTierPrice } from "@/lib/store/cartStore";
 import { ImageIcon } from "lucide-react";
 
 interface ProductCardProps {
@@ -18,6 +19,10 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function ProductCard({ product, onClick }: ProductCardProps) {
+  const pricingTierId = useCartStore((s) => s.pricingTierId);
+  const productTierPriceMap = useCartStore((s) => s.productTierPriceMap);
+  const displayPrice = getTierPrice(product.id, pricingTierId, productTierPriceMap, product.price);
+
   return (
     <button
       onClick={onClick}
@@ -55,7 +60,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           {product.name}
         </p>
         <p className="font-mono text-xs sm:text-sm text-forest font-semibold mt-0.5">
-          {formatCurrency(product.price)}
+          {formatCurrency(displayPrice)}
         </p>
       </div>
     </button>
