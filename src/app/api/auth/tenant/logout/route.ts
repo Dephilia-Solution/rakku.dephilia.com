@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       company_id: session.company_id,
       outlet_id: session.outlet_id,
       user_id: session.user_id,
-      event_type: "logout",
+      event_type: "shift_end",
       success: true,
       ip_address: ipAddress,
       user_agent: userAgent,

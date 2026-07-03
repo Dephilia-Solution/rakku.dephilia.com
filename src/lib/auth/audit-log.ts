@@ -8,8 +8,8 @@ export type AuthEventType =
   | "outlet_select"
   | "account_select"
   | "pin_verify"
-  | "session_created"
-  | "logout";
+  | "shift_start"
+  | "shift_end";
 
 /**
  * Parameters for logging an authentication event

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { product_id, name, prices } = body;
+  const { product_id, name, group_name, prices } = body;
 
   if (!product_id || !name) {
     return NextResponse.json({ error: "Product ID dan nama harus diisi" }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
   const { data: modifier, error: modError } = await supabase
     .from("modifiers")
-    .insert({ product_id, name, price_delta: 0 })
+    .insert({ product_id, name, price_delta: 0, group_name: group_name || null })
     .select()
     .single();
 

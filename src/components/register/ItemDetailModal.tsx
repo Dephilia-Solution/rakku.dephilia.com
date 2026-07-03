@@ -21,9 +21,9 @@ export default function ItemDetailModal({ product, variants, onClose }: ItemDeta
             </h3>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+              className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -85,7 +85,7 @@ export default function ItemDetailModal({ product, variants, onClose }: ItemDeta
 
           <button
             onClick={onClose}
-            className="mt-4 w-full text-sm text-neutral-400 hover:text-neutral-600 py-2"
+            className="mt-4 w-full text-sm text-neutral-400 hover:text-neutral-600 py-3 rounded-xl hover:bg-neutral-50"
           >
             Tutup
           </button>

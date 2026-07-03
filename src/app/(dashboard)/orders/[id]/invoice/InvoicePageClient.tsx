@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 import { formatCurrency, formatDate } from "@/lib/dummy-data";
+import { AppliedTax, AppliedDiscount } from "@/types";
 import { Printer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -11,6 +13,7 @@ interface OrderItem {
   unit_price: number;
   quantity: number;
   modifier_label: string | null;
+  note: string | null;
   subtotal: number;
 }
 
@@ -27,6 +30,9 @@ interface OrderData {
   cashier_name: string | null;
   created_at: string;
   order_items: OrderItem[];
+  taxes: AppliedTax[] | null;
+  discounts: AppliedDiscount[] | null;
+  discount_amount: number;
 }
 
 export default function InvoicePageClient({ order }: { order: OrderData }) {
@@ -70,7 +76,13 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
       {/* Invoice Content */}
       <div ref={printRef} className="max-w-md mx-auto bg-white p-6 sm:p-8 my-4 shadow-sm rounded-2xl sm:my-8">
         <div className="text-center mb-6">
-          <h1 className="font-display font-bold text-xl text-neutral-900">STOCKO</h1>
+          <Image
+            src="/images/rakku_logotype.png"
+            alt="Rakku"
+            width={120}
+            height={30}
+            className="h-7 w-auto mx-auto object-contain"
+          />
           <p className="text-sm text-neutral-400 mt-1">Invoice #{order.order_number}</p>
         </div>
 
@@ -114,6 +126,11 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
                   {item.modifier_label && ` — ${item.modifier_label}`}
                 </span>
               </div>
+              {item.note && (
+                <div className="text-xs text-neutral-400 italic pl-2">
+                  Catatan: {item.note}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -125,10 +142,18 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
             <span>Subtotal</span>
             <span className="font-mono">{formatCurrency(order.subtotal)}</span>
           </div>
-          <div className="flex justify-between text-neutral-600">
-            <span>Pajak ({order.tax_rate}%)</span>
-            <span className="font-mono">{formatCurrency(order.tax_amount)}</span>
-          </div>
+          {(order.discounts ?? []).map((d, i) => (
+            <div key={i} className="flex justify-between text-green-600">
+              <span>{d.name}</span>
+              <span className="font-mono">-{formatCurrency(d.amount)}</span>
+            </div>
+          ))}
+          {(order.taxes ?? []).map((t, i) => (
+            <div key={i} className="flex justify-between text-neutral-600">
+              <span>{t.name}{t.type === "percentage" ? ` (${t.value}%)` : ""}</span>
+              <span className="font-mono">{formatCurrency(t.amount)}</span>
+            </div>
+          ))}
           <div className="flex justify-between text-lg font-display font-bold text-neutral-900 pt-2 border-t border-neutral-900">
             <span>Total</span>
             <span className="font-mono">{formatCurrency(order.total_price)}</span>

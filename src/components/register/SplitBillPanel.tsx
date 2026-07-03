@@ -165,7 +165,7 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
         <h4 className="text-sm font-semibold text-neutral-900">Split Bill per Item</h4>
         <button
           onClick={onCancel}
-          className="text-xs text-neutral-400 hover:text-neutral-600"
+          className="text-xs text-neutral-400 hover:text-neutral-600 px-3 py-2 rounded-lg hover:bg-neutral-100"
         >
           Batal
         </button>
@@ -178,10 +178,11 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
         <div className="space-y-1">
           {items.map((item) => {
             const remaining = getRemainingQty(item.id);
+            const label = item.modifier_label ? `${item.product.name} (${item.modifier_label})` : item.product.name;
             return (
               <div key={item.id} className="flex justify-between items-center text-xs">
                 <span className="text-neutral-700">
-                  {item.product.name} <span className="text-neutral-400">x{item.quantity}</span>
+                  {label} <span className="text-neutral-400">x{item.quantity}</span>
                 </span>
                 <span className={`font-mono text-[10px] ${remaining > 0 ? "text-amber-600" : "text-success"}`}>
                   {remaining > 0 ? `${remaining} sisa` : "✓"}
@@ -215,12 +216,12 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                   placeholder="Nama (opsional)"
                   className="flex-1 bg-transparent border-b border-neutral-200 px-1 py-0.5 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest"
                 />
-                <div className="flex gap-0.5">
+                <div className="flex gap-1">
                   {paymentMethods.map((pm) => (
                     <button
                       key={pm.value}
                       onClick={() => updatePerson(person.id, { method: pm.value })}
-                      className={`w-6 h-6 rounded-md text-[10px] font-bold transition-colors ${
+                      className={`w-10 h-10 rounded-lg text-xs font-bold transition-colors ${
                         person.method === pm.value
                           ? "bg-forest text-white"
                           : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
@@ -233,9 +234,9 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                 {persons.length > 2 && (
                   <button
                     onClick={() => removePerson(person.id)}
-                    className="text-neutral-300 hover:text-danger p-0.5"
+                    className="w-9 h-9 rounded-lg text-neutral-300 hover:text-danger hover:bg-red-50 flex items-center justify-center"
                   >
-                    <X size={12} />
+                    <X size={16} />
                   </button>
                 )}
               </div>
@@ -244,25 +245,26 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                 {person.items.filter((pi) => pi.quantity > 0).map((pi) => {
                   const cartItem = items.find((i) => i.id === pi.cartItemId);
                   if (!cartItem) return null;
+                  const label = cartItem.modifier_label ? `${cartItem.product.name} (${cartItem.modifier_label})` : cartItem.product.name;
                   return (
                     <div key={pi.cartItemId} className="flex items-center justify-between text-xs">
-                      <span className="text-neutral-600 truncate flex-1">{cartItem.product.name}</span>
+                      <span className="text-neutral-600 truncate flex-1">{label}</span>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => removeItemFromPerson(person.id, pi.cartItemId)}
-                          className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center"
+                          className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center active:scale-90 transition-colors"
                         >
-                          <Minus size={10} />
+                          <Minus size={14} />
                         </button>
-                        <span className="w-5 text-center font-mono text-xs">{pi.quantity}</span>
+                        <span className="w-7 text-center font-mono text-sm">{pi.quantity}</span>
                         <button
                           onClick={() => addItemToPerson(person.id, pi.cartItemId)}
-                          className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center"
+                          className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center active:scale-90 transition-colors"
                           disabled={getRemainingQty(pi.cartItemId) <= 0}
                         >
-                          <Plus size={10} />
+                          <Plus size={14} />
                         </button>
-                        <span className="font-mono text-[10px] text-neutral-500 w-14 text-right">
+                        <span className="font-mono text-xs text-neutral-500 w-16 text-right">
                           {formatCurrency(pi.quantity * cartItem.unit_price)}
                         </span>
                       </div>
@@ -273,15 +275,18 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                 <div className="pt-1">
                   {items.filter((item) => getRemainingQty(item.id) > 0).length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {items.filter((item) => getRemainingQty(item.id) > 0).map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => addItemToPerson(person.id, item.id)}
-                          className="text-[10px] bg-neutral-50 hover:bg-forest hover:text-white text-neutral-600 px-2 py-0.5 rounded-full border border-neutral-200 transition-colors"
-                        >
-                          + {item.product.name}
-                        </button>
-                      ))}
+                      {items.filter((item) => getRemainingQty(item.id) > 0).map((item) => {
+                        const label = item.modifier_label ? `${item.product.name} (${item.modifier_label})` : item.product.name;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => addItemToPerson(person.id, item.id)}
+                            className="text-xs bg-neutral-50 hover:bg-forest hover:text-white text-neutral-600 px-3 py-2 rounded-full border border-neutral-200 transition-colors leading-none"
+                          >
+                            + {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -299,9 +304,9 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
 
       <button
         onClick={addPerson}
-        className="w-full flex items-center justify-center gap-1 text-xs text-forest font-medium py-2 border border-dashed border-neutral-300 rounded-xl hover:bg-white transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 text-sm text-forest font-medium py-3 border border-dashed border-neutral-300 rounded-xl hover:bg-white transition-colors"
       >
-        <Plus size={12} />
+        <Plus size={16} />
         Tambah Orang
       </button>
 

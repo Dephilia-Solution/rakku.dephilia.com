@@ -16,6 +16,7 @@ interface OrderSidebarProps {
   onClose?: () => void;
   onOpenDraft?: () => void;
   onEditItem?: (itemId: string) => void;
+  refreshKey?: number;
 }
 
 export default function OrderSidebar({
@@ -25,6 +26,7 @@ export default function OrderSidebar({
   onClose,
   onOpenDraft,
   onEditItem,
+  refreshKey,
 }: OrderSidebarProps) {
   const items = useCartStore((s) => s.items);
   const pricingTierId = useCartStore((s) => s.pricingTierId);
@@ -34,7 +36,7 @@ export default function OrderSidebar({
   const decrementQty = useCartStore((s) => s.decrementQty);
   const removeItem = useCartStore((s) => s.removeItem);
   const clear = useCartStore((s) => s.clear);
-  const { subtotal, taxRate, taxAmount, total } = useCartTotals();
+  const { subtotal, appliedTaxes, appliedDiscounts, total } = useCartTotals();
   const groupedCart = useCartGroupedByProduct();
 
   const [draftCount, setDraftCount] = useState(0);
@@ -100,7 +102,7 @@ export default function OrderSidebar({
     fetchDraftCount();
     const interval = setInterval(fetchDraftCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshKey]);
 
   const content = (
     <>
@@ -113,7 +115,7 @@ export default function OrderSidebar({
             {onOpenDraft && (
               <button
                 onClick={onOpenDraft}
-                className="relative p-1.5 rounded-lg border border-forest/40 text-forest hover:bg-forest/5 transition-colors"
+                className="relative w-10 h-10 rounded-lg border border-forest/40 text-forest hover:bg-forest/5 transition-colors flex items-center justify-center"
                 title="Pesanan Draft"
               >
                 {draftCount > 0 && (
@@ -121,24 +123,24 @@ export default function OrderSidebar({
                     {draftCount > 99 ? "99+" : draftCount}
                   </span>
                 )}
-                <Clock size={16} />
+                <Clock size={18} />
               </button>
             )}
             {items.length > 0 && (
               <button
                 onClick={clear}
-                className="text-neutral-400 hover:text-danger transition-colors"
+                className="w-10 h-10 rounded-lg text-neutral-400 hover:text-danger hover:bg-red-50 transition-colors flex items-center justify-center"
                 title="Clear cart"
               >
-                <Trash2 size={16} />
+                <Trash2 size={18} />
               </button>
             )}
             {isDrawer && onClose && (
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+                className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             )}
           </div>
@@ -195,9 +197,9 @@ export default function OrderSidebar({
                                 e.stopPropagation();
                                 decrementQty(v.id);
                               }}
-                              className="w-6 h-6 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors active:scale-90"
+                              className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors active:scale-90"
                             >
-                              <Minus size={10} />
+                              <Minus size={14} />
                             </button>
                             {editingQtyId === v.id ? (
                               <input
@@ -222,7 +224,7 @@ export default function OrderSidebar({
                                   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                   if (e.key === "Escape") setEditingQtyId(null);
                                 }}
-                                className="w-10 text-center font-semibold text-sm text-neutral-900 bg-neutral-100 rounded-lg border border-neutral-300 outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                                className="w-10 h-9 text-center font-semibold text-sm text-neutral-900 bg-neutral-100 rounded-lg border border-neutral-300 outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                                 autoFocus
                               />
                             ) : (
@@ -232,7 +234,7 @@ export default function OrderSidebar({
                                   setEditingQtyId(v.id);
                                   setEditingQtyVal(String(v.quantity));
                                 }}
-                                className="min-w-[1.5rem] text-center font-semibold text-sm text-neutral-900 cursor-text hover:bg-neutral-100 rounded px-1 py-0.5 transition-colors"
+                                className="min-w-[2rem] h-9 text-center font-semibold text-sm text-neutral-900 cursor-text hover:bg-neutral-100 rounded px-1.5 transition-colors"
                               >
                                 {v.quantity}
                               </button>
@@ -242,9 +244,9 @@ export default function OrderSidebar({
                                 e.stopPropagation();
                                 incrementQty(v.id);
                               }}
-                              className="w-6 h-6 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors active:scale-90"
+                              className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors active:scale-90"
                             >
-                              <Plus size={10} />
+                              <Plus size={14} />
                             </button>
                           </div>
                           <span className="text-neutral-600 truncate ml-1">
@@ -269,9 +271,9 @@ export default function OrderSidebar({
                                   e.stopPropagation();
                                   onEditItem(v.id);
                                 }}
-                                className="text-neutral-300 hover:text-forest transition-colors p-0.5"
+                                className="w-8 h-8 rounded-lg text-neutral-300 hover:text-forest hover:bg-neutral-100 transition-colors flex items-center justify-center"
                               >
-                                <Pencil size={11} />
+                                <Pencil size={14} />
                               </button>
                             )}
                             <button
@@ -279,9 +281,9 @@ export default function OrderSidebar({
                                 e.stopPropagation();
                                 removeItem(v.id);
                               }}
-                              className="text-neutral-300 hover:text-danger transition-colors p-0.5"
+                              className="w-8 h-8 rounded-lg text-neutral-300 hover:text-danger hover:bg-red-50 transition-colors flex items-center justify-center"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
@@ -309,10 +311,18 @@ export default function OrderSidebar({
           <span>Subtotal</span>
           <span className="font-mono">{formatCurrency(subtotal)}</span>
         </div>
-        <div className="flex justify-between text-sm text-neutral-600">
-          <span>Tax ({taxRate}%)</span>
-          <span className="font-mono">{formatCurrency(taxAmount)}</span>
-        </div>
+        {appliedDiscounts.map((discount, i) => (
+          <div key={i} className="flex justify-between text-sm text-success">
+            <span>{discount.name}</span>
+            <span className="font-mono">-{formatCurrency(discount.amount)}</span>
+          </div>
+        ))}
+        {appliedTaxes.map((tax, i) => (
+          <div key={i} className="flex justify-between text-sm text-neutral-600">
+            <span>{tax.name} {tax.type === "percentage" ? `(${tax.value}%)` : ""}</span>
+            <span className="font-mono">{formatCurrency(tax.amount)}</span>
+          </div>
+        ))}
         <div className="flex justify-between text-base font-display font-bold text-neutral-900 pt-1 border-t border-neutral-200">
           <span>Total</span>
           <span className="font-mono">{formatCurrency(total)}</span>

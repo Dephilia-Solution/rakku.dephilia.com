@@ -23,6 +23,7 @@ export interface Modifier {
   product_id: string;
   name: string;
   price_delta?: number;
+  group_name: string | null;
 }
 
 export type OrderType = "dine_in" | "take_away" | "delivery" | "gojek" | "grab" | "shopee";
@@ -102,6 +103,9 @@ export interface Order {
   reserved_until: string | null;
   pricing_tier_id: string | null;
   split_bill: boolean;
+  discount_amount: number;
+  taxes: AppliedTax[] | null;
+  discounts: AppliedDiscount[] | null;
   created_at: string;
 }
 
@@ -113,6 +117,7 @@ export interface OrderItem {
   unit_price: number;
   quantity: number;
   modifier_label: string | null;
+  note: string | null;
   subtotal: number;
 }
 
@@ -121,17 +126,72 @@ export interface OrderWithItems extends Order {
   split_payments?: SplitPayment[];
 }
 
+export interface Tax {
+  id: string;
+  company_id: string;
+  outlet_id: string;
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface ProductDiscount {
+  id: string;
+  company_id: string;
+  outlet_id: string;
+  product_id: string;
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface OrderDiscount {
+  id: string;
+  company_id: string;
+  outlet_id: string;
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AppliedTax {
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  amount: number;
+}
+
+export interface AppliedDiscount {
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  amount: number;
+}
+
 export interface CartItem {
   id: string;
   product: Product;
   quantity: number;
-  modifier: Modifier | null;
+  modifiers: Modifier[];
   modifier_label: string | null;
   unit_price: number;
   subtotal: number;
   pricing_tier_id?: string;
-  note?: string;
+  note: string | null;
   source?: 'draft' | 'new';
+  discount?: AppliedDiscount | null;
+  discounted_unit_price?: number;
 }
 
 export interface Company {

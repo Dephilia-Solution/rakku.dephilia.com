@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coffee, Store, ChevronRight, LogOut } from "lucide-react";
+import Image from "next/image";
+import { Store, ChevronRight, LogOut } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
 
 interface Outlet {
@@ -64,8 +65,8 @@ export default function SelectOutletPage() {
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4 pt-safe pb-safe">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-            <Coffee size={28} className="text-white" />
+          <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm overflow-hidden">
+            <Image src="/images/rakku_logo.png" alt="Rakku" width={56} height={56} className="w-full h-full object-cover" />
           </div>
           <h1 className="font-display font-bold text-2xl text-neutral-900">
             Pilih Outlet

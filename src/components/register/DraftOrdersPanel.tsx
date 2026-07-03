@@ -18,6 +18,7 @@ interface DraftOrder {
     unit_price: number;
     subtotal: number;
     modifier_label: string | null;
+    note: string | null;
   }>;
 }
 
@@ -25,9 +26,10 @@ interface Props {
   isOpen: boolean;
   onClose?: () => void;
   onSelectDraft: (draft: DraftOrder) => void;
+  onDraftChange?: () => void;
 }
 
-export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft }: Props) {
+export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft, onDraftChange }: Props) {
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -55,6 +57,7 @@ export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft }: Pro
       });
       if (res.ok) {
         setDrafts((prev) => prev.filter((d) => d.id !== id));
+        onDraftChange?.();
       }
     } catch {}
   };
@@ -79,9 +82,9 @@ export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft }: Pro
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+              className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -125,9 +128,9 @@ export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft }: Pro
                         e.stopPropagation();
                         handleDelete(draft.id);
                       }}
-                      className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors"
+                      className="w-10 h-10 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors"
                     >
-                      <X size={13} />
+                      <X size={18} />
                     </button>
                   </div>
                 </div>

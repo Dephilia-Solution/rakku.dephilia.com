@@ -244,7 +244,7 @@ async function seed() {
   console.log("");
 
   // ═══════════════════════════════════════════════
-  //  5. STOCKO — Outlet Cabang + Users (jika belum ada)
+  //  5. RAKKU — Outlet Cabang + Users (jika belum ada)
   // ═══════════════════════════════════════════════
   const stockoId = UUID.company.stocko;
 
@@ -273,9 +273,9 @@ async function seed() {
     if (error) {
       console.error("❌ Gagal membuat Outlet Cabang:", error.message);
     } else {
-      console.log("✅ Outlet Cabang (STOCKO) dibuat");
+      console.log("✅ Outlet Cabang (RAKKU) dibuat");
 
-      // Get STOCKO roles
+      // Get RAKKU roles
       const { data: stockoRolesData } = await supabase
         .from("roles")
         .select("id, name")
@@ -319,7 +319,7 @@ async function seed() {
       console.log("✅ User Outlet Cabang di-assign");
     }
   } else {
-    console.log("ℹ️  Outlet Cabang (STOCKO) sudah ada");
+    console.log("ℹ️  Outlet Cabang (RAKKU) sudah ada");
   }
   console.log("");
 
@@ -383,9 +383,9 @@ async function seed() {
   for (const [outletId, cats] of Object.entries(outletCategories)) {
     const companyId = outletId === tokokoOutletId ? tokokoId : stockoId;
     const outletLabel = outletId === UUID.outlet.stocko_utama
-      ? "Outlet Utama (STOCKO)"
+      ? "Outlet Utama (RAKKU)"
       : outletId === stockoCabangId
-        ? "Outlet Cabang (STOCKO)"
+        ? "Outlet Cabang (RAKKU)"
         : "Toko Utama (TOKOKO)";
 
     // Insert categories
@@ -463,8 +463,8 @@ async function seed() {
   console.log("");
   console.log("📋 Informasi Login Tenant:");
   console.log("   ┌──────────────────────┬──────────────────────────────────────┐");
-  console.log("   │ STOCKO               │ Kode: STOCKO                        │");
-  console.log("   │                      │ Password: stocko123                  │");
+  console.log("   │ RAKKU                │ Kode: RAKKU                         │");
+  console.log("   │                      │ Password: rakku123                   │");
   console.log("   ├──────────────────────┼──────────────────────────────────────┤");
   console.log("   │ Outlet Utama         │ budi (Owner*) | siti (Admin) | ahmad (Kasir) │");
   console.log("   │ Outlet Cabang        │ budi (Owner*) | rudi (Kepala Cabang) | dewi (Kasir) │");

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ProductWithCategory } from "@/types";
 import { formatCurrency } from "@/lib/dummy-data";
 import { useCartStore, getTierPrice } from "@/lib/store/cartStore";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Percent } from "lucide-react";
 
 interface ProductCardProps {
   product: ProductWithCategory;
@@ -18,10 +18,22 @@ const categoryColors: Record<string, string> = {
   "Add-ons": "bg-purple-100 text-purple-800",
 };
 
+function useProductDiscount(productId: string) {
+  const activeProductDiscounts = useCartStore((s) => s.activeProductDiscounts);
+  return activeProductDiscounts.find((d) => d.product_id === productId) ?? null;
+}
+
 export default function ProductCard({ product, onClick }: ProductCardProps) {
   const pricingTierId = useCartStore((s) => s.pricingTierId);
   const productTierPriceMap = useCartStore((s) => s.productTierPriceMap);
   const displayPrice = getTierPrice(product.id, pricingTierId, productTierPriceMap, product.price);
+
+  const discount = useProductDiscount(product.id);
+  const discountedPrice = discount
+    ? discount.type === "percentage"
+      ? displayPrice * (1 - discount.value / 100)
+      : Math.max(0, displayPrice - discount.value)
+    : null;
 
   return (
     <button
@@ -54,14 +66,31 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
         >
           {product.category_name}
         </span>
+        {discount && (
+          <span className="absolute top-2 right-2 bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <Percent size={8} />
+            {discount.type === "percentage" ? `${discount.value}%` : "Diskon"}
+          </span>
+        )}
       </div>
       <div className="p-2 sm:p-3">
         <p className="font-display font-semibold text-xs sm:text-sm text-neutral-900 truncate leading-tight">
           {product.name}
         </p>
-        <p className="font-mono text-xs sm:text-sm text-forest font-semibold mt-0.5">
-          {formatCurrency(displayPrice)}
-        </p>
+        {discount && discountedPrice !== null ? (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="font-mono text-xs sm:text-sm text-forest font-semibold">
+              {formatCurrency(discountedPrice)}
+            </p>
+            <p className="font-mono text-[10px] sm:text-xs text-neutral-400 line-through">
+              {formatCurrency(displayPrice)}
+            </p>
+          </div>
+        ) : (
+          <p className="font-mono text-xs sm:text-sm text-forest font-semibold mt-0.5">
+            {formatCurrency(displayPrice)}
+          </p>
+        )}
       </div>
     </button>
   );

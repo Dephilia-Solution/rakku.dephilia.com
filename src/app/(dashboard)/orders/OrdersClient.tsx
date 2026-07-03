@@ -205,6 +205,11 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                                         ({item.modifier_label})
                                       </span>
                                     )}
+                                    {item.note && (
+                                      <span className="text-neutral-400 text-xs italic ml-2">
+                                        — {item.note}
+                                      </span>
+                                    )}
                                     <span className="text-neutral-400 ml-2">
                                       x{item.quantity}
                                     </span>
@@ -286,6 +291,9 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                               <span className="text-neutral-900 font-medium truncate">{item.product_name}</span>
                               {item.modifier_label && (
                                 <span className="text-neutral-400">({item.modifier_label})</span>
+                              )}
+                              {item.note && (
+                                <span className="text-neutral-400 italic">— {item.note}</span>
                               )}
                               <span className="text-neutral-400">x{item.quantity}</span>
                             </div>

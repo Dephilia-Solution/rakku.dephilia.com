@@ -27,26 +27,27 @@ export const products: ProductWithCategory[] = [
 ];
 
 export const modifiers: Modifier[] = [
-  { id: "mod-1", product_id: "prod-1", name: "Oat Milk", price_delta: 5000 },
-  { id: "mod-2", product_id: "prod-1", name: "Soy Milk", price_delta: 4000 },
-  { id: "mod-3", product_id: "prod-2", name: "Oat Milk", price_delta: 5000 },
-  { id: "mod-4", product_id: "prod-6", name: "Oat Milk", price_delta: 5000 },
-  { id: "mod-5", product_id: "prod-7", name: "Extra Marshmallow", price_delta: 3000 },
-  { id: "mod-6", product_id: "prod-1", name: "Extra Shot", price_delta: 8000 },
+  { id: "mod-1", product_id: "prod-1", name: "Oat Milk", price_delta: 5000, group_name: null },
+  { id: "mod-2", product_id: "prod-1", name: "Soy Milk", price_delta: 4000, group_name: null },
+  { id: "mod-3", product_id: "prod-2", name: "Oat Milk", price_delta: 5000, group_name: null },
+  { id: "mod-4", product_id: "prod-6", name: "Oat Milk", price_delta: 5000, group_name: null },
+  { id: "mod-5", product_id: "prod-7", name: "Extra Marshmallow", price_delta: 3000, group_name: null },
+  { id: "mod-6", product_id: "prod-1", name: "Extra Shot", price_delta: 8000, group_name: null },
 ];
 
 export const sampleOrderItems: OrderItem[] = [
-  { id: "oi-1", order_id: "ord-1", product_id: "prod-1", product_name: "Cafe Latte", unit_price: 45000, quantity: 2, modifier_label: "Oat Milk +5000", subtotal: 100000 },
-  { id: "oi-2", order_id: "ord-1", product_id: "prod-4", product_name: "Butter Croissant", unit_price: 35000, quantity: 1, modifier_label: null, subtotal: 35000 },
-  { id: "oi-3", order_id: "ord-2", product_id: "prod-3", product_name: "Espresso", unit_price: 30000, quantity: 1, modifier_label: null, subtotal: 30000 },
-  { id: "oi-4", order_id: "ord-2", product_id: "prod-6", product_name: "Matcha Latte", unit_price: 50000, quantity: 1, modifier_label: "Oat Milk +5000", subtotal: 55000 },
-  { id: "oi-5", order_id: "ord-3", product_id: "prod-7", product_name: "Chocolate", unit_price: 45000, quantity: 3, modifier_label: "Extra Marshmallow +3000", subtotal: 144000 },
+  { id: "oi-1", order_id: "ord-1", product_id: "prod-1", product_name: "Cafe Latte", unit_price: 45000, quantity: 2, modifier_label: "Oat Milk +5000", note: null, subtotal: 100000 },
+  { id: "oi-2", order_id: "ord-1", product_id: "prod-4", product_name: "Butter Croissant", unit_price: 35000, quantity: 1, modifier_label: null, note: null, subtotal: 35000 },
+  { id: "oi-3", order_id: "ord-2", product_id: "prod-3", product_name: "Espresso", unit_price: 30000, quantity: 1, modifier_label: null, note: null, subtotal: 30000 },
+  { id: "oi-4", order_id: "ord-2", product_id: "prod-6", product_name: "Matcha Latte", unit_price: 50000, quantity: 1, modifier_label: "Oat Milk +5000", note: null, subtotal: 55000 },
+  { id: "oi-5", order_id: "ord-3", product_id: "prod-7", product_name: "Chocolate", unit_price: 45000, quantity: 3, modifier_label: "Extra Marshmallow +3000", note: null, subtotal: 144000 },
 ];
 
 export const sampleOrders: OrderWithItems[] = [
   {
     id: "ord-1", order_number: 1042, order_type: "dine_in", payment_method: "cash",
     subtotal: 135000, tax_rate: 10, tax_amount: 13500, total_price: 148500,
+    discount_amount: 0, taxes: [{ name: "Tax", type: "percentage", value: 10, amount: 13500 }], discounts: null,
     note: null, customer_name: "", cashier_name: null, status: "completed", payment_status: "paid",
     split_bill: false, reserved_until: null, pricing_tier_id: null, created_at: "2026-05-22T09:30:00Z",
     items: [sampleOrderItems[0], sampleOrderItems[1]],
@@ -54,6 +55,7 @@ export const sampleOrders: OrderWithItems[] = [
   {
     id: "ord-2", order_number: 1043, order_type: "delivery", payment_method: "qris",
     subtotal: 85000, tax_rate: 10, tax_amount: 8500, total_price: 93500,
+    discount_amount: 0, taxes: [{ name: "Tax", type: "percentage", value: 10, amount: 8500 }], discounts: null,
     note: "Less ice please", customer_name: "Budi", cashier_name: null, status: "completed", payment_status: "paid",
     split_bill: false, reserved_until: null, pricing_tier_id: null, created_at: "2026-05-22T10:15:00Z",
     items: [sampleOrderItems[2], sampleOrderItems[3]],
@@ -61,6 +63,7 @@ export const sampleOrders: OrderWithItems[] = [
   {
     id: "ord-3", order_number: 1044, order_type: "dine_in", payment_method: "card",
     subtotal: 144000, tax_rate: 10, tax_amount: 14400, total_price: 158400,
+    discount_amount: 0, taxes: [{ name: "Tax", type: "percentage", value: 10, amount: 14400 }], discounts: null,
     note: null, customer_name: "", cashier_name: null, status: "completed", payment_status: "paid",
     split_bill: false, reserved_until: null, pricing_tier_id: null, created_at: "2026-05-22T11:00:00Z",
     items: [sampleOrderItems[4]],
@@ -68,21 +71,23 @@ export const sampleOrders: OrderWithItems[] = [
   {
     id: "ord-4", order_number: 1045, order_type: "delivery", payment_method: "cash",
     subtotal: 75000, tax_rate: 10, tax_amount: 7500, total_price: 82500,
+    discount_amount: 0, taxes: [{ name: "Tax", type: "percentage", value: 10, amount: 7500 }], discounts: null,
     note: "Extra napkins", customer_name: "Siti", cashier_name: null, status: "completed", payment_status: "paid",
     split_bill: false, reserved_until: null, pricing_tier_id: null, created_at: "2026-05-21T18:30:00Z",
     items: [
-      { id: "oi-6", order_id: "ord-4", product_id: "prod-2", product_name: "Cappuccino", unit_price: 45000, quantity: 1, modifier_label: null, subtotal: 45000 },
-      { id: "oi-7", order_id: "ord-4", product_id: "prod-5", product_name: "Chocolate Muffin", unit_price: 28000, quantity: 1, modifier_label: null, subtotal: 28000 },
+      { id: "oi-6", order_id: "ord-4", product_id: "prod-2", product_name: "Cappuccino", unit_price: 45000, quantity: 1, modifier_label: null, note: null, subtotal: 45000 },
+      { id: "oi-7", order_id: "ord-4", product_id: "prod-5", product_name: "Chocolate Muffin", unit_price: 28000, quantity: 1, modifier_label: null, note: null, subtotal: 28000 },
     ],
   },
   {
     id: "ord-5", order_number: 1046, order_type: "dine_in", payment_method: "qris",
     subtotal: 100000, tax_rate: 10, tax_amount: 10000, total_price: 110000,
+    discount_amount: 0, taxes: [{ name: "Tax", type: "percentage", value: 10, amount: 10000 }], discounts: null,
     note: null, customer_name: "", cashier_name: null, status: "completed", payment_status: "paid",
     split_bill: false, reserved_until: null, pricing_tier_id: null, created_at: "2026-05-21T07:45:00Z",
     items: [
-      { id: "oi-8", order_id: "ord-5", product_id: "prod-9", product_name: "Iced Matcha Latte", unit_price: 55000, quantity: 1, modifier_label: null, subtotal: 55000 },
-      { id: "oi-9", order_id: "ord-5", product_id: "prod-4", product_name: "Butter Croissant", unit_price: 35000, quantity: 1, modifier_label: null, subtotal: 35000 },
+      { id: "oi-8", order_id: "ord-5", product_id: "prod-9", product_name: "Iced Matcha Latte", unit_price: 55000, quantity: 1, modifier_label: null, note: null, subtotal: 55000 },
+      { id: "oi-9", order_id: "ord-5", product_id: "prod-4", product_name: "Butter Croissant", unit_price: 35000, quantity: 1, modifier_label: null, note: null, subtotal: 35000 },
     ],
   },
 ];

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coffee, Lock, Eye, EyeOff, Building2 } from "lucide-react";
+import Image from "next/image";
+import { Lock, Eye, EyeOff, Building2 } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
 import ToastContainer from "@/components/shared/Toast";
 
@@ -47,13 +48,17 @@ export default function CompanyLoginPage() {
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4 pt-safe pb-safe">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-            <Coffee size={28} className="text-white" />
+          <div className="w-14 h-14 bg-forest rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm overflow-hidden">
+            <Image src="/images/rakku_logo.png" alt="Rakku" width={56} height={56} className="w-full h-full object-cover" />
           </div>
-          <h1 className="font-display font-bold text-2xl text-neutral-900">
-            Stocko
-          </h1>
-          <p className="text-sm text-neutral-400 mt-1">Masuk ke perusahaan Anda</p>
+          <Image
+            src="/images/rakku_logotype.png"
+            alt="Rakku"
+            width={160}
+            height={40}
+            className="h-8 w-auto mx-auto object-contain"
+          />
+          <p className="text-sm text-neutral-400 mt-2">Masuk ke perusahaan Anda</p>
         </div>
 
         <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">

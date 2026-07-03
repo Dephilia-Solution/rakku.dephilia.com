@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { OrderType, PaymentMethod, OrderStatus, PaymentStatus } from "@/types";
+import { OrderType, PaymentMethod, OrderStatus, PaymentStatus, AppliedTax, AppliedDiscount } from "@/types";
 
 type JsonLike = Record<string, unknown>;
 
@@ -91,6 +91,7 @@ export async function getAllModifiers() {
       product_id: m.product_id as string,
       name: m.name as string,
       price_delta: Number(m.price_delta ?? 0),
+      group_name: (m.group_name as string) ?? null,
       tier_prices: ((m.modifier_tier_prices as JsonLike[]) ?? []).map((tp) => ({
         modifier_id: tp.modifier_id as string,
         tier_id: tp.tier_id as string,
@@ -174,6 +175,9 @@ export async function getOrders() {
       reserved_until: o.reserved_until as string | null,
       pricing_tier_id: o.pricing_tier_id as string | null,
       split_bill: (o.split_bill as boolean) ?? false,
+      discount_amount: Number(o.discount_amount ?? 0),
+      taxes: o.taxes as AppliedTax[] | null,
+      discounts: o.discounts as AppliedDiscount[] | null,
       created_at: o.created_at as string,
       items: ((o.order_items ?? []) as JsonLike[]).map((i) => ({
         id: i.id as string,
@@ -183,6 +187,7 @@ export async function getOrders() {
         unit_price: Number(i.unit_price),
         quantity: i.quantity as number,
         modifier_label: i.modifier_label as string | null,
+        note: i.note as string | null,
         subtotal: Number(i.subtotal),
       })),
     })) ?? []
@@ -226,4 +231,86 @@ export async function getSalesSummary() {
     : null;
 
   return { totalTransactions, totalRevenue, topItem };
+}
+
+export async function getActiveTaxes() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("taxes")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  return (
+    (data as JsonLike[])?.map((t) => ({
+      id: t.id as string,
+      company_id: t.company_id as string,
+      outlet_id: t.outlet_id as string,
+      name: t.name as string,
+      type: t.type as "percentage" | "fixed",
+      value: Number(t.value),
+      is_active: t.is_active as boolean,
+      sort_order: t.sort_order as number,
+      created_at: t.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getActiveProductDiscounts() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from("product_discounts")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("is_active", true)
+    .lte("start_date", now)
+    .gte("end_date", now);
+  return (
+    (data as JsonLike[])?.map((d) => ({
+      id: d.id as string,
+      company_id: d.company_id as string,
+      outlet_id: d.outlet_id as string,
+      product_id: d.product_id as string,
+      name: d.name as string,
+      type: d.type as "percentage" | "fixed",
+      value: Number(d.value),
+      start_date: d.start_date as string,
+      end_date: d.end_date as string,
+      is_active: d.is_active as boolean,
+      created_at: d.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getActiveOrderDiscounts() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from("order_discounts")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("is_active", true)
+    .lte("start_date", now)
+    .gte("end_date", now);
+  return (
+    (data as JsonLike[])?.map((d) => ({
+      id: d.id as string,
+      company_id: d.company_id as string,
+      outlet_id: d.outlet_id as string,
+      name: d.name as string,
+      type: d.type as "percentage" | "fixed",
+      value: Number(d.value),
+      start_date: d.start_date as string,
+      end_date: d.end_date as string,
+      is_active: d.is_active as boolean,
+      created_at: d.created_at as string,
+    })) ?? []
+  );
 }

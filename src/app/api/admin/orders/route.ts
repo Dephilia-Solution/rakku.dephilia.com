@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { CartItem, SplitPayment } from "@/types";
+import { CartItem, SplitPayment, AppliedDiscount } from "@/types";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
-    orderType, paymentMethod, items, subtotal, taxAmount, total,
+    orderType, paymentMethod, items, subtotal, total,
     customerName, note, status, paymentStatus, companyId, outletId, cashierId,
-    pricingTierId, splitPayments,
+    pricingTierId, splitPayments, taxes, discounts,
   } = body;
 
   if (!orderType || !paymentMethod || !items || !items.length) {
@@ -24,14 +24,19 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  const discountAmount = (discounts as AppliedDiscount[] | undefined)?.reduce((sum, d) => sum + d.amount, 0) ?? 0;
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
       order_type: orderType,
       payment_method: paymentMethod,
       subtotal,
-      tax_rate: Number(process.env.NEXT_PUBLIC_TAX_RATE) || 10,
-      tax_amount: taxAmount,
+      tax_rate: 0,
+      tax_amount: 0,
+      taxes: taxes ?? null,
+      discounts: discounts ?? null,
+      discount_amount: discountAmount,
       total_price: total,
       customer_name: customerName.trim(),
       note: note || null,
@@ -58,6 +63,7 @@ export async function POST(request: NextRequest) {
     unit_price: item.unit_price,
     quantity: item.quantity,
     modifier_label: item.modifier_label,
+    note: item.note || null,
     subtotal: item.subtotal,
   }));
 

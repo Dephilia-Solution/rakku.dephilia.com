@@ -1,5 +1,5 @@
 /**
- * Seed script untuk inisialisasi data awal Stocko.
+ * Seed script untuk inisialisasi data awal Rakku.
  *
  * Cara pakai:
  *   1. Pastikan migration 001_init.sql dan 002_multi_tenant.sql sudah dijalankan
@@ -31,25 +31,25 @@ async function seed() {
   const { data: existingCompany } = await supabase
     .from("companies")
     .select("id")
-    .eq("code", "STOCKO")
+    .eq("code", "RAKKU")
     .single();
 
   if (existingCompany) {
-    console.log("ℹ️  Company STOCKO sudah ada, melewati seeding.");
+    console.log("ℹ️  Company RAKKU sudah ada, melewati seeding.");
     console.log("   Jika ingin reset, hapus data company & seed ulang.");
     process.exit(0);
   }
 
   // ─── 2. Company default ───
-  const companyPassword = "stocko123";
+  const companyPassword = "rakku123";
   const companyPasswordHash = await bcrypt.hash(companyPassword, 10);
 
   const { data: company, error: companyError } = await supabase
     .from("companies")
     .insert({
       id: "a0000000-0000-4000-8000-000000000001",
-      code: "STOCKO",
-      name: "Stocko Default",
+      code: "RAKKU",
+      name: "Rakku Default",
       password_hash: companyPasswordHash,
       status: "active",
     })
@@ -61,7 +61,7 @@ async function seed() {
     process.exit(1);
   }
 
-  console.log("✅ Company STOCKO dibuat (password: stocko123)");
+  console.log("✅ Company RAKKU dibuat (password: rakku123)");
 
   // ─── 3. Outlet default ───
   const { data: outlet, error: outletError } = await supabase
@@ -233,8 +233,8 @@ async function seed() {
   console.log("\n🎉 Seeding selesai!");
   console.log("\n📋 Informasi Login:");
   console.log("   ┌──────────────────────┬──────────────────────────────┐");
-  console.log("   │ Tenant Login          │ Kode: STOCKO                 │");
-  console.log("   │                       │ Password: stocko123          │");
+  console.log("   │ Tenant Login          │ Kode: RAKKU                  │");
+  console.log("   │                       │ Password: rakku123           │");
   console.log("   ├──────────────────────┼──────────────────────────────┤");
   console.log("   │ User (Owner)          │ Username: budi  | PIN: 123456│");
   console.log("   │ User (Admin)          │ Username: siti  | PIN: 123456│");

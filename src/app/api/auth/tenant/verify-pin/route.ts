@@ -209,11 +209,11 @@ export async function POST(request: NextRequest) {
     company_id: pending.company_id,
     outlet_id: pending.outlet_id,
     user_id: user.id,
-    event_type: "session_created",
+    event_type: "shift_start",
     success: true,
     ip_address: ipAddress,
     user_agent: userAgent,
-    metadata: { session_duration: "12h", idle_timeout: "30m" },
+    metadata: {},
   });
 
   return NextResponse.json(

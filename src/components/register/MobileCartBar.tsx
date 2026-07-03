@@ -47,7 +47,7 @@ export default function MobileCartBar({ onViewCart, onCheckout }: MobileCartBarP
         <div className="w-px h-8 bg-neutral-200 flex-shrink-0" />
         <button
           onClick={onCheckout}
-          className="flex-shrink-0 bg-forest text-white rounded-xl px-5 py-2.5 font-semibold text-sm active:scale-95 transition-transform duration-150"
+          className="flex-shrink-0 bg-forest text-white rounded-xl px-6 py-3.5 font-semibold text-sm active:scale-95 transition-transform duration-150"
         >
           Bayar
         </button>

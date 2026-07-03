@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback } from "react";
 import { formatCurrency } from "@/lib/dummy-data";
+import { AppliedTax, AppliedDiscount } from "@/types";
 import { Printer, X } from "lucide-react";
 
 interface InvoiceItem {
@@ -10,6 +11,7 @@ interface InvoiceItem {
   unit_price: number;
   subtotal: number;
   modifier_label: string | null;
+  note: string | null;
 }
 
 interface InvoiceReceiptProps {
@@ -18,36 +20,155 @@ interface InvoiceReceiptProps {
   cashierName: string | null;
   items: InvoiceItem[];
   subtotal: number;
-  taxAmount: number;
+  appliedTaxes: AppliedTax[];
+  appliedDiscounts: AppliedDiscount[];
   total: number;
   paymentMethod: string;
   orderType: string;
   createdAt: string;
   onClose?: () => void;
+  cashAmount?: number;
+  change?: number;
 }
 
-export default function InvoiceReceipt({
-  orderNumber,
-  customerName,
-  cashierName,
-  items,
-  subtotal,
-  taxAmount,
-  total,
-  paymentMethod,
-  orderType,
-  createdAt,
-  onClose,
-}: InvoiceReceiptProps) {
-  const printRef = useRef<HTMLDivElement>(null);
+function buildReceiptHtml(props: InvoiceReceiptProps) {
+  const {
+    orderNumber, customerName, cashierName, items,
+    subtotal, appliedTaxes, appliedDiscounts, total, paymentMethod, orderType,
+    createdAt, cashAmount, change,
+  } = props;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const paymentLabel =
+    paymentMethod === "cash" ? "Tunai" :
+    paymentMethod === "qris" ? "QRIS" :
+    paymentMethod === "card" ? "Kartu" : paymentMethod;
+
+  const itemRows = items
+    .map(
+      (item) => `
+    <tr>
+      <td colspan="2" style="font-size:11px;padding:2px 0;">
+        <strong>${item.product_name}</strong>
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size:10px;color:#555;padding:0 0 4px 8px;">
+        ${item.quantity}x ${formatCurrency(item.unit_price)}
+        ${item.modifier_label ? ` — ${item.modifier_label}` : ""}
+      </td>
+      <td style="font-size:10px;color:#555;text-align:right;padding:0 0 4px 0;">
+        ${formatCurrency(item.subtotal)}
+      </td>
+    </tr>
+    ${item.note ? `<tr><td colspan="2" style="font-size:10px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice #${orderNumber}</title>
+  <style>
+    @page { margin: 0; size: 80mm auto; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', 'Consolas', monospace;
+      width: 80mm;
+      padding: 8mm 5mm;
+      color: #222;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .header { text-align: center; margin-bottom: 10px; }
+    .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+    .header p { font-size: 10px; color: #555; }
+    .divider { border-top: 1px dashed #999; margin: 6px 0; }
+    .info-table { width: 100%; font-size: 10px; }
+    .info-table td { padding: 1px 0; }
+    .info-table td:last-child { text-align: right; }
+    table.items { width: 100%; border-collapse: collapse; }
+    .totals-table { width: 100%; font-size: 11px; }
+    .totals-table td { padding: 2px 0; }
+    .totals-table td:last-child { text-align: right; font-family: 'Courier New', monospace; }
+    .grand-total { font-size: 14px; font-weight: bold; }
+    .grand-total td { padding-top: 4px; border-top: 1px solid #222; }
+    .footer { text-align: center; margin-top: 12px; font-size: 10px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>RAKKU</h1>
+    <p>Invoice #${orderNumber}</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <table class="info-table">
+    <tr><td>Tanggal</td><td>${createdAt}</td></tr>
+    <tr><td>Customer</td><td>${customerName}</td></tr>
+    ${cashierName ? `<tr><td>Kasir</td><td>${cashierName}</td></tr>` : ""}
+    <tr><td>Tipe</td><td style="text-transform:capitalize">${orderType.replace(/_/g, " ")}</td></tr>
+    <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <table class="items">
+    ${itemRows}
+  </table>
+
+  <div class="divider"></div>
+
+  <table class="totals-table">
+    <tr><td>Subtotal</td><td>${formatCurrency(subtotal)}</td></tr>
+    ${appliedDiscounts.map((d) => `<tr><td>${d.name}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
+    ${appliedTaxes.map((t) => `<tr><td>${t.name}${t.type === 'percentage' ? ` (${t.value}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
+    ${cashAmount != null ? `<tr><td>Uang Tunai</td><td>${formatCurrency(cashAmount)}</td></tr>` : ""}
+    ${change != null ? `<tr><td>Kembalian</td><td>${formatCurrency(change)}</td></tr>` : ""}
+    <tr class="grand-total">
+      <td>Total</td>
+      <td>${formatCurrency(total)}</td>
+    </tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <div class="footer">
+    <p>Terima kasih atas kunjungan Anda</p>
+  </div>
+</body>
+</html>`;
+}
+
+export default function InvoiceReceipt(props: InvoiceReceiptProps) {
+  const {
+    orderNumber, customerName, cashierName, items,
+    subtotal, appliedTaxes, appliedDiscounts, total, paymentMethod, orderType,
+    createdAt, onClose, cashAmount, change,
+  } = props;
+
+  const handlePrint = useCallback(() => {
+    const html = buildReceiptHtml(props);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Izinkan pop-up untuk mencetak invoice");
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [props]);
+
+  const paymentLabel =
+    paymentMethod === "cash" ? "Tunai" :
+    paymentMethod === "qris" ? "QRIS" :
+    paymentMethod === "card" ? "Kartu" : paymentMethod;
 
   return (
-    <>
-      <div className="no-print flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
         <h3 className="font-display font-semibold text-base text-neutral-900">
           Invoice
         </h3>
@@ -70,18 +191,18 @@ export default function InvoiceReceipt({
         </div>
       </div>
 
-      <div className="px-6 py-4 overflow-y-auto">
-        <div ref={printRef} className="max-w-sm mx-auto print:max-w-full print:mx-0">
+      <div className="px-6 py-4 overflow-y-auto flex-1">
+        <div className="max-w-sm mx-auto">
           {/* Header */}
-          <div className="text-center mb-6 print:mb-4">
-            <h2 className="font-display font-bold text-lg text-neutral-900 print:text-base">
-              STOCKO
+          <div className="text-center mb-6">
+            <h2 className="font-display text-xl font-bold text-neutral-900">
+              RAKKU
             </h2>
             <p className="text-xs text-neutral-400">Invoice #{orderNumber}</p>
           </div>
 
           {/* Info */}
-          <div className="text-xs text-neutral-600 space-y-0.5 mb-4 print:mb-3">
+          <div className="text-xs text-neutral-600 space-y-0.5 mb-4">
             <div className="flex justify-between">
               <span>Tanggal</span>
               <span className="font-medium text-neutral-900">{createdAt}</span>
@@ -98,21 +219,23 @@ export default function InvoiceReceipt({
             )}
             <div className="flex justify-between">
               <span>Tipe</span>
-              <span className="font-medium text-neutral-900 capitalize">{orderType.replace("_", " ")}</span>
+              <span className="font-medium text-neutral-900 capitalize">
+                {orderType.replace("_", " ")}
+              </span>
             </div>
             <div className="flex justify-between">
               <span>Pembayaran</span>
               <span className="font-medium text-neutral-900 capitalize">
-                {paymentMethod === "cash" ? "Tunai" : paymentMethod === "qris" ? "QRIS" : "Kartu"}
+                {paymentLabel}
               </span>
             </div>
           </div>
 
           {/* Divider */}
-          <div className="border-t border-dashed border-neutral-300 mb-4 print:mb-3" />
+          <div className="border-t border-dashed border-neutral-300 mb-4" />
 
           {/* Items */}
-          <div className="space-y-2 mb-4 print:mb-3">
+          <div className="space-y-2 mb-4">
             {items.map((item, idx) => (
               <div key={idx} className="text-xs">
                 <div className="flex justify-between">
@@ -129,12 +252,17 @@ export default function InvoiceReceipt({
                     {item.modifier_label && ` — ${item.modifier_label}`}
                   </span>
                 </div>
+                {item.note && (
+                  <div className="text-neutral-400 italic pl-2">
+                    Catatan: {item.note}
+                  </div>
+                )}
               </div>
             ))}
           </div>
 
           {/* Divider */}
-          <div className="border-t border-dashed border-neutral-300 mb-3 print:mb-2" />
+          <div className="border-t border-dashed border-neutral-300 mb-3" />
 
           {/* Totals */}
           <div className="space-y-1 text-xs">
@@ -142,10 +270,30 @@ export default function InvoiceReceipt({
               <span>Subtotal</span>
               <span className="font-mono">{formatCurrency(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-neutral-600">
-              <span>Pajak (10%)</span>
-              <span className="font-mono">{formatCurrency(taxAmount)}</span>
-            </div>
+            {appliedDiscounts.map((d, i) => (
+              <div key={i} className="flex justify-between text-success">
+                <span>{d.name}</span>
+                <span className="font-mono">-{formatCurrency(d.amount)}</span>
+              </div>
+            ))}
+            {appliedTaxes.map((t, i) => (
+              <div key={i} className="flex justify-between text-neutral-600">
+                <span>{t.name}{t.type === "percentage" ? ` (${t.value}%)` : ""}</span>
+                <span className="font-mono">{formatCurrency(t.amount)}</span>
+              </div>
+            ))}
+            {cashAmount != null && (
+              <div className="flex justify-between text-neutral-600">
+                <span>Uang Tunai</span>
+                <span className="font-mono">{formatCurrency(cashAmount)}</span>
+              </div>
+            )}
+            {change != null && (
+              <div className="flex justify-between text-neutral-600">
+                <span>Kembalian</span>
+                <span className="font-mono">{formatCurrency(change)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-base font-display font-bold text-neutral-900 pt-1 border-t border-neutral-900">
               <span>Total</span>
               <span className="font-mono">{formatCurrency(total)}</span>
@@ -153,19 +301,11 @@ export default function InvoiceReceipt({
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-6 print:mt-4 text-[10px] text-neutral-400">
+          <div className="text-center mt-6 text-[10px] text-neutral-400">
             <p>Terima kasih atas kunjungan Anda</p>
           </div>
         </div>
       </div>
-
-      <style jsx global>{`
-        @media print {
-          body { background: white; -webkit-print-color-adjust: exact; }
-          .no-print { display: none !important; }
-          @page { margin: 12mm; size: auto; }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }

@@ -50,8 +50,8 @@ export default function AuditLogsPage() {
     { value: "outlet_select", label: "Outlet Select" },
     { value: "account_select", label: "Account Select" },
     { value: "pin_verify", label: "PIN Verify" },
-    { value: "session_created", label: "Session Created" },
-    { value: "logout", label: "Logout" },
+    { value: "shift_start", label: "Shift Start" },
+    { value: "shift_end", label: "Shift End" },
   ];
 
   const fetchCompanies = useCallback(async () => {

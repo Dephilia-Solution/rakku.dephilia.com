@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
@@ -43,11 +44,11 @@ export default async function SuperadminLayout({
             href="/superadmin/companies"
             className="flex items-center gap-2"
           >
-            <div className="w-8 h-8 rounded-lg bg-forest text-white flex items-center justify-center font-display font-bold text-sm">
-              St
+            <div className="w-8 h-8 rounded-lg bg-forest overflow-hidden flex-shrink-0">
+              <Image src="/images/rakku_logo.png" alt="Rakku" width={32} height={32} className="w-full h-full object-cover" />
             </div>
             <span className="font-display font-bold text-sm text-neutral-900">
-              Stocko Admin
+              Rakku Admin
             </span>
           </Link>
         </div>

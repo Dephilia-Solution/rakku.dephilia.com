@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
   </table>
 
   <div style="text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e5e5; color: #999; font-size: 12px;">
-    <p>Dikirim dari Stocko POS</p>
+    <p>Dikirim dari Rakku POS</p>
   </div>
 </body>
 </html>`;
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
-      from: `Stocko POS <${process.env.RESEND_FROM_EMAIL || "noreply@stocko.app"}>`,
+      from: `Rakku POS <${process.env.RESEND_FROM_EMAIL || "noreply@rakku.app"}>`,
       to: email,
       subject: `Laporan Penjualan ${rangeLabel} — ${session.company_name}`,
       html,

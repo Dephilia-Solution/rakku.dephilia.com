@@ -1,4 +1,4 @@
-import { CartItem, OrderType, PaymentMethod, SplitPayment } from "@/types";
+import { CartItem, OrderType, PaymentMethod, SplitPayment, AppliedTax, AppliedDiscount } from "@/types";
 
 async function api(url: string, options?: RequestInit) {
   const res = await fetch(url, {
@@ -17,6 +17,8 @@ export async function createOrder(data: {
   subtotal: number;
   taxAmount: number;
   total: number;
+  taxes: AppliedTax[];
+  discounts: AppliedDiscount[];
   customerName?: string;
   note?: string;
   status?: string;

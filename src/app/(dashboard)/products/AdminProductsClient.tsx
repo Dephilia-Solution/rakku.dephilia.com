@@ -81,8 +81,8 @@ export default function AdminProductsClient({ products: initialProducts, categor
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [productModifiers, setProductModifiers] = useState<(typeof initialModifiers)[number][]>([]);
-  const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, tierDeltas: Record<string, number>}>>([]);
-  const [modifierForm, setModifierForm] = useState<{ name: string; tierDeltas: Record<string, string> }>({ name: "", tierDeltas: {} });
+  const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, group_name: string, tierDeltas: Record<string, number>}>>([]);
+  const [modifierForm, setModifierForm] = useState<{ name: string; group_name: string; tierDeltas: Record<string, string> }>({ name: "", group_name: "", tierDeltas: {} });
 
   useEffect(() => {
     if (editingProduct) {
@@ -108,7 +108,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
     for (const tier of pricingTiers) {
       mf[tier.id] = "";
     }
-    setModifierForm({ name: "", tierDeltas: mf });
+    setModifierForm({ name: "", group_name: "", tierDeltas: mf });
   }, [editingProduct, modifierList, pricingTiers, productTierPrices]);
 
   const getProductTierPriceDisplay = (productId: string): string => {
@@ -310,7 +310,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
               const res = await fetch("/api/admin/modifiers", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ product_id: data.id, name: mod.name, prices }),
+                body: JSON.stringify({ product_id: data.id, name: mod.name, group_name: mod.group_name || null, prices }),
               });
               if (res.ok) {
                 const created = await res.json();
@@ -358,6 +358,8 @@ export default function AdminProductsClient({ products: initialProducts, categor
       return;
     }
 
+    const group_name = modifierForm.group_name.trim() || null;
+
     const tierDeltas: Record<string, number> = {};
     for (const [tierId, val] of Object.entries(modifierForm.tierDeltas)) {
       const n = Number(val);
@@ -370,7 +372,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
         const res = await fetch("/api/admin/modifiers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ product_id: editingProduct.id, name, prices }),
+          body: JSON.stringify({ product_id: editingProduct.id, name, group_name, prices }),
         });
         if (res.ok) {
           const created = await res.json();
@@ -379,17 +381,17 @@ export default function AdminProductsClient({ products: initialProducts, categor
         }
         const mf: Record<string, string> = {};
         for (const tier of pricingTiers) mf[tier.id] = "";
-        setModifierForm({ name: "", tierDeltas: mf });
+        setModifierForm({ name: "", group_name: "", tierDeltas: mf });
         showToast("success", "Add-on berhasil ditambahkan");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Gagal menambah add-on";
         showToast("error", msg);
       }
     } else {
-      setNewProductModifiers((prev) => [...prev, { name, tierDeltas }]);
+      setNewProductModifiers((prev) => [...prev, { name, group_name: group_name ?? "", tierDeltas }]);
       const mf: Record<string, string> = {};
       for (const tier of pricingTiers) mf[tier.id] = "";
-      setModifierForm({ name: "", tierDeltas: mf });
+      setModifierForm({ name: "", group_name: "", tierDeltas: mf });
       showToast("success", "Add-on ditambahkan (akan disimpan saat produk dibuat)");
     }
   };
@@ -736,7 +738,14 @@ export default function AdminProductsClient({ products: initialProducts, categor
                     {productModifiers.map((mod) => (
                       <div key={mod.id} className="bg-neutral-50 rounded-xl px-3 py-2">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                            {mod.group_name && (
+                              <span className="text-[10px] text-neutral-500 bg-neutral-200 px-1.5 py-0.5 rounded">
+                                {mod.group_name}
+                              </span>
+                            )}
+                          </div>
                           <button
                             onClick={() => handleDeleteModifier(mod)}
                             className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -764,7 +773,14 @@ export default function AdminProductsClient({ products: initialProducts, categor
                     {newProductModifiers.map((mod, idx) => (
                       <div key={idx} className="bg-primary-50 rounded-xl px-3 py-2 border border-primary-200">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-neutral-900 truncate">{mod.name}</span>
+                            {mod.group_name && (
+                              <span className="text-[10px] text-neutral-500 bg-white px-1.5 py-0.5 rounded">
+                                {mod.group_name}
+                              </span>
+                            )}
+                          </div>
                           <button
                             onClick={() => setNewProductModifiers((prev) => prev.filter((_, i) => i !== idx))}
                             className="w-7 h-7 rounded-lg hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -790,6 +806,13 @@ export default function AdminProductsClient({ products: initialProducts, categor
                     value={modifierForm.name}
                     onChange={(e) => setModifierForm({ ...modifierForm, name: e.target.value })}
                     placeholder="Nama add-on"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                  />
+                  <input
+                    type="text"
+                    value={modifierForm.group_name}
+                    onChange={(e) => setModifierForm({ ...modifierForm, group_name: e.target.value })}
+                    placeholder="Grup (opsional, misal: Telur, Tingkat, Sambal)"
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                   />
                   {pricingTiers.length > 0 && (

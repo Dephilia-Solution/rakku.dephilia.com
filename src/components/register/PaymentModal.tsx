@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/cartStore";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast } from "@/components/shared/Toast";
@@ -14,6 +14,7 @@ import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOrderComplete?: () => void;
 }
 
 const paymentMethods: {
@@ -26,13 +27,14 @@ const paymentMethods: {
   { value: "card", label: "Kartu", icon: CreditCard },
 ];
 
-export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, onOrderComplete }: PaymentModalProps) {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [splitBillMode, setSplitBillMode] = useState(false);
   const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([]);
+  const [cashierName, setCashierName] = useState<string | null>(null);
 
   const [invoiceData, setInvoiceData] = useState<{
     orderNumber: number;
@@ -44,12 +46,25 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const pricingTierId = useCartStore((s) => s.pricingTierId);
+  const draftOrderId = useCartStore((s) => s.draftOrderId);
   const setCartSplitPayments = useCartStore((s) => s.setSplitPayments);
-  const { subtotal, taxAmount, total } = useCartTotals();
+  const cartTotals = useCartTotals();
+  const { subtotal, appliedTaxes, appliedDiscounts, total } = cartTotals;
   const clear = useCartStore((s) => s.clear);
   const groupedCart = useCartGroupedArray();
 
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/auth/tenant/session")
+        .then((res) => res.ok ? res.json() : null)
+        .then((s) => {
+          if (s) setCashierName(s.user_name);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   const change = cashAmount ? Number(cashAmount) - total : 0;
   const isCashEnough = change >= 0;
@@ -85,6 +100,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     setCashAmount("");
     setSplitBillMode(false);
     setSplitPayments([]);
+    setCashierName(null);
     clear();
     onClose();
   };
@@ -97,10 +113,11 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     }
     setIsSubmitting(true);
 
-    // Get tenant session for tenant-scoped order
+    // Get tenant session
     let companyId: string | undefined;
     let outletId: string | undefined;
     let cashierId: string | undefined;
+    let cashierNameFromSession: string | null = null;
     try {
       const res = await fetch("/api/auth/tenant/session");
       if (res.ok) {
@@ -108,28 +125,71 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         companyId = s.company_id;
         outletId = s.outlet_id;
         cashierId = s.user_id;
+        cashierNameFromSession = s.user_name;
       }
     } catch {}
 
     const finalSplitPayments = splitBillMode ? splitPayments : [];
+    const paymentStatus = finalSplitPayments.length > 0 ? "partial" : "paid";
 
     try {
-      const order = await createOrder({
-        orderType,
-        paymentMethod: method,
-        items,
-        subtotal,
-        taxAmount,
-        total,
-        customerName: customerName.trim(),
-        status: "completed",
-        paymentStatus: finalSplitPayments.length > 0 ? "partial" : "paid",
-        companyId,
-        outletId,
-        cashierId,
-        pricingTierId,
-        splitPayments: finalSplitPayments,
-      });
+      let order: { order_number: number };
+
+      if (draftOrderId) {
+        // Complete existing draft
+        const mappedItems = items.map((i) => ({
+          product_id: i.product.id,
+          product_name: i.product.name,
+          unit_price: i.unit_price,
+          quantity: i.quantity,
+          modifier_label: i.modifier_label,
+          note: i.note,
+          subtotal: i.subtotal,
+        }));
+
+        const res = await fetch(`/api/admin/orders/draft?id=${draftOrderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "completed",
+            payment_status: paymentStatus,
+            payment_method: method,
+            cashier_name: cashierNameFromSession,
+            pricing_tier_id: pricingTierId,
+            subtotal,
+            tax_rate: 0,
+            tax_amount: 0,
+            taxes: appliedTaxes.map(t => ({ name: t.name, type: t.type, value: t.value, amount: t.amount })),
+            discounts: appliedDiscounts.map(d => ({ name: d.name, type: d.type, value: d.value, amount: d.amount })),
+            total_price: total,
+            order_type: orderType,
+            items: mappedItems,
+          }),
+        });
+
+        if (!res.ok) throw new Error("Gagal menyelesaikan draft");
+        order = await res.json();
+      } else {
+        // Create new order
+        order = await createOrder({
+          orderType,
+          paymentMethod: method,
+          items,
+          subtotal,
+          taxAmount: 0,
+          total,
+          taxes: appliedTaxes.map(t => ({ name: t.name, type: t.type, value: t.value, amount: t.amount })),
+          discounts: appliedDiscounts.map(d => ({ name: d.name, type: d.type, value: d.value, amount: d.amount })),
+          customerName: customerName.trim(),
+          status: "completed",
+          paymentStatus,
+          companyId,
+          outletId,
+          cashierId,
+          pricingTierId,
+          splitPayments: finalSplitPayments,
+        });
+      }
 
       if (finalSplitPayments.length > 0) {
         setCartSplitPayments(finalSplitPayments);
@@ -147,6 +207,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
       });
       setIsSuccess(true);
       setIsSubmitting(false);
+      onOrderComplete?.();
     } catch {
       showToast("error", "Gagal menyimpan transaksi");
       setIsSubmitting(false);
@@ -161,21 +222,25 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         <InvoiceReceipt
           orderNumber={invoiceData.orderNumber}
           customerName={customerName}
-          cashierName={null}
+          cashierName={cashierName}
           items={items.map((i) => ({
             product_name: i.product.name,
             quantity: i.quantity,
             unit_price: i.unit_price,
             subtotal: i.subtotal,
             modifier_label: i.modifier_label,
+            note: i.note,
           }))}
           subtotal={subtotal}
-          taxAmount={taxAmount}
+          appliedTaxes={appliedTaxes}
+          appliedDiscounts={appliedDiscounts}
           total={total}
           paymentMethod={method ?? "cash"}
           orderType={orderType}
           createdAt={invoiceData.createdAt}
           onClose={handleClose}
+          cashAmount={method === "cash" ? (Number(cashAmount) || undefined) : undefined}
+          change={method === "cash" ? (change >= 0 ? change : undefined) : undefined}
         />
       ) : (
         <>
@@ -185,9 +250,9 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             </h3>
             <button
               onClick={handleClose}
-              className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+              className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -295,7 +360,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                     <button
                       key={amt}
                       onClick={() => setCashAmount(amt.toString())}
-                      className={`flex-1 min-w-[80px] text-xs font-medium rounded-lg py-2 transition-colors ${
+                      className={`flex-1 min-w-[80px] text-xs font-medium rounded-lg py-3 transition-colors ${
                         cashAmount === amt.toString()
                           ? "bg-forest text-white"
                           : "bg-neutral-100 hover:bg-neutral-200 text-neutral-600"

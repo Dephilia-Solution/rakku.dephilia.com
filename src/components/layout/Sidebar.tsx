@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import type { Menu } from "@/types";
@@ -31,10 +32,10 @@ export default function Sidebar({ menus }: SidebarProps) {
   return (
     <aside className="w-16 h-screen fixed left-0 top-0 bg-white border-r border-neutral-200 flex-col items-center py-4 gap-1 z-40 hidden lg:flex">
       <Link
-        href="/register"
-        className="w-10 h-10 rounded-xl bg-forest text-white flex items-center justify-center font-display font-bold text-lg mb-3"
+        href="#"
+        className="w-10 h-10 rounded-xl bg-forest overflow-hidden mb-3"
       >
-        St
+        <Image src="/images/rakku_logo.png" alt="Rakku" width={40} height={40} className="w-full h-full object-cover" />
       </Link>
 
       <div className="w-8 h-px bg-neutral-200 mb-2" />
