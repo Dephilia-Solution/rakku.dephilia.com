@@ -2,7 +2,7 @@
 
 > **Nama internal:** `rakku`  
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL + Storage) · Tailwind CSS  
-> **Versi:** 3.0 — Self-Service SaaS Multi-Tenant  
+> **Versi:** 2.1 (aktif) · 3.0 (direncanakan — belum diimplementasi, lihat Bagian 13)  
 > **Author:** Alif Dhimas
 
 ---
@@ -21,6 +21,8 @@
 10. [Library & Utilities](#10-library--utilities)
 11. [API Endpoints](#11-api-endpoints)
 12. [Panduan Development](#12-panduan-development)
+13. [PWA (Progressive Web App)](#13-pwa-progressive-web-app)
+14. [V3.0 — Self-Service Owner & Dashboard](#14-v30--self-service-owner--dashboard)
 
 ---
 
@@ -1147,13 +1149,134 @@ npm start
 
 ---
 
-## 13. V3.0 — Self-Service Owner & Dashboard
+## 13. PWA (Progressive Web App)
 
 ### 13.1 Ikhtisar
 
+Stocko adalah **Progressive Web App** — dapat di-install di desktop & mobile seperti aplikasi native, berjalan standalone, dan tetap usable saat koneksi terputus (offline fallback). PWA diimplementasi dengan **Serwist** (fork Workbox yang aktif维护) untuk Next.js App Router.
+
+| Aspek | Detail |
+|-------|--------|
+| **Library** | `@serwist/next` 9.x + `serwist` 9.x (dev) |
+| **Service Worker** | `src/app/sw.ts` → di-compile ke `public/sw.js` saat build |
+| **Manifest** | `src/app/manifest.ts` (Next.js Metadata file convention) → `/manifest.webmanifest` |
+| **Offline Page** | `src/app/~offline/page.tsx` (Server Component, static) |
+| **Ikon** | `public/icons/` (192, 512, maskable, apple-touch) — di-generate dari `rakku_logo.png` |
+| **Scope offline** | App shell + cache aset statis (CSS/JS/gambar) + fallback offline. POS tetap butuh online untuk sync data ke Supabase. |
+
+### 13.2 Caching Strategy
+
+| Resource | Strategy | Cache Name | Expiry |
+|----------|----------|------------|--------|
+| Navigasi (halaman) | **Network First** | `pages` | — |
+| JS / CSS / Font | **Cache First** | `static-resources` | 30 hari, 100 entry |
+| Images (incl. Supabase) | **Stale While Revalidate** | `images` | 30 hari, 60 entry |
+| Supabase API | **Network First** | `supabase-api` | 5 menit, 50 entry |
+| Lainnya | `defaultCache` (Serwist) | — | — |
+| Dokument gagal → fallback | `/~offline` | — | — |
+
+**Catatan:** Service worker **dinonaktifkan di development** (`disable: process.env.NODE_ENV === "development"`) untuk menghindari konflik caching saat coding. SW hanya aktif saat `npm run build` + `npm start`.
+
+### 13.3 File Terkait PWA
+
+```
+src/app/
+├── manifest.ts              # Web app manifest (MetadataRoute.Manifest)
+├── sw.ts                    # Service worker source (compiled by Serwist)
+├── ~offline/page.tsx        # Halaman fallback offline
+└── layout.tsx               # Metadata + viewport (themeColor, manifest link, icons)
+
+public/
+├── sw.js                    # SW build output (gitignored, auto-generated)
+└── icons/
+    ├── icon-192.png         # Ikon 192x192
+    ├── icon-512.png         # Ikon 512x512
+    ├── icon-192-maskable.png# Maskable 192 (Android adaptive)
+    ├── icon-512-maskable.png# Maskable 512 (Android adaptive)
+    ├── apple-touch-icon.png # Apple touch icon 180x180
+    └── favicon-32.png       # Favicon 32x32
+
+scripts/
+└── generate-pwa-icons.mjs   # Script generate ikon dari rakku_logo.png (sharp)
+```
+
+### 13.4 Konfigurasi
+
+**`next.config.mjs`** — di-wrap dengan `withSerwist`:
+```js
+const withSerwist = withSerwistInit({
+  additionalPrecacheEntries: [{ url: "/~offline", revision }],
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+});
+export default withSerwist(nextConfig);
+```
+
+**`tsconfig.json`** — tambahan untuk typing SW:
+- `lib`: tambah `"webworker"`
+- `types`: tambah `"@serwist/next/typings"`
+- `exclude`: tambah `"public/sw.js"`
+
+**`.gitignore`** — tambahan:
+```
+public/sw*
+public/swe-worker*
+```
+
+### 13.5 Manifest Detail
+
+| Field | Nilai |
+|-------|-------|
+| `name` | Rakku POS - Stocko |
+| `short_name` | Rakku POS |
+| `start_url` | `/?source=pwa` |
+| `display` | standalone |
+| `orientation` | portrait-primary |
+| `theme_color` | `#2E7D32` (forest green) |
+| `background_color` | `#ffffff` |
+| `lang` | id |
+| `shortcuts` | Kasir (`/register`), Pesanan (`/orders`) |
+| `icons` | 192, 512, 192-maskable, 512-maskable |
+
+### 13.6 Generate Ulang Ikon
+
+Ikon PWA di-generate dari `public/images/rakku_logo.png` menggunakan `sharp`:
+
+```bash
+node scripts/generate-pwa-icons.mjs
+```
+
+Script ini menghasilkan semua ikon di `public/icons/`. Jalankan ulang jika logo berubah.
+
+### 13.7 Testing PWA
+
+1. **Build & start production** (SW tidak aktif di dev):
+   ```bash
+   npm run build && npm start
+   ```
+2. Buka `localhost:3000` di Chrome → DevTools → **Application** tab
+   - Service Workers: pasti SW terdaftar dengan status "activated"
+   - Manifest: pasti semua field terisi, ikon tampil
+3. **Test offline**: DevTools → Network → "Offline" → reload → halaman `/~offline` tampil
+4. **Test install**: Chrome address bar → ikon install → app terbuka standalone
+5. **Lighthouse**: jalankan audit PWA untuk verifikasi installability
+
+---
+
+## 14. V3.0 — Self-Service Owner & Dashboard
+
+> **⚠ STATUS: BELUM DIIMPLEMENTASI**
+>
+> Bagian ini adalah **spesifikasi/rencana** untuk v3.0. Dokumentasi ditulis lebih dulu sebagai brief, namun implementasi v3 **belum selesai** — semua route, API, dan komponen yang disebut di bawah ini **belum ada** (folder scaffolding kosong sudah dibersihkan). Lihat `PROMPT_STOCKO_V3_PRODUCTION_READY.md` untuk brief lengkap pengembangan v3.
+>
+> Bagian 1–12 menggambarkan kondisi **aktif** sistem saat ini (v2.1), ditambah Bagian 13 (PWA) yang sudah aktif.
+
+### 14.1 Ikhtisar
+
 v3.0 mengubah Stocko dari *internal tool* (superadmin melakukan semuanya) menjadi *SaaS self-service* dengan onboarding mandiri.
 
-### 13.2 Ownership Hierarchy Baru
+### 14.2 Ownership Hierarchy Baru
 
 ```
 PLATFORM → Superadmin (mengawasi seluruh platform)
@@ -1161,7 +1284,7 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
         └── Karyawan → Kasir (login 4-step, dikelola oleh Owner)
 ```
 
-### 13.3 Dua Auth Flow
+### 14.3 Dua Auth Flow
 
 | | Owner | Kasir (existing) |
 |---|---|---|
@@ -1170,7 +1293,7 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 | Secret | `TENANT_JWT_SECRET` (sama) | `TENANT_JWT_SECRET` |
 | Library | `src/lib/auth/owner-session.ts` | `src/lib/auth/tenant-session.ts` |
 
-### 13.4 Tabel Baru (Migration 014)
+### 14.4 Tabel Baru (Migration 014)
 
 | Tabel | Fungsi |
 |-------|--------|
@@ -1179,7 +1302,7 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 | `employee_invitations` | Undangan karyawan (token-based, untuk Fase 2) |
 | `entity_audit_logs` | Audit trail CRUD sensitif (untuk Fase 4) |
 
-### 13.5 Rute Baru v3
+### 14.5 Rute Baru v3
 
 | Rute | Deskripsi |
 |------|-----------|
@@ -1191,7 +1314,7 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 | `/dashboard/employees` | CRUD karyawan |
 | `/dashboard/settings` | Pengaturan perusahaan |
 
-### 13.6 API Routes Baru
+### 14.6 API Routes Baru
 
 | Endpoint | Method | Fungsi |
 |----------|--------|--------|
@@ -1203,13 +1326,13 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 | `/api/dashboard/outlets` | POST | Tambah outlet baru (Owner) |
 | `/api/dashboard/employees` | POST | Tambah karyawan baru (Owner) |
 
-### 13.7 Scripts Baru
+### 14.7 Scripts Baru
 
 | Script | Perintah | Fungsi |
 |--------|----------|--------|
 | `backfill:owners` | `npm run backfill:owners` | Backfill company existing (RAKKU, TOKOKO) ke model ownership |
 
-### 13.8 Alur Owner Baru
+### 14.8 Alur Owner Baru
 
 1. **Daftar** (`/daftar`) — input nama, email, password → simpan ke `owners`
 2. **Masuk** (`/masuk`) — login email+password → set `owner_session` cookie
@@ -1221,7 +1344,7 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 5. **Kelola Karyawan** (`/dashboard/employees`) — tambah karyawan dengan PIN, assign role
 6. **Kelola Outlet** (`/dashboard/outlets`) — tambah outlet baru dalam company
 
-### 13.9 Catatan Penting
+### 14.9 Catatan Penting
 
 - **Semua API menggunakan service role key** — policy sama seperti v2.1 (bypass RLS). RLS tidak diaktifkan.
 - **Owner auth menggunakan Custom JWT** (bukan Supabase Auth) — konsisten dengan auth kasir existing. Menggunakan library `jose` + `bcryptjs` yang sudah terinstall.

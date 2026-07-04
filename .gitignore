@@ -40,3 +40,7 @@ AGENTS.md
 /supabase/
 skills-lock.json
 PRD.md
+
+# Serwist (PWA service worker build output)
+public/sw*
+public/swe-worker*
