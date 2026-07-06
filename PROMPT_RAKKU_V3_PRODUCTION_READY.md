@@ -1,9 +1,22 @@
-# PROMPT PENGEMBANGAN — Stocko (Rakku POS) v3.0
+# PROMPT PENGEMBANGAN — rakku (Rakku POS) v3.0
 ## Dari Internal Tool → SaaS Multi-Tenant Production-Ready
 
+> **✅ UPDATE PROGRES: Fase 1 & 2 SUDAH DIIMPLEMENTASI**
+>
+> Fase 1 (Fondasi Ownership) dan Fase 2 (Onboarding & Self-Service Company/Outlet) sudah selesai. Owner bisa daftar sendiri, buat company + outlet, kelola karyawan (CRUD langsung dengan PIN, tanpa sistem undangan), dan kelola outlet (CRUD + toggle status). Lihat `DOCS.md` Bagian 14 untuk dokumentasi lengkap.
+>
+> Fase 3 (Landing Page & Monetisasi), Fase 4 (Production Hardening), dan Fase 5 (Superadmin v2) **belum dimulai**.
+>
+> **Catatan keputusan deviasi dari brief awal:**
+> - Sistem undangan karyawan (`employee_invitations`) **tidak diimplementasi** — Owner membuat karyawan langsung dengan PIN dan kasih tahu secara manual (sesuai keputusan user).
+> - Tabel `plans` & `subscriptions` **belum dibuat** — subscription ditunda ke fase belakangan. Semua company status `active` tanpa limit.
+> - Route owner pakai prefix `/owner/...` (bukan `/dashboard/...`) untuk persiapan pemisahan subdomain di masa depan (mis. `owner.rakku.com` vs `pos.rakku.com`).
+>
+> ---
+>
 > **Dokumen ini adalah brief/prompt lengkap untuk AI coding agent** (Claude Code atau sejenisnya) yang akan mengeksekusi pengembangan. Tempel/beri dokumen ini ke agent sebagai instruksi kerja utama, bersama `DOCS.md` (dokumentasi v2.1) sebagai referensi kondisi eksisting.
 >
-> **Base version:** Stocko v2.1 (Multi-Tenant & Access Control) — Next.js 14 App Router + Supabase + Tailwind + Zustand
+> **Base version:** rakku v2.1 (Multi-Tenant & Access Control) — Next.js 14 App Router + Supabase + Tailwind + Zustand
 > **Target version:** v3.0 — Self-Service SaaS Multi-Tenant, siap dibuka untuk publik
 
 ---
@@ -22,11 +35,11 @@
 
 ## 1. RINGKASAN EKSEKUTIF
 
-Stocko saat ini adalah sistem POS multi-tenant yang **fungsional secara teknis** (register, order, tier pricing, tax/discount, laporan semua sudah jalan) tapi **operasional model-nya masih "internal tool"**: satu-satunya cara sebuah company/outlet/user bisa ada di sistem adalah lewat **Superadmin** yang membuatkannya manual di panel superadmin. Tidak ada jalur bagi orang baru untuk datang, daftar sendiri, dan mulai pakai sistem tanpa campur tangan admin platform.
+rakku saat ini adalah sistem POS multi-tenant yang **fungsional secara teknis** (register, order, tier pricing, tax/discount, laporan semua sudah jalan) tapi **operasional model-nya masih "internal tool"**: satu-satunya cara sebuah company/outlet/user bisa ada di sistem adalah lewat **Superadmin** yang membuatkannya manual di panel superadmin. Tidak ada jalur bagi orang baru untuk datang, daftar sendiri, dan mulai pakai sistem tanpa campur tangan admin platform.
 
 Ini adalah pola *internal admin tool*, bukan pola *SaaS produk*. Semua kompetitor di pasar POS Indonesia (Qasir, Majoo, Moka, Pawoon, Olsera, iSeller) beroperasi dengan pola **self-service**: pengguna daftar sendiri di landing page, otomatis jadi pemilik ("Owner"/BossQ/Admin), lalu dari dashboard-nya sendiri dia yang mengelola outlet dan karyawannya — platform hanya mengawasi dari belakang layar.
 
-**Tujuan v3.0:** mengubah Stocko dari *internal tool bergaya superadmin-does-everything* menjadi *SaaS produk dengan onboarding self-service dan ownership hierarchy yang jelas*, tanpa merusak mesin POS yang sudah terbukti jalan.
+**Tujuan v3.0:** mengubah rakku dari *internal tool bergaya superadmin-does-everything* menjadi *SaaS produk dengan onboarding self-service dan ownership hierarchy yang jelas*, tanpa merusak mesin POS yang sudah terbukti jalan.
 
 ---
 
@@ -73,10 +86,10 @@ Diadaptasi dari observasi produk POS SaaS yang sudah berjalan di pasar Indonesia
 - **Manajemen karyawan dengan hak akses berjenjang** dikelola sendiri oleh pemilik usaha dari dashboard, bukan oleh pihak platform. <cite index="7-1">Fitur kelola outlet memungkinkan pemilik memantau semua cabang, stok, dan transaksi dalam satu akun, dan ini termasuk fitur dasar yang tersedia untuk semua pengguna.</cite>
 - **Multi-outlet dalam satu akun pemilik**, dengan kemampuan menambah outlet baru langsung dari dashboard sebagai fitur inti (bukan fitur yang butuh minta ke admin platform), meski beberapa vendor mengenakan biaya tambahan per outlet ekstra.
 - **Onboarding wizard singkat**: daftar → isi profil bisnis → buat outlet pertama → mulai pakai — biasanya dalam hitungan menit, tanpa perlu menunggu proses verifikasi manual.
-- **Dua permukaan berbeda**: aplikasi kasir (untuk staf, cepat & sederhana) vs *back office*/dashboard web (untuk pemilik, berisi laporan, manajemen karyawan, pengaturan). Stocko sudah punya pemisahan ini secara arsitektur (`(dashboard)` untuk tenant, register untuk kasir) — tinggal menambah lapisan kepemilikan di atasnya.
+- **Dua permukaan berbeda**: aplikasi kasir (untuk staf, cepat & sederhana) vs *back office*/dashboard web (untuk pemilik, berisi laporan, manajemen karyawan, pengaturan). rakku sudah punya pemisahan ini secara arsitektur (`(dashboard)` untuk tenant, register untuk kasir) — tinggal menambah lapisan kepemilikan di atasnya.
 - **Struktur harga tier** (Free / Pro / Pro Plus, atau Starter/Advanced) berdasarkan jumlah outlet, jumlah pegawai, dan fitur lanjutan (laporan, akuntansi, self-order, integrasi e-commerce).
 
-**Implikasi untuk Stocko:** hierarki yang perlu dibangun bukan cuma "Superadmin vs Tenant User", tapi tiga lapis:
+**Implikasi untuk rakku:** hierarki yang perlu dibangun bukan cuma "Superadmin vs Tenant User", tapi tiga lapis:
 
 ```
 PLATFORM  → Superadmin platform (Anda/tim Anda) — mengawasi seluruh bisnis SaaS
@@ -419,70 +432,78 @@ Company yang sudah ada (RAKKU, TOKOKO — lihat Bagian 12.3/12.5 `DOCS.md`) perl
 
 ---
 
-## 13. STRUKTUR ROUTE BARU (ringkasan)
+## 13. STRUKTUR ROUTE BARU (status: Fase 1 & 2 selesai)
 
 ```
 src/app/
-├── (marketing)/                 # BARU — landing page publik
-│   ├── page.tsx                 # Beranda
-│   ├── harga/page.tsx
-│   ├── fitur/page.tsx
-│   ├── syarat-ketentuan/page.tsx
-│   └── kebijakan-privasi/page.tsx
+├── owner/                          # ✅ BARU — Owner self-service (prefix /owner/...)
+│   ├── daftar/page.tsx             # ✅ Signup Owner
+│   ├── masuk/page.tsx              # ✅ Login Owner
+│   ├── onboarding/page.tsx         # ✅ Wizard company + outlet pertama
+│   └── (dashboard)/                # ✅ Route group (pakai sidebar layout)
+│       ├── layout.tsx              # ✅ Guard owner login + company exists + sidebar
+│       ├── page.tsx                # ✅ /owner — Dashboard overview
+│       ├── outlets/page.tsx        # ✅ CRUD outlet + toggle status
+│       ├── employees/page.tsx      # ✅ CRUD karyawan + reset PIN
+│       └── settings/page.tsx       # ✅ Edit profil & password company
 │
-├── (owner-auth)/                # BARU — auth untuk Owner
-│   ├── daftar/page.tsx
-│   ├── masuk/page.tsx
-│   ├── lupa-password/page.tsx
-│   └── verifikasi-email/page.tsx
+├── (marketing)/                    # ⬜ BELUM ADA — Fase 3
+├── invite/[token]/                 # ⬜ TIDAK DIIMPLEMENTASI (keputusan: tanpa sistem undangan)
 │
-├── onboarding/                  # BARU
-│   └── page.tsx                 # Wizard: company → outlet → (plan)
-│
-├── invite/[token]/              # BARU
-│   └── page.tsx                 # Karyawan terima undangan, set PIN
-│
-├── dashboard/                   # BARU — panel Owner (terpisah dari (dashboard) existing?)
-│   ├── layout.tsx
-│   ├── outlets/page.tsx         # CRUD outlet
-│   ├── employees/page.tsx       # Undang & kelola karyawan
-│   ├── roles/page.tsx           # Access matrix per company (dibuka utk Owner)
-│   ├── settings/page.tsx        # Profil company, password, branding
-│   └── billing/page.tsx         # Paket & histori pembayaran
-│
-├── (auth)/login/...             # TIDAK BERUBAH — login kasir 4-step
+├── (auth)/login/...                # TIDAK BERUBAH — login kasir 4-step
 ├── (dashboard)/register|orders|... # TIDAK BERUBAH — operasional POS existing
-└── superadmin/...               # TIDAK BERUBAH secara struktur, scope kewenangan disesuaikan Bagian 5.1
+└── superadmin/...                  # TIDAK BERUBAH secara struktur, scope kewenangan disesuaikan Bagian 5.1 (Fase 5)
 ```
 
-> Catatan penamaan: karena `(dashboard)` sudah dipakai untuk area operasional tenant (register, orders, reports), gunakan nama route group berbeda untuk panel Owner (mis. `/dashboard` non-grouped atau `/kelola`) supaya tidak bentrok. Sesuaikan dengan konvensi yang paling minim breaking-change terhadap kode existing.
+> **Catatan penamaan:** Route owner pakai prefix `/owner/...` (bukan `/dashboard/...`) untuk persiapan pemisahan subdomain di masa depan (mis. `owner.rakku.com` vs `pos.rakku.com`), sesuai keputusan user. Route group `(dashboard)` di dalam `owner/` memisahkan layout (dengan sidebar) dari auth pages (daftar, masuk, onboarding) yang tidak pakai sidebar.
 
 ---
 
 ## 14. ROADMAP FASE IMPLEMENTASI
 
-### Fase 1 — Fondasi Ownership (wajib, prasyarat semua fase lain)
-- Migration: tabel `owners`, kolom `companies.owner_id`
-- Auth Owner: sign up, login, verifikasi email, forgot password
-- Migrasi data existing (Bagian 12)
-- **Definition of Done:** Owner baru bisa daftar dan login ke sesi kosong (belum ada company)
+### Fase 1 — Fondasi Ownership (wajib, prasyarat semua fase lain) ✅ SELESAI
+- [x] Migration `014_owner_self_service.sql`: tabel `owners`, kolom `companies.owner_id`, `companies.slug`
+- [x] Auth library `src/lib/auth/owner-session.ts` (JWT 24 jam, cookie `owner_session`)
+- [x] Types: `Owner`, `OwnerSession`, `OwnerDashboardOutlet`, `OwnerDashboardEmployee`
+- [x] API: `POST /api/auth/owner/register` — daftar Owner baru
+- [x] API: `POST /api/auth/owner/login` & `logout` & `GET session`
+- [x] Backfill data existing via `scripts/backfill-owners.ts` (RAKKU → budi@rakku.test, TOKOKO → ali@rakku.test)
+- [x] Middleware update: proteksi route `/owner/*`
+- **Definition of Done:** ✅ Owner baru bisa daftar dan login ke sesi kosong (belum ada company) → redirect ke onboarding
 
-### Fase 2 — Onboarding & Self-Service Company/Outlet
-- Wizard onboarding (buat company + outlet pertama, reuse seed logic)
-- Dashboard Owner: CRUD outlet, CRUD karyawan via invite token, kelola role/access matrix
-- **DoD:** Owner baru bisa daftar → buat company & outlet sendiri → undang kasir pertama → kasir bisa login 4-step dan transaksi — semuanya tanpa sentuhan superadmin
+### Fase 2 — Onboarding & Self-Service Company/Outlet ✅ SELESAI
+- [x] Library `src/lib/supabase/queries.owner.ts` (semua CRUD queries)
+- [x] API `POST /api/onboarding/company` — buat company + outlet pertama + seed 4 role default + access matrix + default pricing tiers (reuse logic dari `scripts/seed.ts`)
+- [x] API `GET /api/onboarding/company` — suggest kode & slug dari nama
+- [x] API CRUD outlets: `GET/POST /api/owner/outlets`, `PATCH/DELETE /api/owner/outlets/[id]` (toggle status, hapus)
+- [x] API CRUD employees: `GET/POST /api/owner/employees`, `PATCH/DELETE /api/owner/employees/[id]` (toggle status, reset PIN)
+- [x] API `GET/PUT /api/owner/settings` — edit profil & ganti password company
+- [x] Halaman `/owner/daftar` — signup (UI dari `signup_reference.html`, foto pakai placeholder gradient)
+- [x] Halaman `/owner/masuk` — login (UI dari `login_reference.html`, foto pakai placeholder gradient)
+- [x] Halaman `/owner/onboarding` — wizard 2-step (company → outlet)
+- [x] Halaman `/owner` — dashboard overview (statistik outlet, karyawan, penjualan)
+- [x] Halaman `/owner/outlets` — CRUD outlet (list, tambah, edit, toggle status, hapus)
+- [x] Halaman `/owner/employees` — CRUD karyawan (list, tambah, edit, toggle status, reset PIN, hapus)
+- [x] Halaman `/owner/settings` — edit profil & password company
+- [x] Komponen `OwnerSidebar.tsx` — sidebar dinamis (Dashboard, Outlet, Karyawan, Pengaturan, Logout, link POS Kasir)
+- [x] Layout `owner/(dashboard)/layout.tsx` — guard owner login + company exists
+- **Keputusan deviasi:** Sistem undangan karyawan (`employee_invitations`) tidak diimplementasi — Owner buat karyawan langsung dengan PIN, kasih tahu secara manual.
+- **Definition of Done:** ✅ Owner baru bisa daftar → buat company & outlet sendiri → tambah karyawan dengan PIN → kasir login 4-step dan transaksi — semuanya tanpa sentuhan superadmin
 
-### Fase 3 — Landing Page & (opsional) Monetisasi
-- Halaman marketing lengkap + legal pages
+### Fase 3 — Landing Page & (opsional) Monetisasi ⬜ BELUM DIMULAI
+- Halaman marketing lengkap + legal pages (ToS, Privacy Policy)
 - Tabel `plans`, limit enforcement, (opsional) integrasi payment gateway
 - **DoD:** Orang asing bisa menemukan produk, paham harga, dan daftar dari landing page
 
-### Fase 4 — Production Hardening
-- RLS aktif, audit log diperluas, rate limiting publik, error tracking, backup terjadwal
+### Fase 4 — Production Hardening ⬜ BELUM DIMULAI
+- RLS aktif (deny-by-default untuk anon key), audit log CRUD diperluas (`entity_audit_logs`), rate limiting publik (sign up, forgot password), error tracking (Sentry), backup terjadwal
+- Validasi input dengan zod di semua API route
+- CSRF protection untuk form sensitif
 - **DoD:** checklist Bagian 11 selesai semua
 
-### Fase 5 — Superadmin v2 (platform ops)
-- Sederhanakan panel superadmin sesuai Bagian 5.1: monitoring, suspend/approve, plan management, audit lintas tenant
+### Fase 5 — Superadmin v2 (platform ops) ⬜ BELUM DIMULAI
+- Sederhanakan panel superadmin sesuai Bagian 5.1: monitoring, suspend/approve company, plan management, audit lintas tenant
+- Buat tabel `platform_admins` untuk pisahkan superadmin platform dari data tenant
 - **DoD:** Superadmin tidak lagi jadi jalur wajib untuk operasional harian tenant mana pun
 
 ---
@@ -495,7 +516,7 @@ src/app/
 - Pertahankan bahasa UI existing (Bahasa Indonesia) untuk konsistensi produk.
 - Untuk semua halaman baru yang customer-facing (landing, dashboard Owner), pertahankan/adaptasi Tailwind palette & font yang sudah didefinisikan di `tailwind.config.ts` (primary green, forest, Plus Jakarta Sans/DM Sans) — jangan bawa desain sistem baru yang tidak konsisten.
 - Update `DOCS.md` di akhir tiap fase agar dokumentasi tetap jadi source of truth yang akurat (tambahkan bagian baru, jangan hapus riwayat v2.1).
-- Tulis seed/testing account baru untuk Owner (mis. `owner-demo@stocko.test`) agar QA fase berikutnya mudah, tanpa mengganggu akun RAKKU/TOKOKO existing.
+- Tulis seed/testing account baru untuk Owner (mis. `owner-demo@rakku.test`) agar QA fase berikutnya mudah, tanpa mengganggu akun RAKKU/TOKOKO existing.
 
 ---
 
@@ -509,7 +530,7 @@ src/app/
 | Pawoon | Daftar mandiri | Kelola beberapa toko dalam satu akun | Gratis terbatas (transaksi/hari) → berbayar |
 | Loyverse | Daftar mandiri | Back office terpusat | Basic gratis, fitur karyawan/inventaris lanjutan berbayar dengan trial 14 hari |
 
-*(Detail harga berubah dari waktu ke waktu — gunakan tabel ini sebagai referensi pola struktural, bukan angka final untuk pricing page Stocko.)*
+*(Detail harga berubah dari waktu ke waktu — gunakan tabel ini sebagai referensi pola struktural, bukan angka final untuk pricing page rakku.)*
 
 ---
 

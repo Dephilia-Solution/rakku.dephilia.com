@@ -1,10 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { verifySession } from "@/lib/auth/tenant-session";
+import { verifyOwnerSession } from "@/lib/auth/owner-session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const tenantAuthPaths = ["/login", "/login/select-outlet", "/login/select-user", "/login/enter-pin"];
 const superadminPaths = ["/superadmin"];
-const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/categories", "/pricing-tiers"];
+const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/categories", "/pricing-tiers", "/taxes", "/discounts"];
+const ownerAuthPaths = ["/owner/daftar", "/owner/masuk"];
+const ownerOnboardingPaths = ["/owner/onboarding"];
+const ownerDashboardPaths = ["/owner/outlets", "/owner/employees", "/owner/settings"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,16 +25,87 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // ---- TENANT AUTH ROUTES (login flow) ----
+  // ---- TENANT AUTH ROUTES (login flow kasir) ----
   if (tenantAuthPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    // Allow all login pages through
+    return supabaseResponse;
+  }
+
+  // ---- OWNER AUTH ROUTES (daftar, masuk) ----
+  if (ownerAuthPaths.some((p) => pathname === p)) {
+    // Jika sudah login owner → redirect ke /owner
+    const ownerToken = request.cookies.get("owner_session")?.value;
+    if (ownerToken) {
+      const session = await verifyOwnerSession(ownerToken);
+      if (session) {
+        // Cek apakah sudah punya company
+        const supabase = createAdminClient();
+        const { data: company } = await supabase
+          .from("companies")
+          .select("id")
+          .eq("owner_id", session.owner_id)
+          .maybeSingle();
+
+        const redirectUrl = company ? "/owner" : "/owner/onboarding";
+        return NextResponse.redirect(new URL(redirectUrl, request.url));
+      }
+    }
+    return supabaseResponse;
+  }
+
+  // ---- OWNER ONBOARDING ROUTE ----
+  if (ownerOnboardingPaths.some((p) => pathname === p)) {
+    const ownerToken = request.cookies.get("owner_session")?.value;
+    if (!ownerToken) {
+      return NextResponse.redirect(new URL("/owner/masuk", request.url));
+    }
+    const session = await verifyOwnerSession(ownerToken);
+    if (!session) {
+      return NextResponse.redirect(new URL("/owner/masuk", request.url));
+    }
+
+    // Jika sudah punya company → redirect ke /owner
+    const supabase = createAdminClient();
+    const { data: company } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("owner_id", session.owner_id)
+      .maybeSingle();
+
+    if (company) {
+      return NextResponse.redirect(new URL("/owner", request.url));
+    }
+    return supabaseResponse;
+  }
+
+  // ---- OWNER DASHBOARD ROUTE (/owner dan sub-routes) ----
+  if (pathname === "/owner" || ownerDashboardPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    const ownerToken = request.cookies.get("owner_session")?.value;
+    if (!ownerToken) {
+      return NextResponse.redirect(new URL("/owner/masuk", request.url));
+    }
+    const session = await verifyOwnerSession(ownerToken);
+    if (!session) {
+      return NextResponse.redirect(new URL("/owner/masuk", request.url));
+    }
+
+    // Jika belum punya company → redirect ke onboarding (kecuali sudah di onboarding)
+    const supabase = createAdminClient();
+    const { data: company } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("owner_id", session.owner_id)
+      .maybeSingle();
+
+    if (!company) {
+      return NextResponse.redirect(new URL("/owner/onboarding", request.url));
+    }
+
     return supabaseResponse;
   }
 
   // ---- SUPERADMIN ROUTES ----
   if (pathname.startsWith("/superadmin")) {
     if (pathname === "/superadmin/login") {
-      // Check if already logged in
       const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -53,7 +129,6 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // Protected superadmin routes
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -77,7 +152,7 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // ---- DASHBOARD / TENANT ROUTES (protected) ----
+  // ---- DASHBOARD / TENANT ROUTES (kasir, protected) ----
   if (dashboardPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     const sessionToken = request.cookies.get("session")?.value;
     if (!sessionToken) {

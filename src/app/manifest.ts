@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Rakku POS - Stocko",
+    name: "Rakku POS",
     short_name: "Rakku POS",
     description: "Point of Sale system for F&B businesses",
     start_url: "/?source=pwa",

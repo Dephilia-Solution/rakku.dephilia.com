@@ -1,8 +1,8 @@
-# Dokumentasi Sistem Stocko (Rakku POS)
+# Dokumentasi Sistem Rakku POS
 
 > **Nama internal:** `rakku`  
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL + Storage) · Tailwind CSS  
-> **Versi:** 2.1 (aktif) · 3.0 (direncanakan — belum diimplementasi, lihat Bagian 13)  
+> **Versi:** 2.1 (aktif)
 > **Author:** Alif Dhimas
 
 ---
@@ -28,7 +28,7 @@
 
 ## 1. Ikhtisar Sistem
 
-**Stocko** (Rakku POS) adalah sistem **Point of Sale (POS)** multi-tenant untuk bisnis F&B yang dibangun dengan Next.js 14 App Router dan Supabase. Sistem ini mendukung banyak perusahaan (tenant), masing-masing dengan outlet, produk, dan role-based access control (RBAC) sendiri.
+**Rakku** (Rakku POS) adalah sistem **Point of Sale (POS)** multi-tenant untuk bisnis F&B yang dibangun dengan Next.js 14 App Router dan Supabase. Sistem ini mendukung banyak perusahaan (tenant), masing-masing dengan outlet, produk, dan role-based access control (RBAC) sendiri.
 
 ### Fitur Utama
 
@@ -71,7 +71,7 @@
 ## 3. Struktur Proyek
 
 ```
-stocko/
+rakku/
 ├── .env.local                        # Variabel lingkungan (jangan di-commit)
 ├── .eslintrc.json                    # ESLint: next/core-web-vitals + next/typescript
 ├── next.config.mjs                   # Next.js config (image remote: *.supabase.co)
@@ -87,11 +87,22 @@ stocko/
 ├── src/                              # ─── Sumber kode utama ───
 │   ├── app/
 │   │   ├── layout.tsx                # Root layout (html lang="id")
-│   │   ├── page.tsx                  # Redirect ke /login
+│   │   ├── page.tsx                  # Redirect ke /owner/masuk
 │   │   ├── error.tsx                 # Root error boundary
 │   │   ├── globals.css               # Global CSS + Tailwind directives
 │   │   │
-│   │   ├── (auth)/                   # Tenant auth route group
+│   │   ├── owner/                    # V3 — Owner self-service & dashboard
+│   │   │   ├── daftar/page.tsx       # Signup Owner (dari signup_reference.html)
+│   │   │   ├── masuk/page.tsx        # Login Owner (dari login_reference.html)
+│   │   │   ├── onboarding/page.tsx   # Wizard buat company + outlet
+│   │   │   ├── (dashboard)/
+│   │   │   │   ├── layout.tsx        # Guard owner login + sidebar
+│   │   │   │   ├── page.tsx          # Dashboard overview
+│   │   │   │   ├── outlets/page.tsx  # CRUD outlet + toggle status
+│   │   │   │   ├── employees/page.tsx# CRUD karyawan + reset PIN
+│   │   │   │   └── settings/page.tsx # Edit profil & password company
+│   │   │
+│   │   ├── (auth)/                   # Tenant auth route group (kasir)
 │   │   │   └── login/
 │   │   │       ├── page.tsx          # Step 1: kode company + password
 │   │   │       ├── select-outlet/
@@ -156,6 +167,8 @@ stocko/
 │   │   ├── layout/
 │   │   │   ├── Sidebar.tsx           # Sidebar dinamis (role-based menu)
 │   │   │   └── MobileBottomNav.tsx   # Bottom nav mobile
+│   │   ├── owner/
+│   │   │   └── OwnerSidebar.tsx      # V3 — Sidebar dashboard Owner
 │   │   ├── register/                 # Komponen POS Register
 │   │   │   ├── RegisterView.tsx      # Main register (517 lines)
 │   │   │   ├── ProductGrid.tsx
@@ -188,7 +201,8 @@ stocko/
 │   │
 │   ├── lib/
 │   │   ├── auth/                     # Auth utilities
-│   │   │   ├── tenant-session.ts     # JWT session (12 jam)
+│   │   │   ├── tenant-session.ts     # JWT session kasir (12 jam)
+│   │   │   ├── owner-session.ts      # V3 — JWT session Owner (24 jam)
 │   │   │   ├── pending-login.ts      # JWT pending (10 menit)
 │   │   │   ├── pin.ts                # Hash/verify PIN + lockout
 │   │   │   ├── company.ts            # Login company + rate limiting
@@ -202,6 +216,7 @@ stocko/
 │   │   │   ├── queries.server.ts     # Server queries (tenant-scoped)
 │   │   │   ├── queries.client.ts     # Client-side API wrappers
 │   │   │   ├── queries.superadmin.ts # Superadmin CRUD queries
+│   │   │   ├── queries.owner.ts      # V3 — Owner CRUD queries (outlets, employees, onboarding)
 │   │   │   └── storage.ts            # Upload/delete gambar produk
 │   │   ├── store/
 │   │   │   └── cartStore.ts          # Zustand cart store (528 lines)
@@ -225,12 +240,14 @@ stocko/
 │   │   ├── 010_seed_default_tiers.sql
 │   │   ├── 011_flatten_paths.sql
 │   │   ├── 012_pricing_per_tier.sql
-│   │   └── 013_tax_discount.sql
+│   │   ├── 013_tax_discount.sql
+│   │   └── 014_owner_self_service.sql # V3 — tabel owners + alter companies
 │   └── seed.sql                      # Seed data awal (kategori, produk, modifier)
 │
 ├── scripts/                          # Script utilitas
 │   ├── seed.ts                       # Seed company RAKKU + role + user
 │   ├── seed-full.ts                  # Seed company TOKOKO + Outlet Cabang
+│   ├── backfill-owners.ts            # V3 — Backfill company existing ke model ownership
 │   ├── run-migration.ts              # Runner migrasi SQL via pgsql RPC
 │   ├── run-migration.js              # Helper manual copy-paste SQL
 │   └── migration-004.ts              # Programmatic M6 hardening
@@ -1055,7 +1072,7 @@ Semua interface TypeScript: `Category`, `Product`, `Modifier`, `CartItem`, `Orde
 ```bash
 # 1. Clone repository
 git clone <repo-url>
-cd stocko
+cd rakku
 
 # 2. Install dependencies
 npm install
@@ -1118,6 +1135,7 @@ Migrasi dijalankan secara manual via Supabase SQL Editor, berurutan:
 011_flatten_paths.sql       → Update path menu
 012_pricing_per_tier.sql    → Modifier tier prices
 013_tax_discount.sql        → Pajak & diskon dinamis
+014_owner_self_service.sql  → V3 — tabel owners + alter companies (owner_id, slug)
 ```
 
 ### 12.5 Akun Default untuk Testing
@@ -1153,7 +1171,7 @@ npm start
 
 ### 13.1 Ikhtisar
 
-Stocko adalah **Progressive Web App** — dapat di-install di desktop & mobile seperti aplikasi native, berjalan standalone, dan tetap usable saat koneksi terputus (offline fallback). PWA diimplementasi dengan **Serwist** (fork Workbox yang aktif维护) untuk Next.js App Router.
+Rakku adalah **Progressive Web App** — dapat di-install di desktop & mobile seperti aplikasi native, berjalan standalone, dan tetap usable saat koneksi terputus (offline fallback). PWA diimplementasi dengan **Serwist** (fork Workbox yang aktif维护) untuk Next.js App Router.
 
 | Aspek | Detail |
 |-------|--------|
@@ -1228,7 +1246,7 @@ public/swe-worker*
 
 | Field | Nilai |
 |-------|-------|
-| `name` | Rakku POS - Stocko |
+| `name` | Rakku POS |
 | `short_name` | Rakku POS |
 | `start_url` | `/?source=pwa` |
 | `display` | standalone |
@@ -1266,15 +1284,15 @@ Script ini menghasilkan semua ikon di `public/icons/`. Jalankan ulang jika logo 
 
 ## 14. V3.0 — Self-Service Owner & Dashboard
 
-> **⚠ STATUS: BELUM DIIMPLEMENTASI**
+> **✅ STATUS: FASE 1 & 2 SUDAH DIIMPLEMENTASI**
 >
-> Bagian ini adalah **spesifikasi/rencana** untuk v3.0. Dokumentasi ditulis lebih dulu sebagai brief, namun implementasi v3 **belum selesai** — semua route, API, dan komponen yang disebut di bawah ini **belum ada** (folder scaffolding kosong sudah dibersihkan). Lihat `PROMPT_STOCKO_V3_PRODUCTION_READY.md` untuk brief lengkap pengembangan v3.
+> Bagian ini mendokumentasikan implementasi v3.0 yang sudah aktif: **Owner Self-Service** (Fase 1 — Fondasi Ownership & Fase 2 — Onboarding & Self-Service Company/Outlet). Fitur subscription/billing, landing page marketing, dan production hardening (Fase 3–5) **belum diimplementasi** — lihat `PROMPT_RAKKU_V3_PRODUCTION_READY.md` untuk rencana fase sisanya.
 >
-> Bagian 1–12 menggambarkan kondisi **aktif** sistem saat ini (v2.1), ditambah Bagian 13 (PWA) yang sudah aktif.
+> Bagian 1–13 menggambarkan kondisi sistem v2.1 yang tetap aktif (POS Register, kasir, superadmin). Lapisan Owner di atasnya tidak mengganggu mesin POS existing.
 
 ### 14.1 Ikhtisar
 
-v3.0 mengubah Stocko dari *internal tool* (superadmin melakukan semuanya) menjadi *SaaS self-service* dengan onboarding mandiri.
+v3.0 mengubah Rakku dari *internal tool* (superadmin melakukan semuanya) menjadi *SaaS self-service* dengan onboarding mandiri.
 
 ### 14.2 Ownership Hierarchy Baru
 
@@ -1286,68 +1304,126 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 
 ### 14.3 Dua Auth Flow
 
-| | Owner | Kasir (existing) |
+| | Owner (BARU) | Kasir (existing) |
 |---|---|---|
 | Login | Email + password (Custom JWT) | 4-step: company → outlet → user → PIN |
 | Cookie | `owner_session` (24 jam) | `session` (12 jam) |
 | Secret | `TENANT_JWT_SECRET` (sama) | `TENANT_JWT_SECRET` |
 | Library | `src/lib/auth/owner-session.ts` | `src/lib/auth/tenant-session.ts` |
+| UI Login | `/owner/masuk` | `/login` |
+| UI Signup | `/owner/daftar` | (tidak ada — dibuat Owner) |
 
 ### 14.4 Tabel Baru (Migration 014)
 
-| Tabel | Fungsi |
-|-------|--------|
-| `owners` | Akun pemilik bisnis (email + password bcrypt, terpisah dari `users` tenant) |
-| `plans` | Master paket langganan (Free/Pro/Business) |
-| `employee_invitations` | Undangan karyawan (token-based, untuk Fase 2) |
-| `entity_audit_logs` | Audit trail CRUD sensitif (untuk Fase 4) |
+**`owners`** — Akun pemilik bisnis (self-service)
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| id | uuid PK | |
+| email | text UNIQUE | Email login Owner |
+| phone | text | No. HP (opsional) |
+| name | text | Nama lengkap |
+| password_hash | text | bcrypt |
+| email_verified_at | timestamptz | |
+| is_active | boolean | |
+| last_login_at | timestamptz | |
+| created_at | timestamptz | |
 
-### 14.5 Rute Baru v3
+**`companies`** — kolom tambahan:
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| owner_id | uuid FK→owners | Relasi kepemilikan (baru) |
+| slug | text UNIQUE | Slug untuk URL/branding (baru) |
 
-| Rute | Deskripsi |
-|------|-----------|
-| `/(owner)/daftar` | Registrasi Owner baru |
-| `/(owner)/masuk` | Login Owner |
-| `/onboarding` | Wizard buat company + outlet pertama |
-| `/dashboard` | Dashboard Owner (ringkasan bisnis) |
-| `/dashboard/outlets` | CRUD outlet milik sendiri |
-| `/dashboard/employees` | CRUD karyawan |
-| `/dashboard/settings` | Pengaturan perusahaan |
+> Catatan: Tabel `employee_invitations`, `plans`, `subscriptions`, `entity_audit_logs` **belum dibuat** — dikesampingkan sesuai keputusan development (karyawan dibuat langsung oleh Owner, tanpa sistem undangan; subscription ditunda ke fase belakangan).
+
+### 14.5 Rute Baru v3 (/owner/....)
+
+| Rute | File | Deskripsi |
+|------|------|-----------|
+| `/owner/daftar` | `owner/daftar/page.tsx` | Signup Owner baru |
+| `/owner/masuk` | `owner/masuk/page.tsx` | Login Owner |
+| `/owner/onboarding` | `owner/onboarding/page.tsx` | Wizard buat company + outlet pertama |
+| `/owner` | `owner/(dashboard)/page.tsx` | Dashboard Owner (ringkasan bisnis) |
+| `/owner/outlets` | `owner/(dashboard)/outlets/page.tsx` | CRUD outlet milik sendiri |
+| `/owner/employees` | `owner/(dashboard)/employees/page.tsx` | CRUD karyawan |
+| `/owner/settings` | `owner/(dashboard)/settings/page.tsx` | Pengaturan perusahaan |
+
+Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (daftar, masuk, onboarding) yang tidak pakai sidebar.
 
 ### 14.6 API Routes Baru
 
+#### Auth Owner — `/api/auth/owner/`
 | Endpoint | Method | Fungsi |
 |----------|--------|--------|
-| `/api/auth/owner/register` | POST | Daftar Owner baru |
-| `/api/auth/owner/login` | POST | Login Owner, set `owner_session` cookie |
-| `/api/auth/owner/logout` | POST | Hapus cookie Owner |
-| `/api/auth/owner/session` | GET | Baca session Owner saat ini |
-| `/api/onboarding/company` | POST | Buat company + outlet + seed roles/tiers |
-| `/api/dashboard/outlets` | POST | Tambah outlet baru (Owner) |
-| `/api/dashboard/employees` | POST | Tambah karyawan baru (Owner) |
+| `/register` | POST | Daftar Owner baru (name, email, password) → set `owner_session` |
+| `/login` | POST | Login Owner → set `owner_session` |
+| `/logout` | POST | Hapus cookie Owner |
+| `/session` | GET | Baca session Owner saat ini |
+
+#### Onboarding — `/api/onboarding/`
+| Endpoint | Method | Fungsi |
+|----------|--------|--------|
+| `/company` | GET | Suggest kode & slug dari nama company |
+| `/company` | POST | Buat company + outlet + seed roles/tiers → update `owner_session` |
+
+#### Owner Dashboard — `/api/owner/`
+| Endpoint | Method | Fungsi |
+|----------|--------|--------|
+| `/outlets` | GET | List outlet milik Owner |
+| `/outlets` | POST | Tambah outlet baru |
+| `/outlets/[id]` | PATCH | Edit outlet / toggle status aktif-nonaktif |
+| `/outlets/[id]` | DELETE | Hapus outlet (tidak bisa hapus outlet terakhir) |
+| `/employees` | GET | List karyawan + roles + outlets (untuk form) |
+| `/employees` | POST | Tambah karyawan (name, username, PIN, role, outlets) |
+| `/employees/[id]` | PATCH | Edit / toggle status / reset PIN |
+| `/employees/[id]` | DELETE | Hapus karyawan |
+| `/settings` | GET | Baca profil company |
+| `/settings` | PUT | Update profil / ganti password company |
 
 ### 14.7 Scripts Baru
 
 | Script | Perintah | Fungsi |
 |--------|----------|--------|
-| `backfill:owners` | `npm run backfill:owners` | Backfill company existing (RAKKU, TOKOKO) ke model ownership |
+| `backfill:owners` | `npx tsx scripts/backfill-owners.ts` | Backfill company existing (RAKKU → budi@rakku.test, TOKOKO → ali@rakku.test) ke model ownership |
 
-### 14.8 Alur Owner Baru
+### 14.8 Alur Owner Baru (end-to-end)
 
-1. **Daftar** (`/daftar`) — input nama, email, password → simpan ke `owners`
-2. **Masuk** (`/masuk`) — login email+password → set `owner_session` cookie
-3. **Onboarding** (`/onboarding`) — jika belum punya company:
-   - Step 1: nama company, kode, password company
-   - Step 2: nama outlet pertama, alamat
-   - Submit → buat company + outlet + seed 4 role default + 1 user Owner + access matrix
-4. **Dashboard** (`/dashboard`) — ringkasan bisnis, akses cepat ke POS Register, kelola outlet/karyawan
-5. **Kelola Karyawan** (`/dashboard/employees`) — tambah karyawan dengan PIN, assign role
-6. **Kelola Outlet** (`/dashboard/outlets`) — tambah outlet baru dalam company
+1. **Daftar** (`/owner/daftar`) — input nama, email, password → simpan ke `owners`, set `owner_session` cookie → redirect ke onboarding
+2. **Onboarding** (`/owner/onboarding`) — 2-step wizard:
+   - Step 1: nama company, kode (auto-suggest dari nama, bisa diubah), password company
+   - Step 2: nama outlet pertama, alamat (opsional)
+   - Submit → buat company + outlet + seed 4 role default (Owner, Kepala Cabang, Admin, Kasir) + seed access matrix + seed default pricing tiers (Dine In, Take Away) → redirect ke `/owner`
+3. **Dashboard** (`/owner`) — ringkasan: total outlet, total karyawan, total penjualan, quick links
+4. **Kelola Outlet** (`/owner/outlets`) — CRUD: list, tambah, edit, toggle aktif/nonaktif, hapus (tidak bisa hapus outlet terakhir). Outlet baru otomatis dapat seed pricing tiers.
+5. **Kelola Karyawan** (`/owner/employees`) — CRUD: list, tambah (name, username, PIN 6 digit, role, pilih outlet), edit, toggle aktif/nonaktif, reset PIN, hapus. Tidak ada sistem undangan — Owner kasih tahu PIN secara manual.
+6. **Pengaturan** (`/owner/settings`) — edit nama company, ganti password company
 
-### 14.9 Catatan Penting
+### 14.9 Library & Komponen Baru
 
-- **Semua API menggunakan service role key** — policy sama seperti v2.1 (bypass RLS). RLS tidak diaktifkan.
+| File | Fungsi |
+|------|--------|
+| `src/lib/auth/owner-session.ts` | `signOwnerSession()`, `verifyOwnerSession()`, `getOwnerSessionFromCookies()`, `setOwnerSessionCookie()`, `clearOwnerSessionCookie()` — JWT 24 jam, cookie `owner_session` |
+| `src/lib/supabase/queries.owner.ts` | Semua CRUD queries untuk Owner: `createOwner()`, `verifyOwnerLogin()`, `createCompanyWithOnboarding()`, `getOwnerOutlets()`, `createOutlet()`, `updateOutlet()`, `toggleOutletStatus()`, `deleteOutlet()`, `getOwnerEmployees()`, `createEmployee()`, `updateEmployee()`, `toggleEmployeeStatus()`, `resetEmployeePin()`, `deleteEmployee()`, `getCompanyRoles()`, `generateCompanyCode()`, `generateSlug()` |
+| `src/components/owner/OwnerSidebar.tsx` | Sidebar dinamis untuk dashboard Owner (Dashboard, Outlet, Karyawan, Pengaturan, Logout, link ke POS Kasir) |
+| `src/app/owner/(dashboard)/layout.tsx` | Server layout — guard owner login + company exists, render sidebar |
+
+### 14.10 Catatan Penting
+
+- **Semua API owner menggunakan service role key** — policy sama seperti v2.1 (bypass RLS). RLS tetap dimatikan.
 - **Owner auth menggunakan Custom JWT** (bukan Supabase Auth) — konsisten dengan auth kasir existing. Menggunakan library `jose` + `bcryptjs` yang sudah terinstall.
-- **Cookie name** Owner terpisah: `owner_session` vs `session` (kasir).
-- **Seed logic** di `/api/onboarding/company` mereplikasi logika `scripts/seed.ts` untuk membuat company + roles + access matrix + default user.
-- **Middleware** diperluas untuk route group baru: `(owner)` untuk auth, `/onboarding` dan `/dashboard` untuk protected Owner routes.
+- **Cookie name** Owner terpisah: `owner_session` vs `session` (kasir) vs `pending_login` (kasir login flow).
+- **Seed logic** di `/api/onboarding/company` mereplikasi logika `scripts/seed.ts` untuk membuat company + roles + access matrix + default pricing tiers, tapi dipanggil dari API bukan CLI.
+- **Middleware** diperluas untuk route group baru: `/owner/daftar` & `/owner/masuk` (public, redirect jika sudah login), `/owner/onboarding` (perlu login, belum punya company), `/owner` & sub-rutes (perlu login + company sudah ada).
+- **Tidak ada sistem undangan karyawan** — Owner membuat karyawan langsung dengan PIN, dan kasih tahu PIN secara manual. `employee_invitations` table sengaja tidak dibuat.
+- **Subscription/billing belum diimplementasi** — `plans` & `subscriptions` table belum dibuat. Semua company default status `active` (tanpa trial/limit).
+- **Route `/`** sekarang redirect ke `/owner/masuk` (sebelumnya ke `/login`).
+- **Backfill** — jalankan `npx tsx scripts/backfill-owners.ts` setelah migration 014 untuk membuat akun owner testing untuk RAKKU & TOKOKO.
+
+### 14.11 Akun Testing Owner
+
+| Email | Password | Company |
+|-------|----------|---------|
+| `budi@rakku.test` | `budi12345` | RAKKU |
+| `ali@rakku.test` | `ali12345` | TOKOKO |
+
+*(Akun ini di-generate oleh `scripts/backfill-owners.ts` untuk data existing. Owner baru mendaftar via `/owner/daftar`.)*

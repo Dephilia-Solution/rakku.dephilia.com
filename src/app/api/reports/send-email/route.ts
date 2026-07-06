@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { sendEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   const session = await getTenantSessionFromCookies();
@@ -116,9 +116,7 @@ export async function POST(request: NextRequest) {
 </html>`;
 
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: `Rakku POS <${process.env.RESEND_FROM_EMAIL || "noreply@rakku.app"}>`,
+    await sendEmail({
       to: email,
       subject: `Laporan Penjualan ${rangeLabel} — ${session.company_name}`,
       html,

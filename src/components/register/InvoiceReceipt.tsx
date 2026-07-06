@@ -47,20 +47,20 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
     .map(
       (item) => `
     <tr>
-      <td colspan="2" style="font-size:11px;padding:2px 0;">
+      <td colspan="2" style="font-size:9px;padding:2px 0;">
         <strong>${item.product_name}</strong>
       </td>
     </tr>
     <tr>
-      <td style="font-size:10px;color:#555;padding:0 0 4px 8px;">
+      <td style="font-size:8px;color:#555;padding:0 0 4px 8px;">
         ${item.quantity}x ${formatCurrency(item.unit_price)}
         ${item.modifier_label ? ` — ${item.modifier_label}` : ""}
       </td>
-      <td style="font-size:10px;color:#555;text-align:right;padding:0 0 4px 0;">
+      <td style="font-size:8px;color:#555;text-align:right;padding:0 0 4px 0;">
         ${formatCurrency(item.subtotal)}
       </td>
     </tr>
-    ${item.note ? `<tr><td colspan="2" style="font-size:10px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`
+    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`
     )
     .join("");
 
@@ -70,30 +70,30 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
   <meta charset="utf-8">
   <title>Invoice #${orderNumber}</title>
   <style>
-    @page { margin: 0; size: 80mm auto; }
+    @page { margin: 0; size: 58mm auto; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Courier New', 'Consolas', monospace;
-      width: 80mm;
-      padding: 8mm 5mm;
+      width: 58mm;
+      padding: 6mm 4mm;
       color: #222;
-      font-size: 11px;
-      line-height: 1.4;
+      font-size: 9px;
+      line-height: 1.35;
     }
-    .header { text-align: center; margin-bottom: 10px; }
-    .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
-    .header p { font-size: 10px; color: #555; }
-    .divider { border-top: 1px dashed #999; margin: 6px 0; }
-    .info-table { width: 100%; font-size: 10px; }
+    .header { text-align: center; margin-bottom: 8px; }
+    .header h1 { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
+    .header p { font-size: 8px; color: #555; }
+    .divider { border-top: 1px dashed #999; margin: 5px 0; }
+    .info-table { width: 100%; font-size: 8px; }
     .info-table td { padding: 1px 0; }
     .info-table td:last-child { text-align: right; }
     table.items { width: 100%; border-collapse: collapse; }
-    .totals-table { width: 100%; font-size: 11px; }
+    .totals-table { width: 100%; font-size: 9px; }
     .totals-table td { padding: 2px 0; }
     .totals-table td:last-child { text-align: right; font-family: 'Courier New', monospace; }
-    .grand-total { font-size: 14px; font-weight: bold; }
+    .grand-total { font-size: 11px; font-weight: bold; }
     .grand-total td { padding-top: 4px; border-top: 1px solid #222; }
-    .footer { text-align: center; margin-top: 12px; font-size: 10px; color: #666; }
+    .footer { text-align: center; margin-top: 10px; font-size: 8px; color: #666; }
   </style>
 </head>
 <body>
@@ -192,7 +192,7 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
       </div>
 
       <div className="px-6 py-4 overflow-y-auto flex-1">
-        <div className="max-w-sm mx-auto">
+        <div className="max-w-[58mm] mx-auto">
           {/* Header */}
           <div className="text-center mb-6">
             <h2 className="font-display text-xl font-bold text-neutral-900">

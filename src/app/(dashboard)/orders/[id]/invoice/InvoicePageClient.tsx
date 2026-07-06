@@ -74,7 +74,7 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
       </div>
 
       {/* Invoice Content */}
-      <div ref={printRef} className="max-w-md mx-auto bg-white p-6 sm:p-8 my-4 shadow-sm rounded-2xl sm:my-8">
+      <div ref={printRef} className="invoice-card max-w-md mx-auto bg-white p-6 sm:p-8 my-4 shadow-sm rounded-2xl sm:my-8">
         <div className="text-center mb-6">
           <Image
             src="/images/rakku_logotype.png"
@@ -167,9 +167,26 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
 
       <style jsx global>{`
         @media print {
-          body { background: white !important; -webkit-print-color-adjust: exact; }
+          body {
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            font-family: 'Courier New', 'Consolas', monospace;
+          }
           .no-print { display: none !important; }
-          @page { margin: 12mm; size: auto; }
+          @page { margin: 0; size: 58mm auto; }
+          .invoice-card {
+            width: 58mm !important;
+            max-width: 58mm !important;
+            padding: 6mm 4mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            font-size: 9px !important;
+          }
+          .invoice-card .text-sm { font-size: 8px !important; }
+          .invoice-card .text-xs { font-size: 8px !important; }
+          .invoice-card .text-lg { font-size: 11px !important; }
+          .invoice-card img { height: 6mm !important; width: auto !important; }
         }
       `}</style>
     </div>
