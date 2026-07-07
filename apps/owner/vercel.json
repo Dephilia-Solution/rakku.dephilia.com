@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @rakku/owner build",
+  "installCommand": "PNPM_ONLY_BUILT_DEPENDENCIES=esbuild,unrs-resolver pnpm install",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
+}
