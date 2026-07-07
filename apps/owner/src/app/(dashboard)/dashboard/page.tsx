@@ -8,11 +8,9 @@ import Link from "next/link";
 import {
   Building2,
   Users,
-  ShoppingBag,
   TrendingUp,
   ArrowRight,
   Store,
-  Receipt,
 } from "lucide-react";
 
 export default async function OwnerDashboardPage() {
@@ -85,14 +83,7 @@ export default async function OwnerDashboardPage() {
             Berikut ringkasan bisnis Anda hari ini.
           </p>
         </div>
-        <Link
-          href={process.env.NEXT_PUBLIC_POS_URL || "http://localhost:3001"}
-          target="_blank"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
-        >
-          <ShoppingBag size={16} />
-          Buka POS Kasir
-        </Link>
+        
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -221,33 +212,7 @@ export default async function OwnerDashboardPage() {
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-forest to-forest-dark rounded-2xl p-6 text-white">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Receipt size={24} />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg mb-1">
-              Mulai Berjualan dengan POS Kasir
-            </h3>
-            <p className="text-sm opacity-90 mb-3">
-              Login kasir di perangkat outlet menggunakan kode perusahaan{" "}
-              <span className="font-mono font-bold">
-                {session.company_name}
-              </span>
-              , pilih outlet, lalu pilih akun karyawan dan masukkan PIN.
-            </p>
-            <Link
-              href={process.env.NEXT_PUBLIC_POS_URL || "http://localhost:3001"}
-              target="_blank"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-forest text-sm font-semibold rounded-xl hover:bg-neutral-100 transition-all"
-            >
-              <ShoppingBag size={16} />
-              Buka POS
-            </Link>
-          </div>
-        </div>
-      </div>
+      
     </div>
   );
 }
