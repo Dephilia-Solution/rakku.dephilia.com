@@ -38,7 +38,7 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-neutral-200 z-40 px-4 h-16 flex items-center justify-between">
+      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-b border-neutral-200 z-40 px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-forest rounded-lg flex items-center justify-center text-white">
             <Store size={18} />
@@ -63,8 +63,8 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-neutral-200 z-50 flex flex-col transition-transform lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-neutral-200 z-50 flex flex-col transition-all duration-300 lg:left-0 ${
+          mobileOpen ? "left-0" : "-left-64"
         }`}
       >
         {/* Logo */}

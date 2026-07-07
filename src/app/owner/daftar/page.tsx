@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Store, User, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
 import ToastContainer from "@/components/shared/Toast";
@@ -182,26 +183,32 @@ export default function OwnerSignupPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-forest via-forest-dark to-neutral-900 items-center justify-center p-12">
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-forest-light/20 rounded-full blur-3xl"></div>
-        <div className="relative z-10 max-w-md text-white">
-          <h2 className="text-4xl font-extrabold leading-tight tracking-tight">
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+        <Image
+          src="/images/signup.jpg"
+          alt="Signup"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        <div className="absolute bottom-12 left-12 right-12 z-10">
+          <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-white">
             Transformasi Bisnis Anda Menjadi Lebih Cerdas.
           </h2>
           <div className="flex gap-6 mt-8">
             <div>
-              <span className="text-2xl font-bold block">24/7</span>
+              <span className="text-2xl font-bold block text-white">24/7</span>
               <span className="text-sm text-white/80">Akses Kapan saja</span>
             </div>
             <div className="w-px h-10 bg-white/30 self-center"></div>
             <div>
-              <span className="text-2xl font-bold block">100%</span>
+              <span className="text-2xl font-bold block text-white">100%</span>
               <span className="text-sm text-white/80">Real-time Data</span>
             </div>
             <div className="w-px h-10 bg-white/30 self-center"></div>
             <div>
-              <span className="text-2xl font-bold block">Gratis</span>
+              <span className="text-2xl font-bold block text-white">Gratis</span>
               <span className="text-sm text-white/80">Mulai Sekarang</span>
             </div>
           </div>

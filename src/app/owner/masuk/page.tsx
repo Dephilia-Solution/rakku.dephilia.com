@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Store, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
 import ToastContainer from "@/components/shared/Toast";
@@ -49,17 +50,23 @@ export default function OwnerLoginPage() {
 
   return (
     <div className="min-h-screen flex bg-[#f8f9ff]">
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-forest via-forest-dark to-neutral-900 items-center justify-center p-12">
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-forest-light/20 rounded-full blur-3xl"></div>
-        <div className="relative z-10 max-w-md text-white">
-          <div className="flex items-center gap-3 mb-6">
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+        <Image
+          src="/images/login.jpg"
+          alt="Login"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        <div className="absolute bottom-12 left-12 right-12 z-10">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-              <Store size={24} />
+              <Store size={24} className="text-white" />
             </div>
-            <h1 className="text-3xl font-extrabold">Rakku</h1>
+            <h1 className="text-3xl font-extrabold text-white">Rakku</h1>
           </div>
-          <p className="text-base text-white/90 leading-relaxed">
+          <p className="text-base text-white/90 leading-relaxed max-w-md">
             Kelola bisnis kuliner Anda dengan lebih efisien melalui sistem
             manajemen terpadu yang modern dan mudah digunakan.
           </p>

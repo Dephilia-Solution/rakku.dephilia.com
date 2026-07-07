@@ -35,11 +35,9 @@ export default async function OwnerDashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
+    <div className="flex min-h-screen bg-neutral-50">
       <OwnerSidebar owner={ownerData} />
-      <div className="flex-1 lg:ml-64 min-h-screen flex flex-col">
-        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8">{children}</main>
-      </div>
+      <main className="flex-1 lg:ml-64 p-4 lg:p-8 pt-16 lg:pt-8">{children}</main>
       <ToastContainer />
     </div>
   );

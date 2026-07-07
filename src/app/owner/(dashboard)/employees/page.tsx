@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   Plus,
@@ -14,7 +15,6 @@ import {
   Shield,
 } from "lucide-react";
 import { showToast } from "@/components/shared/Toast";
-import ToastContainer from "@/components/shared/Toast";
 
 interface Employee {
   id: string;
@@ -86,6 +86,12 @@ export default function OwnerEmployeesPage() {
   const [isRoleSubmitting, setIsRoleSubmitting] = useState(false);
   const [deletingRole, setDeletingRole] = useState<RoleWithAccess | null>(null);
   const [togglingMenuId, setTogglingMenuId] = useState<string | null>(null);
+  const [showRoleForm, setShowRoleForm] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -356,6 +362,7 @@ export default function OwnerEmployeesPage() {
       }
       setEditingRoleId(null);
       setRoleFormName("");
+      setShowRoleForm(false);
       await fetchRolesData();
     } catch {
       showToast("error", "Terjadi kesalahan");
@@ -393,6 +400,45 @@ export default function OwnerEmployeesPage() {
     } catch {
       showToast("error", "Terjadi kesalahan");
     }
+  };
+
+  const handleSelectAll = (roleId: string, checked: boolean) => {
+    const role = rolesWithAccess.find((r) => r.id === roleId);
+    if (!role) return;
+    setRolesWithAccess((prev) =>
+      prev.map((r) =>
+        r.id === roleId
+          ? {
+              ...r,
+              menu_access: checked
+                ? menusList.map((m) => m.id)
+                : [],
+            }
+          : r
+      )
+    );
+    for (const menu of menusList) {
+      const hasAccess = role.menu_access.includes(menu.id);
+      if (hasAccess !== checked) {
+        fetch(`/api/owner/roles/${roleId}/access`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ menuId: menu.id, canView: checked }),
+        }).then((res) => {
+          if (!res.ok) fetchRolesData();
+        }).catch(() => fetchRolesData());
+      }
+    }
+  };
+
+  const menuDescriptions: Record<string, string> = {
+    register: "Mencatat transaksi penjualan dan pemesanan",
+    orders: "Melihat daftar pesanan masuk dan riwayat transaksi",
+    reports: "Mengakses laporan keuangan dan analisis bisnis",
+    products: "Mengelola daftar produk dan menu makanan",
+    "pricing-tiers": "Mengatur tingkatan harga dan kategori harga",
+    taxes: "Mengelola pengaturan pajak",
+    discounts: "Mengatur promo dan diskon produk",
   };
 
   const handleToggleMenuAccess = async (
@@ -677,10 +723,10 @@ export default function OwnerEmployeesPage() {
       )}
 
       {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md my-8">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 sticky top-0 bg-white rounded-t-2xl">
+      {showForm && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white rounded-t-2xl">
               <h2 className="font-bold text-lg text-neutral-900">
                 {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
               </h2>
@@ -834,12 +880,13 @@ export default function OwnerEmployeesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Reset PIN Modal */}
-      {resetTarget && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      {resetTarget && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-warning/10 rounded-xl flex items-center justify-center text-warning">
@@ -891,12 +938,13 @@ export default function OwnerEmployeesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      {deleteTarget && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
@@ -931,224 +979,237 @@ export default function OwnerEmployeesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Kelola Role Modal */}
-      {showRoleModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 sticky top-0 bg-white rounded-t-2xl z-10">
+      {showRoleModal && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white rounded-t-2xl">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
                   <Shield size={20} />
                 </div>
                 <div>
-                  <h2 className="font-bold text-lg text-neutral-900">
-                    Kelola Role
-                  </h2>
-                  <p className="text-xs text-neutral-400">
-                    Buat role & atur menu yang bisa diakses.
-                  </p>
+                  <h2 className="font-bold text-lg text-neutral-900">Kelola Role</h2>
+                  <p className="text-xs text-neutral-400">Buat, ubah, atau hapus role karyawan.</p>
                 </div>
               </div>
               <button
-                onClick={() => {
-                  setShowRoleModal(false);
-                  setEditingRoleId(null);
-                  setRoleFormName("");
-                }}
+                onClick={() => { setShowRoleModal(false); setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(false); }}
                 className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                {/* Left: Roles list + form */}
-                <div className="lg:col-span-2 space-y-4">
-                  {/* Form tambah/edit role */}
-                  <form
-                    onSubmit={handleRoleSubmit}
-                    className="flex gap-2"
-                  >
-                    <input
-                      type="text"
-                      value={roleFormName}
-                      onChange={(e) => setRoleFormName(e.target.value)}
-                      placeholder={
-                        editingRoleId ? "Ubah nama role" : "Nama role baru"
-                      }
-                      className="flex-1 px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isRoleSubmitting}
-                      className="px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all disabled:opacity-70"
-                    >
-                      {isRoleSubmitting ? "..." : editingRoleId ? "Simpan" : "Tambah"}
-                    </button>
-                  </form>
-                  {editingRoleId && (
-                    <button
-                      onClick={cancelEditRole}
-                      className="text-xs text-neutral-400 hover:text-neutral-600"
-                    >
-                      Batal edit
-                    </button>
-                  )}
+            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto space-y-6">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(true); }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
+                >
+                  <Plus size={16} />
+                  Tambah Role
+                </button>
+              </div>
 
-                  {/* Roles list */}
-                  {rolesWithAccess.length === 0 ? (
-                    <div className="text-center py-8 px-4 bg-neutral-50 rounded-xl">
-                      <Shield
-                        size={28}
-                        className="text-neutral-300 mx-auto mb-2"
-                      />
-                      <p className="text-sm text-neutral-400">
-                        Belum ada role. Buat role pertama di atas.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
+              {rolesWithAccess.length === 0 ? (
+                <div className="text-center py-12 px-4 bg-neutral-50 rounded-xl">
+                  <Shield size={32} className="text-neutral-300 mx-auto mb-3" />
+                  <p className="text-sm text-neutral-400">Belum ada role. Klik "Tambah Role" untuk membuat role pertama.</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden border border-neutral-200 rounded-xl">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-neutral-50 border-b border-neutral-200">
+                        <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Nama Role</th>
+                        <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Hak Akses</th>
+                        <th className="text-right text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
                       {rolesWithAccess.map((role) => (
-                        <div
+                        <tr
                           key={role.id}
-                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                            selectedRoleId === role.id
-                              ? "border-forest bg-forest/5"
-                              : "border-neutral-200 hover:bg-neutral-50"
-                          }`}
+                          className={`hover:bg-neutral-50 cursor-pointer ${selectedRoleId === role.id ? "bg-forest/5" : ""}`}
                           onClick={() => setSelectedRoleId(role.id)}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Shield
-                              size={16}
-                              className="text-neutral-400 shrink-0"
-                            />
-                            <span className="text-sm font-medium text-neutral-700 truncate">
-                              {role.name}
-                            </span>
-                            <span className="text-xs text-neutral-400 shrink-0">
-                              ({role.menu_access.length} menu)
-                            </span>
-                          </div>
-                          <div
-                            className="flex items-center gap-1 shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              onClick={() => handleEditRole(role)}
-                              className="p-1.5 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
-                              title="Edit nama"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() => setDeletingRole(role)}
-                              className="p-1.5 text-neutral-400 hover:text-danger hover:bg-neutral-100 rounded-lg transition-all"
-                              title="Hapus role"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <Shield size={16} className="text-neutral-400 shrink-0" />
+                              <span className="text-sm font-medium text-neutral-900">{role.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-sm text-neutral-500">{role.menu_access.length} menu</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setEditingRoleId(role.id); setRoleFormName(role.name); setShowRoleForm(true); }}
+                                className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                                title="Edit role"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => setDeletingRole(role)}
+                                className="p-2 text-neutral-400 hover:text-danger hover:bg-neutral-100 rounded-lg transition-all"
+                                title="Hapus role"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
+              )}
 
-                {/* Right: Menu access matrix for selected role */}
-                <div className="lg:col-span-3">
-                  {!selectedRoleId ? (
-                    <div className="text-center py-12 px-4 bg-neutral-50 rounded-xl h-full flex items-center justify-center">
-                      <p className="text-sm text-neutral-400">
-                        Pilih role di kiri untuk mengatur akses menu.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-neutral-900">
-                          Akses Menu
-                        </h3>
-                        <span className="text-xs text-neutral-400">
-                          Centang menu yang bisa diakses role ini
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {menusList.map((menu) => {
-                          const role = rolesWithAccess.find(
-                            (r) => r.id === selectedRoleId
-                          );
-                          const checked = role?.menu_access.includes(menu.id) ?? false;
-                          const isToggling = togglingMenuId === menu.id;
-                          return (
-                            <label
-                              key={menu.id}
-                              className="flex items-center gap-3 p-3 bg-neutral-50 hover:bg-neutral-100 rounded-xl cursor-pointer transition-all"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={isToggling}
-                                onChange={() =>
-                                  handleToggleMenuAccess(
-                                    selectedRoleId,
-                                    menu.id,
-                                    !checked
-                                  )
-                                }
-                                className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-neutral-700">
-                                  {menu.name}
-                                </p>
-                                <p className="text-xs text-neutral-400">
-                                  {menu.path}
-                                </p>
-                              </div>
-                              {isToggling && (
-                                <div className="w-4 h-4 border-2 border-forest/30 border-t-forest rounded-full animate-spin" />
-                              )}
-                            </label>
-                          );
+              {selectedRoleId && (
+                <div className="border border-neutral-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-neutral-900">Atur Akses Menu</h3>
+                    <span className="text-xs text-neutral-400">Centang menu yang bisa diakses role ini</span>
+                  </div>
+                  {menusList.length > 0 && (
+                    <label className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer hover:bg-neutral-200 transition-all mb-2">
+                      <input
+                        type="checkbox"
+                        checked={menusList.every((m) => {
+                          const role = rolesWithAccess.find((r) => r.id === selectedRoleId);
+                          return role?.menu_access.includes(m.id) ?? false;
                         })}
-                      </div>
-                      {menusList.length === 0 && (
-                        <p className="text-sm text-neutral-400 text-center py-8">
-                          Tidak ada menu terdaftar.
-                        </p>
-                      )}
-                    </div>
+                        onChange={(e) => handleSelectAll(selectedRoleId, e.target.checked)}
+                        className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest"
+                      />
+                      <span className="text-sm font-semibold text-neutral-700">Pilih Semua</span>
+                    </label>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {menusList.map((menu) => {
+                      const role = rolesWithAccess.find((r) => r.id === selectedRoleId);
+                      const checked = role?.menu_access.includes(menu.id) ?? false;
+                      const isToggling = togglingMenuId === menu.id;
+                      return (
+                        <label
+                          key={menu.id}
+                          className="flex items-start gap-3 p-3 bg-neutral-50 hover:bg-neutral-100 rounded-xl cursor-pointer transition-all"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isToggling}
+                            onChange={() => handleToggleMenuAccess(selectedRoleId, menu.id, !checked)}
+                            className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-neutral-700">{menu.name}</p>
+                            <p className="text-xs text-neutral-400 leading-relaxed">
+                              {menuDescriptions[menu.slug] || `Akses menu ${menu.path}`}
+                            </p>
+                          </div>
+                          {isToggling && (
+                            <div className="w-4 h-4 border-2 border-forest/30 border-t-forest rounded-full animate-spin mt-1 shrink-0" />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {menusList.length === 0 && (
+                    <p className="text-sm text-neutral-400 text-center py-8">Tidak ada menu terdaftar.</p>
                   )}
                 </div>
-              </div>
+              )}
+
+              {!selectedRoleId && rolesWithAccess.length > 0 && (
+                <div className="text-center py-6 bg-neutral-50 rounded-xl">
+                  <p className="text-sm text-neutral-400">Klik salah satu role di tabel untuk mengatur akses menunya.</p>
+                </div>
+              )}
             </div>
 
-            {/* Footer */}
             <div className="p-4 border-t border-neutral-200 sticky bottom-0 bg-white rounded-b-2xl">
               <button
-                onClick={() => {
-                  setShowRoleModal(false);
-                  setEditingRoleId(null);
-                  setRoleFormName("");
-                }}
+                onClick={() => { setShowRoleModal(false); setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(false); }}
                 className="w-full py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
               >
                 Selesai
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Add/Edit Role Form Modal */}
+      {showRoleForm && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+                <Shield size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-neutral-900">
+                  {editingRoleId ? "Ubah Role" : "Tambah Role"}
+                </h3>
+                <p className="text-xs text-neutral-400">
+                  {editingRoleId ? "Ubah nama role karyawan." : "Buat role baru untuk karyawan."}
+                </p>
+              </div>
+            </div>
+            <form onSubmit={handleRoleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                  Nama Role
+                </label>
+                <input
+                  type="text"
+                  value={roleFormName}
+                  onChange={(e) => setRoleFormName(e.target.value)}
+                  placeholder="contoh: Kasir, Koki, Admin"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowRoleForm(false); setEditingRoleId(null); setRoleFormName(""); }}
+                  className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRoleSubmitting}
+                  className="flex-1 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isRoleSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : editingRoleId ? (
+                    "Simpan"
+                  ) : (
+                    "Tambah"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Role Confirmation */}
-      {deletingRole && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      {deletingRole && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
@@ -1183,10 +1244,10 @@ export default function OwnerEmployeesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      <ToastContainer />
     </div>
   );
 }
