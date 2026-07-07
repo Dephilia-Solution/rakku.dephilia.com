@@ -1,42 +1,28 @@
 {
   "name": "rakku",
-  "version": "0.1.0",
+  "version": "4.0.0",
   "private": true,
+  "packageManager": "pnpm@11.10.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "seed": "npx tsx scripts/seed.ts"
-  },
-  "dependencies": {
-    "@serwist/next": "^9.5.11",
-    "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.106.1",
-    "@types/nodemailer": "^8.0.1",
-    "bcryptjs": "^3.0.3",
-    "jose": "^6.2.3",
-    "lucide-react": "^1.16.0",
-    "next": "14.2.35",
-    "nodemailer": "^9.0.3",
-    "react": "^18",
-    "react-dom": "^18",
-    "resend": "^6.16.0",
-    "sharp": "^0.35.3",
-    "zustand": "^5.0.13"
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "dev:owner": "pnpm --filter @rakku/owner dev",
+    "dev:pos": "pnpm --filter @rakku/pos dev",
+    "dev:superadmin": "pnpm --filter @rakku/superadmin dev",
+    "build:owner": "pnpm --filter @rakku/owner build",
+    "build:pos": "pnpm --filter @rakku/pos build",
+    "build:superadmin": "pnpm --filter @rakku/superadmin build",
+    "seed": "tsx scripts/seed.ts",
+    "seed:full": "tsx scripts/seed-full.ts",
+    "backfill:owners": "tsx scripts/backfill-owners.ts"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "dotenv": "^17.4.2",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.35",
-    "postcss": "^8",
-    "serwist": "^9.5.11",
-    "tailwindcss": "^3.4.1",
     "tsx": "^4.22.4",
+    "turbo": "^2.3.3",
     "typescript": "^5"
   }
 }

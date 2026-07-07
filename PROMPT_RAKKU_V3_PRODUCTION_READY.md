@@ -3,7 +3,7 @@
 
 > **✅ UPDATE PROGRES: Fase 1 & 2 SUDAH DIIMPLEMENTASI**
 >
-> Fase 1 (Fondasi Ownership) dan Fase 2 (Onboarding & Self-Service Company/Outlet) sudah selesai. Owner bisa daftar sendiri, buat company + outlet, kelola karyawan (CRUD langsung dengan PIN, tanpa sistem undangan), dan kelola outlet (CRUD + toggle status). Lihat `DOCS.md` Bagian 14 untuk dokumentasi lengkap.
+> Fase 1 (Fondasi Ownership) dan Fase 2 (Onboarding & Self-Service Company/Outlet) sudah selesai. Owner bisa daftar sendiri (dengan verifikasi email), buat company + outlet, kelola role & akses menu, kelola karyawan (CRUD langsung dengan PIN, tanpa sistem undangan), dan kelola outlet (CRUD + toggle status). Lihat `DOCS.md` Bagian 14 untuk dokumentasi lengkap.
 >
 > Fase 3 (Landing Page & Monetisasi), Fase 4 (Production Hardening), dan Fase 5 (Superadmin v2) **belum dimulai**.
 >
@@ -11,6 +11,9 @@
 > - Sistem undangan karyawan (`employee_invitations`) **tidak diimplementasi** — Owner membuat karyawan langsung dengan PIN dan kasih tahu secara manual (sesuai keputusan user).
 > - Tabel `plans` & `subscriptions` **belum dibuat** — subscription ditunda ke fase belakangan. Semua company status `active` tanpa limit.
 > - Route owner pakai prefix `/owner/...` (bukan `/dashboard/...`) untuk persiapan pemisahan subdomain di masa depan (mis. `owner.rakku.com` vs `pos.rakku.com`).
+> - **Onboarding tidak men-seed role default** — Owner harus membuat role sendiri via panel "Kelola Role" di halaman Karyawan. Berbeda dari `scripts/seed.ts` yang seed 4 role untuk data testing.
+> - **Email verification via nodemailer SMTP** (bukan Supabase Auth) — Owner daftar → verifikasi email → baru bisa login. Token JWT 1 jam.
+> - **Role & access matrix management** dibangun langsung di halaman Karyawan sebagai modal panel, bukan halaman terpisah seperti superadmin.
 >
 > ---
 >
@@ -211,103 +214,41 @@ Tidak berubah dari sekarang — akses ke Register saja, login via 4-step + PIN.
 
 ## 7. PERUBAHAN SKEMA DATABASE
 
-### 7.1 Tabel baru
-
-**`platform_admins`** — pisahkan superadmin platform dari data tenant (kalau belum terpisah dari `auth.users` Supabase secara eksplisit):
-```sql
-create table platform_admins (
-  id uuid primary key default gen_random_uuid(),
-  auth_user_id uuid not null references auth.users(id),
-  name text not null,
-  is_active boolean default true,
-  created_at timestamptz default now()
-);
-```
+### 7.1 Tabel baru — ✅ Sudah diimplementasi (Migration 014)
 
 **`owners`** — akun pemilik bisnis (terpisah dari `users` tenant yang berbasis PIN):
 ```sql
 create table owners (
   id uuid primary key default gen_random_uuid(),
-  auth_user_id uuid references auth.users(id), -- jika pakai Supabase Auth
   email text unique not null,
   phone text,
   name text not null,
-  password_hash text, -- jika tidak pakai Supabase Auth, pakai bcrypt sendiri
+  password_hash text not null,       -- bcrypt (custom JWT, bukan Supabase Auth)
   email_verified_at timestamptz,
   is_active boolean default true,
+  last_login_at timestamptz,
   created_at timestamptz default now()
 );
 ```
 
-**`companies`** — tambah kolom:
+**`companies`** — tambah kolom (hanya 2 dari 5 kolom yang diusulkan):
 ```sql
 alter table companies
-  add column owner_id uuid references owners(id),
-  add column status text default 'trial' check (status in ('trial','active','suspended','cancelled')),
-  add column plan_id uuid references plans(id),
-  add column trial_ends_at timestamptz,
-  add column slug text unique;
+  add column owner_id uuid references owners(id) ON DELETE SET NULL,
+  add column slug text UNIQUE;
 ```
 
-**`plans`** — master paket langganan:
-```sql
-create table plans (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,               -- Free, Starter, Pro, Business
-  price_monthly numeric(10,2),
-  max_outlets int,                  -- null = unlimited
-  max_employees int,
-  features jsonb,                   -- flag fitur: self_order, advanced_report, dst.
-  is_active boolean default true
-);
-```
+> Kolom `status` (dengan enum trial/active/suspended/cancelled), `plan_id`, dan `trial_ends_at` **tidak ditambahkan** — semua company tetap `active` tanpa limit sampai Fase 3 monetisasi.
 
-**`employee_invitations`** — undangan karyawan, menggantikan proses "superadmin buat user manual":
-```sql
-create table employee_invitations (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references companies(id),
-  outlet_id uuid references outlets(id),
-  email text,
-  phone text,
-  role_id uuid not null references roles(id),
-  invited_by uuid not null references owners(id),
-  token text unique not null,
-  status text default 'pending' check (status in ('pending','accepted','expired','revoked')),
-  expires_at timestamptz not null,
-  created_at timestamptz default now()
-);
-```
+### 7.1b Tabel yang diusulkan tapi ⬜ BELUM dibuat
 
-**`subscriptions`** (jika implementasi billing di Fase 3):
-```sql
-create table subscriptions (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references companies(id),
-  plan_id uuid not null references plans(id),
-  status text default 'active' check (status in ('active','past_due','cancelled')),
-  current_period_start timestamptz,
-  current_period_end timestamptz,
-  payment_gateway_ref text,
-  created_at timestamptz default now()
-);
-```
-
-**`audit_logs_extended`** — perluas audit log yang sudah ada (saat ini hanya login) agar mencakup aksi CRUD sensitif:
-```sql
-create table entity_audit_logs (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid,
-  actor_type text check (actor_type in ('owner','tenant_user','platform_admin')),
-  actor_id uuid,
-  action text not null,          -- 'create_outlet','update_price','delete_product', dst.
-  entity_type text not null,
-  entity_id uuid,
-  metadata jsonb,
-  ip_address text,
-  created_at timestamptz default now()
-);
-```
+| Tabel | Status | Alasan |
+|-------|--------|--------|
+| `platform_admins` | ⬜ Belum | Ditunda ke Fase 5 (Superadmin v2) |
+| `plans` | ⬜ Belum | Ditunda ke Fase 3 (Monetisasi) |
+| `employee_invitations` | ❌ Tidak jadi | Owner buat karyawan langsung dengan PIN |
+| `subscriptions` | ⬜ Belum | Ditunda ke Fase 3 (Monetisasi) |
+| `entity_audit_logs` | ⬜ Belum | Ditunda ke Fase 4 (Production Hardening) |
 
 ### 7.2 Row Level Security — WAJIB diaktifkan ulang
 
@@ -324,36 +265,52 @@ Migration `003_rls_permissive.sql` mematikan RLS. Untuk versi publik, ini **haru
 
 ### 8.1 Dua alur auth yang hidup berdampingan
 
-| | Owner/Admin | Kasir (existing) |
+| | Owner (BARU) | Kasir (existing) |
 |---|---|---|
-| Metode | Email + password (Supabase Auth, konsisten dengan superadmin) | Company code + outlet + akun + PIN |
-| Sesi | JWT/cookie Supabase session | JWT `session` cookie (existing, 12 jam) |
+| Metode | Email + password (Custom JWT — jose + bcryptjs, sama seperti kasir) | Company code + outlet + akun + PIN |
+| Sesi | JWT `owner_session` cookie (24 jam) | JWT `session` cookie (existing, 12 jam) |
 | Device | HP pribadi, laptop, dari mana saja | Device kasir di outlet |
-| Tujuan | Dashboard manajemen | POS Register operasional |
+| Tujuan | Dashboard manajemen (outlet, karyawan, role, pengaturan) | POS Register operasional |
+| Signup | Self-service di `/owner/daftar` + verifikasi email | Tidak ada — dibuat oleh Owner |
+| Library | `src/lib/auth/owner-session.ts` | `src/lib/auth/tenant-session.ts` |
 
-### 8.2 Alur baru yang perlu dibangun
+### 8.2 Alur yang Dibangun (✅ sudah selesai)
 
-- `POST /api/auth/owner/register` — sign up Owner baru + kirim email verifikasi (pakai Resend yang sudah terintegrasi)
-- `POST /api/auth/owner/login` — login Owner
-- `POST /api/auth/owner/forgot-password` / `reset-password`
-- `POST /api/onboarding/company` — buat company + outlet pertama + seed default roles/tiers (reuse logic dari `scripts/seed.ts` yang sudah ada, tapi dipanggil dari API bukan CLI)
-- `POST /api/dashboard/employees/invite` — Owner mengundang karyawan (generate token, simpan di `employee_invitations`, kirim email)
-- `GET/POST /api/invite/[token]` — halaman terima undangan, karyawan set PIN pertama kali
-- `POST /api/dashboard/outlets` — Owner CRUD outlet sendiri (bukan lewat superadmin lagi)
+- `POST /api/auth/owner/register` — sign up Owner baru + kirim email verifikasi (pakai nodemailer SMTP)
+- `GET /api/auth/owner/verify-email?token=...` — verifikasi email via token JWT (1 jam)
+- `POST /api/auth/owner/resend-verification` — kirim ulang email verifikasi
+- `POST /api/auth/owner/login` — login Owner (wajib email已验证)
+- `POST /api/auth/owner/logout` — logout Owner
+- `GET /api/auth/owner/session` — baca session Owner saat ini
+- `POST /api/onboarding/company` — buat company + outlet pertama + seed default pricing tiers (Dine In, Take Away). Role & akses menu **tidak di-seed** — Owner kelola sendiri.
+- `GET /api/onboarding/company?name=...` — suggest kode & slug dari nama company
+- `GET/POST /api/owner/outlets`, `PATCH/DELETE /api/owner/outlets/[id]` — CRUD outlet milik Owner sendiri
+- `GET/POST /api/owner/employees`, `PATCH/DELETE /api/owner/employees/[id]` — CRUD karyawan + toggle status + reset PIN
+- `GET/POST /api/owner/roles`, `PATCH/DELETE /api/owner/roles/[id]` — CRUD role
+- `GET/POST /api/owner/roles/[id]/access` — toggle akses menu per role
+- `GET /api/owner/menus` — list semua menu sistem
+- `GET/PUT /api/owner/settings` — baca & update profil company + ganti password
+
+**Tidak diimplementasi (deviasi):**
+- `POST /api/auth/owner/forgot-password` / `reset-password` — belum ada, ditunda
+- `POST /api/dashboard/employees/invite` — tidak diimplementasi, Owner buat langsung dengan PIN
+- `GET/POST /api/invite/[token]` — tidak diimplementasi
+- Email verifikasi pakai nodemailer SMTP (bukan Resend yang sudah terintegrasi untuk laporan)
 
 ### 8.3 Middleware
 
 Perluas `middleware.ts` untuk route group baru:
 
 | Route | Proteksi |
-|---|---|
-| `/`, `/harga`, `/tentang`, `/fitur` | Publik (landing page) |
-| `/daftar`, `/masuk` (Owner) | Publik, redirect ke dashboard jika sudah login |
-| `/onboarding/*` | Perlu login Owner, belum punya company |
-| `/dashboard/*` | Perlu login Owner **dan** company sudah ada |
-| `/invite/[token]` | Publik, validasi token di halaman |
-| `/login/*` (kasir, existing) | Tidak berubah |
-| `/superadmin/*` | Tidak berubah secara alur, tapi scope kewenangan berubah sesuai Bagian 5.1 |
+|---|---|---|
+| `/`, `/_next`, `/api`, `/favicon` | Publik (tanpa proteksi) |
+| `/owner/daftar`, `/owner/masuk` | Publik, redirect ke `/owner` atau `/owner/onboarding` jika sudah login |
+| `/owner/onboarding` | Perlu login Owner + belum punya company → redirect ke `/owner/masuk` jika belum login, redirect ke `/owner` jika sudah punya company |
+| `/owner`, `/owner/outlets`, `/owner/employees`, `/owner/settings` | Perlu login Owner **dan** company sudah ada → redirect ke `/owner/masuk` jika belum login, redirect ke `/owner/onboarding` jika belum punya company |
+| `/login/*` (kasir, existing) | Publik (tanpa proteksi) |
+| `/register`, `/orders`, `/reports`, `/products`, `/categories`, `/pricing-tiers`, `/taxes`, `/discounts` | Tenant session — redirect ke `/login` jika invalid |
+| `/superadmin/login` | Publik, redirect ke `/superadmin/companies` jika sudah login |
+| `/superadmin/*` (kecuali login) | Superadmin — redirect ke `/superadmin/login` jika belum auth via Supabase Auth |
 
 ---
 
@@ -386,7 +343,7 @@ Implementasi limit: cek `plans.max_outlets` / `max_employees` di server action s
 
 **Integrasi pembayaran** (Fase 3, opsional untuk MVP publik): Midtrans atau Xendit untuk pembayaran langganan bulanan lokal Indonesia (dukungan QRIS, VA, e-wallet) — pilih salah satu, jangan bangun dua-duanya sekaligus di awal.
 
-> Catatan: kalau tujuan awal hanya "buka ke publik" tanpa monetisasi dulu, Bagian 10 bisa ditunda ke fase belakangan — tapi struktur tabel `plans`/`companies.plan_id` tetap sebaiknya disiapkan dari awal agar tidak migrasi ulang besar-besaran nanti.
+> Catatan: kalau tujuan awal hanya "buka ke publik" tanpa monetisasi dulu, Bagian 10 bisa ditunda ke fase belakangan — tapi struktur tabel `plans`/`companies.plan_id` tetap sebaiknya disiapkan dari awal agar tidak migrasi ulang besar-besaran nanti. **Keputusan aktual:** tabel `plans` dan kolom terkait (`plan_id`, `trial_ends_at`, `status` enum) **tidak jadi dibuat di Fase 1–2** — akan ditambahkan dengan migration baru di Fase 3.
 
 ---
 
@@ -420,15 +377,15 @@ Implementasi limit: cek `plans.max_outlets` / `max_employees` di server action s
 
 ---
 
-## 12. MIGRASI DATA EXISTING (RAKKU, TOKOKO)
+## 12. MIGRASI DATA EXISTING (RAKKU, TOKOKO) — ✅ SELESAI
 
-Company yang sudah ada (RAKKU, TOKOKO — lihat Bagian 12.3/12.5 `DOCS.md`) perlu dibackfill agar konsisten dengan model baru:
+Company yang sudah ada (RAKKU, TOKOKO) sudah di-backfill via `scripts/backfill-owners.ts` agar konsisten dengan model baru:
 
-1. Buat akun `owners` untuk user yang saat ini berperan "Owner" di masing-masing company (mis. `budi` di RAKKU, `ali` di TOKOKO) — perlu keputusan: apakah email asli mereka dipakai, atau dibuatkan email placeholder untuk keperluan testing.
-2. Set `companies.owner_id` mengarah ke akun owner baru tsb.
-3. Set `companies.status = 'active'` (bukan trial) untuk data existing agar tidak ke-lock oleh logic trial baru.
-4. Set `companies.plan_id` ke paket "Business" (unlimited) agar data seed lama tidak tersandung limit paket baru.
-5. Jangan hapus/ubah data transaksi/order lama.
+1. ✅ Akun `owners` dibuat untuk user yang berperan "Owner": `budi@rakku.test` (RAKKU) dan `ali@rakku.test` (TOKOKO) — email placeholder untuk testing.
+2. ✅ `companies.owner_id` di-set mengarah ke akun owner tersebut.
+3. ✅ `companies.status` tetap `'active'` (tidak ada logic trial baru yang mengubahnya).
+4. ⬜ `companies.plan_id` — tidak di-set karena tabel `plans` belum dibuat. Semua company tanpa limit paket sampai Fase 3.
+5. ✅ Tidak ada data transaksi/order yang diubah.
 
 ---
 
@@ -439,12 +396,13 @@ src/app/
 ├── owner/                          # ✅ BARU — Owner self-service (prefix /owner/...)
 │   ├── daftar/page.tsx             # ✅ Signup Owner
 │   ├── masuk/page.tsx              # ✅ Login Owner
+│   ├── cek-email/page.tsx          # ✅ Prompt verifikasi email + form kirim ulang
 │   ├── onboarding/page.tsx         # ✅ Wizard company + outlet pertama
 │   └── (dashboard)/                # ✅ Route group (pakai sidebar layout)
 │       ├── layout.tsx              # ✅ Guard owner login + company exists + sidebar
 │       ├── page.tsx                # ✅ /owner — Dashboard overview
-│       ├── outlets/page.tsx        # ✅ CRUD outlet + toggle status
-│       ├── employees/page.tsx      # ✅ CRUD karyawan + reset PIN
+│       ├── outlets/page.tsx        # ✅ CRUD outlet + toggle status + hapus
+│       ├── employees/page.tsx      # ✅ CRUD karyawan + reset PIN + Kelola Role (dengan access matrix)
 │       └── settings/page.tsx       # ✅ Edit profil & password company
 │
 ├── (marketing)/                    # ⬜ BELUM ADA — Fase 3
@@ -473,22 +431,29 @@ src/app/
 
 ### Fase 2 — Onboarding & Self-Service Company/Outlet ✅ SELESAI
 - [x] Library `src/lib/supabase/queries.owner.ts` (semua CRUD queries)
-- [x] API `POST /api/onboarding/company` — buat company + outlet pertama + seed 4 role default + access matrix + default pricing tiers (reuse logic dari `scripts/seed.ts`)
+- [x] API `POST /api/onboarding/company` — buat company + outlet pertama + default pricing tiers (Dine In, Take Away). Role & akses menu **tidak di-seed** — Owner buat sendiri via panel Kelola Role.
 - [x] API `GET /api/onboarding/company` — suggest kode & slug dari nama
 - [x] API CRUD outlets: `GET/POST /api/owner/outlets`, `PATCH/DELETE /api/owner/outlets/[id]` (toggle status, hapus)
 - [x] API CRUD employees: `GET/POST /api/owner/employees`, `PATCH/DELETE /api/owner/employees/[id]` (toggle status, reset PIN)
+- [x] API CRUD roles: `GET/POST /api/owner/roles`, `PATCH/DELETE /api/owner/roles/[id]` + toggle akses menu per role
+- [x] API `GET /api/owner/menus` — list semua menu sistem (untuk matriks akses)
 - [x] API `GET/PUT /api/owner/settings` — edit profil & ganti password company
 - [x] Halaman `/owner/daftar` — signup (UI dari `signup_reference.html`, foto pakai placeholder gradient)
 - [x] Halaman `/owner/masuk` — login (UI dari `login_reference.html`, foto pakai placeholder gradient)
+- [x] Halaman `/owner/cek-email` — prompt verifikasi email setelah daftar, form kirim ulang
 - [x] Halaman `/owner/onboarding` — wizard 2-step (company → outlet)
 - [x] Halaman `/owner` — dashboard overview (statistik outlet, karyawan, penjualan)
 - [x] Halaman `/owner/outlets` — CRUD outlet (list, tambah, edit, toggle status, hapus)
-- [x] Halaman `/owner/employees` — CRUD karyawan (list, tambah, edit, toggle status, reset PIN, hapus)
+- [x] Halaman `/owner/employees` — CRUD karyawan + panel **Kelola Role** (buat/edit/hapus role, atur akses menu per role dengan toggle)
 - [x] Halaman `/owner/settings` — edit profil & password company
 - [x] Komponen `OwnerSidebar.tsx` — sidebar dinamis (Dashboard, Outlet, Karyawan, Pengaturan, Logout, link POS Kasir)
 - [x] Layout `owner/(dashboard)/layout.tsx` — guard owner login + company exists
-- **Keputusan deviasi:** Sistem undangan karyawan (`employee_invitations`) tidak diimplementasi — Owner buat karyawan langsung dengan PIN, kasih tahu secara manual.
-- **Definition of Done:** ✅ Owner baru bisa daftar → buat company & outlet sendiri → tambah karyawan dengan PIN → kasir login 4-step dan transaksi — semuanya tanpa sentuhan superadmin
+- [x] Email verification flow — Owner baru verifikasi email (token JWT 1 jam, nodemailer SMTP) sebelum bisa login
+- **Keputusan deviasi:**
+  - Sistem undangan karyawan (`employee_invitations`) tidak diimplementasi — Owner buat karyawan langsung dengan PIN, kasih tahu secara manual.
+  - Onboarding tidak men-seed role default — Owner harus membuat role sendiri. Ini berbeda dari `scripts/seed.ts` yang seed 4 role untuk data testing.
+  - Role & access matrix management dibangun langsung di halaman Karyawan, bukan halaman terpisah.
+- **Definition of Done:** ✅ Owner baru bisa daftar → verifikasi email → login → buat company & outlet sendiri → buat role → tambah karyawan dengan PIN → kasir login 4-step dan transaksi — semuanya tanpa sentuhan superadmin
 
 ### Fase 3 — Landing Page & (opsional) Monetisasi ⬜ BELUM DIMULAI
 - Halaman marketing lengkap + legal pages (ToS, Privacy Policy)
@@ -517,6 +482,7 @@ src/app/
 - Untuk semua halaman baru yang customer-facing (landing, dashboard Owner), pertahankan/adaptasi Tailwind palette & font yang sudah didefinisikan di `tailwind.config.ts` (primary green, forest, Plus Jakarta Sans/DM Sans) — jangan bawa desain sistem baru yang tidak konsisten.
 - Update `DOCS.md` di akhir tiap fase agar dokumentasi tetap jadi source of truth yang akurat (tambahkan bagian baru, jangan hapus riwayat v2.1).
 - Tulis seed/testing account baru untuk Owner (mis. `owner-demo@rakku.test`) agar QA fase berikutnya mudah, tanpa mengganggu akun RAKKU/TOKOKO existing.
+- Akun testing Owner yang sudah ada (via `scripts/backfill-owners.ts`): `budi@rakku.test` / `budi12345` (RAKKU), `ali@rakku.test` / `ali12345` (TOKOKO). Password company & PIN kasir tidak berubah dari v2.1.
 
 ---
 

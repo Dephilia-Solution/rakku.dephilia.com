@@ -1,8 +1,8 @@
 # Dokumentasi Sistem Rakku POS
 
 > **Nama internal:** `rakku`  
-> **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL + Storage) · Tailwind CSS  
-> **Versi:** 2.1 (aktif)
+> **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL + Storage) · Tailwind CSS · pnpm + Turborepo  
+> **Versi:** 4.0 (monorepo)
 > **Author:** Alif Dhimas
 
 ---
@@ -23,6 +23,7 @@
 12. [Panduan Development](#12-panduan-development)
 13. [PWA (Progressive Web App)](#13-pwa-progressive-web-app)
 14. [V3.0 — Self-Service Owner & Dashboard](#14-v30--self-service-owner--dashboard)
+15. [V4.0 — Monorepo 3-App](#15-v40--monorepo-3-app)
 
 ---
 
@@ -439,6 +440,7 @@ RegisterView (client)
 |--------|------|--------|-----|
 | `pending_login` | JWT (signed) | 10 menit | `{ company_id, company_name, outlet_id?, outlet_name? }` |
 | `session` | JWT (signed) | 12 jam | `{ user_id, company_id, outlet_id, role_id, user_name, company_name, outlet_name }` |
+| `owner_session` | JWT (signed) | 24 jam | `{ owner_id, email, name, company_id?, company_name?, company_slug? }` — v3 Owner |
 
 ### 6.3 Superadmin Auth
 
@@ -1342,10 +1344,11 @@ PLATFORM → Superadmin (mengawasi seluruh platform)
 |------|------|-----------|
 | `/owner/daftar` | `owner/daftar/page.tsx` | Signup Owner baru |
 | `/owner/masuk` | `owner/masuk/page.tsx` | Login Owner |
+| `/owner/cek-email` | `owner/cek-email/page.tsx` | Prompt verifikasi email setelah daftar |
 | `/owner/onboarding` | `owner/onboarding/page.tsx` | Wizard buat company + outlet pertama |
 | `/owner` | `owner/(dashboard)/page.tsx` | Dashboard Owner (ringkasan bisnis) |
 | `/owner/outlets` | `owner/(dashboard)/outlets/page.tsx` | CRUD outlet milik sendiri |
-| `/owner/employees` | `owner/(dashboard)/employees/page.tsx` | CRUD karyawan |
+| `/owner/employees` | `owner/(dashboard)/employees/page.tsx` | CRUD karyawan + kelola role & akses menu |
 | `/owner/settings` | `owner/(dashboard)/settings/page.tsx` | Pengaturan perusahaan |
 
 Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (daftar, masuk, onboarding) yang tidak pakai sidebar.
@@ -1355,8 +1358,10 @@ Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (da
 #### Auth Owner — `/api/auth/owner/`
 | Endpoint | Method | Fungsi |
 |----------|--------|--------|
-| `/register` | POST | Daftar Owner baru (name, email, password) → set `owner_session` |
-| `/login` | POST | Login Owner → set `owner_session` |
+| `/register` | POST | Daftar Owner baru (name, email, password) → kirim email verifikasi |
+| `/verify-email` | GET | Verifikasi email via token (link dari email) |
+| `/resend-verification` | POST | Kirim ulang email verifikasi |
+| `/login` | POST | Login Owner (cek email_verified_at) → set `owner_session` |
 | `/logout` | POST | Hapus cookie Owner |
 | `/session` | GET | Baca session Owner saat ini |
 
@@ -1379,6 +1384,13 @@ Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (da
 | `/employees/[id]` | DELETE | Hapus karyawan |
 | `/settings` | GET | Baca profil company |
 | `/settings` | PUT | Update profil / ganti password company |
+| `/roles` | GET | List roles + menu access map (untuk matriks Kelola Role) |
+| `/roles` | POST | Buat role baru |
+| `/roles/[id]` | PATCH | Ubah nama role |
+| `/roles/[id]` | DELETE | Hapus role (tidak bisa jika masih dipakai) |
+| `/roles/[id]/access` | GET | List menu IDs yang diizinkan untuk role |
+| `/roles/[id]/access` | POST | Toggle akses menu untuk role (body: menuId, canView) |
+| `/menus` | GET | List semua menu sistem (untuk matriks akses) |
 
 ### 14.7 Scripts Baru
 
@@ -1388,15 +1400,17 @@ Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (da
 
 ### 14.8 Alur Owner Baru (end-to-end)
 
-1. **Daftar** (`/owner/daftar`) — input nama, email, password → simpan ke `owners`, set `owner_session` cookie → redirect ke onboarding
-2. **Onboarding** (`/owner/onboarding`) — 2-step wizard:
+1. **Daftar** (`/owner/daftar`) — input nama, email, password → simpan ke `owners`, kirim email verifikasi → redirect ke `/owner/cek-email` (Owner harus klik link verifikasi di email sebelum bisa login)
+2. **Verifikasi Email** — Owner klik link di email → `GET /api/auth/owner/verify-email?token=...` → set `email_verified_at` → redirect ke `/owner/masuk`
+3. **Login** (`/owner/masuk`) — input email + password → cek `email_verified_at` → set `owner_session` cookie (24 jam) → redirect ke onboarding (jika belum punya company) atau dashboard
+4. **Onboarding** (`/owner/onboarding`) — 2-step wizard (wajib jika baru daftar):
    - Step 1: nama company, kode (auto-suggest dari nama, bisa diubah), password company
    - Step 2: nama outlet pertama, alamat (opsional)
-   - Submit → buat company + outlet + seed 4 role default (Owner, Kepala Cabang, Admin, Kasir) + seed access matrix + seed default pricing tiers (Dine In, Take Away) → redirect ke `/owner`
-3. **Dashboard** (`/owner`) — ringkasan: total outlet, total karyawan, total penjualan, quick links
-4. **Kelola Outlet** (`/owner/outlets`) — CRUD: list, tambah, edit, toggle aktif/nonaktif, hapus (tidak bisa hapus outlet terakhir). Outlet baru otomatis dapat seed pricing tiers.
-5. **Kelola Karyawan** (`/owner/employees`) — CRUD: list, tambah (name, username, PIN 6 digit, role, pilih outlet), edit, toggle aktif/nonaktif, reset PIN, hapus. Tidak ada sistem undangan — Owner kasih tahu PIN secara manual.
-6. **Pengaturan** (`/owner/settings`) — edit nama company, ganti password company
+   - Submit → buat company + outlet + seed default pricing tiers (Dine In, Take Away) + update `owner_session` cookie → redirect ke `/owner`
+5. **Dashboard** (`/owner`) — ringkasan: total outlet, total karyawan, total penjualan, quick links
+6. **Kelola Outlet** (`/owner/outlets`) — CRUD: list, tambah, edit, toggle aktif/nonaktif, hapus (tidak bisa hapus outlet terakhir). Outlet baru otomatis dapat seed pricing tiers.
+7. **Kelola Karyawan** (`/owner/employees`) — CRUD: list, tambah (name, username, PIN 6 digit, role, pilih outlet), edit, toggle aktif/nonaktif, reset PIN, hapus. Dilengkapi panel **Kelola Role** untuk membuat/mengubah/menghapus role & mengatur akses menu per role (register, orders, reports, products, dll). Tidak ada sistem undangan — Owner kasih tahu PIN secara manual.
+8. **Pengaturan** (`/owner/settings`) — edit nama company, ganti password company
 
 ### 14.9 Library & Komponen Baru
 
@@ -1406,15 +1420,19 @@ Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (da
 | `src/lib/supabase/queries.owner.ts` | Semua CRUD queries untuk Owner: `createOwner()`, `verifyOwnerLogin()`, `createCompanyWithOnboarding()`, `getOwnerOutlets()`, `createOutlet()`, `updateOutlet()`, `toggleOutletStatus()`, `deleteOutlet()`, `getOwnerEmployees()`, `createEmployee()`, `updateEmployee()`, `toggleEmployeeStatus()`, `resetEmployeePin()`, `deleteEmployee()`, `getCompanyRoles()`, `generateCompanyCode()`, `generateSlug()` |
 | `src/components/owner/OwnerSidebar.tsx` | Sidebar dinamis untuk dashboard Owner (Dashboard, Outlet, Karyawan, Pengaturan, Logout, link ke POS Kasir) |
 | `src/app/owner/(dashboard)/layout.tsx` | Server layout — guard owner login + company exists, render sidebar |
+| `src/app/owner/cek-email/page.tsx` | Halaman prompt verifikasi email + form kirim ulang |
+| `src/app/api/owner/roles/route.ts` | CRUD role + get menu access list untuk matriks Kelola Role |
+| `src/app/api/owner/roles/[id]/access/route.ts` | Toggle akses menu per role |
 
 ### 14.10 Catatan Penting
 
 - **Semua API owner menggunakan service role key** — policy sama seperti v2.1 (bypass RLS). RLS tetap dimatikan.
 - **Owner auth menggunakan Custom JWT** (bukan Supabase Auth) — konsisten dengan auth kasir existing. Menggunakan library `jose` + `bcryptjs` yang sudah terinstall.
 - **Cookie name** Owner terpisah: `owner_session` vs `session` (kasir) vs `pending_login` (kasir login flow).
-- **Seed logic** di `/api/onboarding/company` mereplikasi logika `scripts/seed.ts` untuk membuat company + roles + access matrix + default pricing tiers, tapi dipanggil dari API bukan CLI.
+- **Seed logic** di `/api/onboarding/company` membuat company + outlet + default pricing tiers (Dine In, Take Away). Role & access matrix **tidak di-seed** saat onboarding — Owner harus membuat role sendiri melalui panel "Kelola Role" di halaman Karyawan. Ini deviasi dari `scripts/seed.ts` yang men-seed 4 role default untuk data testing.
 - **Middleware** diperluas untuk route group baru: `/owner/daftar` & `/owner/masuk` (public, redirect jika sudah login), `/owner/onboarding` (perlu login, belum punya company), `/owner` & sub-rutes (perlu login + company sudah ada).
-- **Tidak ada sistem undangan karyawan** — Owner membuat karyawan langsung dengan PIN, dan kasih tahu PIN secara manual. `employee_invitations` table sengaja tidak dibuat.
+- **Tidak ada sistem undangan karyawan** — Owner membuat karyawan langsung dengan PIN, dan kasih tahu PIN secara manual. `employee_invitations` table sengaja tidak dibuat. Owner juga bisa mengelola role & akses menu karyawan dari panel "Kelola Role" di halaman Karyawan.
+- **Email verification required** — Owner baru harus verifikasi email (klik link dari email) sebelum bisa login. Token verifikasi berlaku 1 jam. Link dikirim via `nodemailer` SMTP (bukan Resend yang dipakai untuk laporan).
 - **Subscription/billing belum diimplementasi** — `plans` & `subscriptions` table belum dibuat. Semua company default status `active` (tanpa trial/limit).
 - **Route `/`** sekarang redirect ke `/owner/masuk` (sebelumnya ke `/login`).
 - **Backfill** — jalankan `npx tsx scripts/backfill-owners.ts` setelah migration 014 untuk membuat akun owner testing untuk RAKKU & TOKOKO.
@@ -1427,3 +1445,119 @@ Route group `(dashboard)` memisahkan layout (dengan sidebar) dari auth pages (da
 | `ali@rakku.test` | `ali12345` | TOKOKO |
 
 *(Akun ini di-generate oleh `scripts/backfill-owners.ts` untuk data existing. Owner baru mendaftar via `/owner/daftar`.)*
+
+---
+
+## 15. V4.0 — Monorepo 3-App
+
+> **STATUS: IMPLEMENTASI SELESAI**
+>
+> v4.0 memecah rakku dari satu Next.js app menjadi **monorepo pnpm + Turborepo** dengan 3 Next.js app independen, masing-masing deploy ke domain sendiri.
+
+### 15.1 Ikhtisar
+
+| Aspek | v3.0 | v4.0 |
+|---|---|---|
+| Jumlah app | 1 (monolit) | 3 (owner, pos, superadmin) |
+| Domain | 1 domain, path-based | 3 domain terpisah |
+| Deploy | 1 deployment | 3 deployment independen |
+| Secret | `TENANT_JWT_SECRET` (shared) | `POS_JWT_SECRET` + `OWNER_JWT_SECRET` (terpisah) |
+| Tooling | npm | pnpm workspace + Turborepo |
+
+### 15.2 Pemetaan Domain
+
+| Domain | App | Port Dev |
+|---|---|---|
+| `rakku.com` | `apps/owner` | 3000 |
+| `pos.rakku.com` | `apps/pos` | 3001 |
+| `superadmin.rakku.com` | `apps/superadmin` | 3002 |
+
+### 15.3 Struktur Proyek
+
+```
+rakku/
+├── apps/
+│   ├── owner/          # Dashboard Owner (daftar, masuk, onboarding, outlets, employees, settings)
+│   ├── pos/            # POS Kasir (login 4-step, register, orders, reports, products, dll) + PWA
+│   └── superadmin/     # Panel Superadmin (companies, outlets, menus, roles, users, audit-logs)
+├── packages/
+│   ├── shared-types/   # @rakku/shared-types — semua TypeScript interfaces
+│   ├── supabase-clients/ # @rakku/supabase-clients — factory Supabase client (admin, browser, server)
+│   ├── auth-utils/     # @rakku/auth-utils — JWT wrapper, PIN hash/verify, audit-log
+│   ├── ui/             # @rakku/ui — Badge, Toast, EmptyState, QtyControl + Tailwind preset
+│   └── pricing/        # @rakku/pricing — seed default pricing tiers
+├── supabase/migrations/ # Tetap satu folder untuk satu project Supabase
+├── scripts/            # seed.ts, seed-full.ts, backfill-owners.ts
+├── turbo.json
+├── pnpm-workspace.yaml
+└── DOCS.md
+```
+
+### 15.4 Environment Variables per App
+
+| Variabel | `apps/owner` | `apps/pos` | `apps/superadmin` |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | ✅ | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | ✅ | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | ✅ | ✅ |
+| `OWNER_JWT_SECRET` | ✅ | ❌ | ❌ |
+| `POS_JWT_SECRET` | ❌ | ✅ | ❌ |
+| `NEXT_PUBLIC_POS_URL` | ✅ | ❌ | ❌ |
+| `NEXT_PUBLIC_TAX_RATE` | ❌ | ✅ | ❌ |
+| `RESEND_API_KEY` | ❌ | ✅ | ❌ |
+| SMTP (nodemailer) | ✅ | ❌ | ❌ |
+
+### 15.5 Cara Menjalankan
+
+```bash
+# Semua app sekaligus (parallel)
+pnpm dev
+
+# Per app
+pnpm dev:owner       # localhost:3000
+pnpm dev:pos         # localhost:3001
+pnpm dev:superadmin  # localhost:3002
+
+# Build
+pnpm build           # semua app
+pnpm build:pos       # hanya POS
+
+# Scripts
+pnpm seed            # seed company RAKKU
+pnpm seed:full       # seed company TOKOKO
+pnpm backfill:owners # backfill owner untuk company existing
+```
+
+### 15.6 Packages
+
+| Package | Isi | Dipakai oleh |
+|---|---|---|
+| `@rakku/shared-types` | Semua TypeScript interfaces (dipecah per domain: common, tenant, owner) | Semua app |
+| `@rakku/supabase-clients` | Factory Supabase client: `createAdminClient()`, `createClient()` (browser), `createClient()` (server) | Semua app |
+| `@rakku/auth-utils` | `signJwt`/`verifyJwt` (generic), `hashPin`/`verifyPin`, `logAuthEvent`, `FailureReasons` | owner, pos |
+| `@rakku/ui` | `Badge`, `Toast`, `EmptyState`, `QtyControl` + `rakkuPreset` (Tailwind) | Semua app |
+| `@rakku/pricing` | `DEFAULT_TIERS`, `seedDefaultTiers()`, `syncProductTierPrices()` | owner, pos, superadmin |
+
+### 15.7 Perubahan Secret JWT
+
+| Secret Lama | Secret Baru | App |
+|---|---|---|
+| `TENANT_JWT_SECRET` | `POS_JWT_SECRET` | `apps/pos` (untuk `session` + `pending_login` cookie) |
+| `TENANT_JWT_SECRET` | `OWNER_JWT_SECRET` | `apps/owner` (untuk `owner_session` cookie + email verification token) |
+
+### 15.8 PWA
+
+PWA (Serwist) hanya aktif di `apps/pos`. File terkait:
+- `apps/pos/src/app/sw.ts` — Service worker
+- `apps/pos/src/app/manifest.ts` — Web app manifest
+- `apps/pos/src/app/~offline/page.tsx` — Halaman offline fallback
+- `apps/pos/public/icons/` — Ikon PWA
+
+### 15.9 Catatan Penting
+
+- **Tidak ada komunikasi antar app** — Owner dan kasir memang tidak berhubungan. Link "Buka POS Kasir" di OwnerSidebar menggunakan `<a href={NEXT_PUBLIC_POS_URL}>` biasa.
+- **Tidak ada shared cookie domain** — Tiap app punya cookie sendiri di domain masing-masing.
+- **Supabase tetap satu project** — Ketiga app berbagi satu project Supabase, migrations tetap di root.
+- **RLS masih mati** — Migrasi v4.0 murni soal kerapian struktur, bukan hardening keamanan.
+- **Skema database tidak berubah** — Semua migrations 001-014 tetap utuh.
+- **Akun testing existing tetap valid** — `budi@rakku.test`/`budi12345`, `ali@rakku.test`/`ali12345`, company RAKKU/TOKOKO.
