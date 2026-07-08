@@ -61,9 +61,9 @@
 | **State Management** | Zustand 5.x | Cart store, perhitungan total, diskon/pajak |
 | **Styling** | Tailwind CSS 3.x | Custom color palette, font, animasi |
 | **Icons** | lucide-react | Icon set konsisten |
-| **Email** | Resend 6.x | Kirim laporan via email |
+| **Email** | nodemailer | Kirim email verifikasi (owner) & laporan (pos) |
 | **Image Processing** | sharp 0.35.x | Resize/optimasi gambar produk |
-| **JWT** | jose 6.x | Sign/verify token session & pending login |
+| **JWT** | @rakku/auth-utils | Sign/verify JWT (via jose 6.x) — package shared |
 | **Hashing** | bcryptjs 3.x | Hash password company & PIN user |
 | **Type Safety** | TypeScript 5.x | Strict mode, path alias `@/*` |
 
@@ -72,164 +72,85 @@
 ## 3. Struktur Proyek
 
 ```
-rakku/
-├── .env.local                        # Variabel lingkungan (jangan di-commit)
-├── .eslintrc.json                    # ESLint: next/core-web-vitals + next/typescript
-├── next.config.mjs                   # Next.js config (image remote: *.supabase.co)
-├── postcss.config.mjs                # PostCSS: tailwindcss
-├── tailwind.config.ts                # Tailwind: custom colors, fonts, animations
-├── tsconfig.json                     # TypeScript: strict, @/* → ./src/*
-├── middleware.ts                     # Route protection (tenant + superadmin)
-├── package.json                      # Dependencies & scripts
-├── PRD.md                            # Product Requirements Document
-├── README.md                         # README default Next.js
-├── DOCS.md                           # Dokumentasi ini
+rakku/                                 # Monorepo root (pnpm workspace + Turborepo)
+├── apps/
+│   ├── owner/                         # → rakku.com (Owner Dashboard)
+│   │   ├── src/app/
+│   │   │   ├── page.tsx              # Redirect: / → /login or /dashboard
+│   │   │   ├── login/page.tsx        # Login Owner (email + password)
+│   │   │   ├── register/page.tsx      # Daftar Owner baru
+│   │   │   ├── check-email/page.tsx  # Prompt verifikasi email
+│   │   │   ├── onboarding/page.tsx   # Wizard: buat company + outlet
+│   │   │   ├── dashboard/            # Protected dashboard (sidebar layout)
+│   │   │   │   ├── page.tsx          # Overview
+│   │   │   │   ├── outlets/          # CRUD outlet
+│   │   │   │   ├── employees/        # CRUD karyawan + role + access
+│   │   │   │   └── settings/         # Edit profil company
+│   │   │   └── api/auth/owner/       # Auth API (login, register, verify-email, session, logout)
+│   │   │       ├── onboarding/        # Onboarding API
+│   │   │       └── owner/            # CRUD outlets, employees, roles, menus, settings
+│   │   ├── middleware.ts              # Protect /dashboard, /onboarding; public: /login, /register
+│   │   ├── .env.local                # OWNER_JWT_SECRET, SMTP, NEXT_PUBLIC_POS_URL
+│   │   ├── next.config.mjs
+│   │   ├── tailwind.config.ts
+│   │   └── package.json
+│   │
+│   ├── pos/                           # → pos.rakku.com (POS Kasir)
+│   │   ├── src/app/
+│   │   │   ├── page.tsx              # Redirect: / → /login
+│   │   │   ├── login/                # 4-step login: company → outlet → user → PIN
+│   │   │   │   ├── page.tsx          # Step 1: kode company + password
+│   │   │   │   ├── select-outlet/    # Step 2: pilih outlet
+│   │   │   │   ├── select-user/      # Step 3: pilih akun
+│   │   │   │   └── enter-pin/        # Step 4: input PIN
+│   │   │   ├── (dashboard)/          # Protected routes (sidebar layout)
+│   │   │   │   ├── register/         # POS Register (kasir)
+│   │   │   │   ├── orders/           # Daftar pesanan + invoice
+│   │   │   │   ├── reports/          # Laporan penjualan
+│   │   │   │   ├── products/         # CRUD produk
+│   │   │   │   ├── categories/       # CRUD kategori
+│   │   │   │   ├── pricing-tiers/   # CRUD tier harga
+│   │   │   │   ├── taxes/            # CRUD pajak
+│   │   │   │   └── discounts/        # CRUD diskon
+│   │   │   └── api/auth/tenant/      # Auth API
+│   │   │       ├── admin/            # CRUD: products, categories, orders, dll.
+│   │   │       └── reports/           # Reports API + send-email
+│   │   ├── middleware.ts              # Protect all /dashboard routes
+│   │   ├── .env.local                # POS_JWT_SECRET, NEXT_PUBLIC_TAX_RATE
+│   │   ├── next.config.mjs
+│   │   ├── tailwind.config.ts
+│   │   ├── sw.ts                      # PWA Service Worker
+│   │   ├── manifest.ts                # PWA Web App Manifest
+│   │   └── package.json
+│   │
+│   └── superadmin/                   # → superadmin.rakku.com
+│       ├── src/app/
+│       │   ├── page.tsx              # Redirect: / → /companies
+│       │   ├── login/page.tsx        # Login (Supabase Auth)
+│       │   ├── (protected)/           # Protected routes (sidebar layout)
+│       │   │   ├── companies/        # CRUD companies
+│       │   │   ├── outlets/          # CRUD outlets per company
+│       │   │   ├── menus/            # CRUD menu sistem
+│       │   │   ├── roles/            # CRUD role per company
+│       │   │   ├── access-matrix/    # Role × menu access
+│       │   │   ├── users/            # CRUD user per company
+│       │   │   └── audit-logs/       # Log autentikasi
+│       │   └── api/superadmin/       # Superadmin API (companies, outlets, dll.)
+│       ├── middleware.ts              # Protect all /companies, /outlets, dll.
+│       ├── .env.local
+│       ├── next.config.mjs
+│       ├── tailwind.config.ts
+│       └── package.json
 │
-├── src/                              # ─── Sumber kode utama ───
-│   ├── app/
-│   │   ├── layout.tsx                # Root layout (html lang="id")
-│   │   ├── page.tsx                  # Redirect ke /owner/masuk
-│   │   ├── error.tsx                 # Root error boundary
-│   │   ├── globals.css               # Global CSS + Tailwind directives
-│   │   │
-│   │   ├── owner/                    # V3 — Owner self-service & dashboard
-│   │   │   ├── daftar/page.tsx       # Signup Owner (dari signup_reference.html)
-│   │   │   ├── masuk/page.tsx        # Login Owner (dari login_reference.html)
-│   │   │   ├── onboarding/page.tsx   # Wizard buat company + outlet
-│   │   │   ├── (dashboard)/
-│   │   │   │   ├── layout.tsx        # Guard owner login + sidebar
-│   │   │   │   ├── page.tsx          # Dashboard overview
-│   │   │   │   ├── outlets/page.tsx  # CRUD outlet + toggle status
-│   │   │   │   ├── employees/page.tsx# CRUD karyawan + reset PIN
-│   │   │   │   └── settings/page.tsx # Edit profil & password company
-│   │   │
-│   │   ├── (auth)/                   # Tenant auth route group (kasir)
-│   │   │   └── login/
-│   │   │       ├── page.tsx          # Step 1: kode company + password
-│   │   │       ├── select-outlet/
-│   │   │       │   └── page.tsx      # Step 2: pilih outlet
-│   │   │       ├── select-user/
-│   │   │       │   └── page.tsx      # Step 3: pilih akun
-│   │   │       └── enter-pin/
-│   │   │           └── page.tsx      # Step 4: input PIN 6 digit
-│   │   │
-│   │   ├── (dashboard)/              # Tenant dashboard (protected)
-│   │   │   ├── layout.tsx            # Sidebar + MobileNav + Toast
-│   │   │   ├── error.tsx             # Dashboard error boundary
-│   │   │   ├── register/
-│   │   │   │   ├── page.tsx          # POS Register (server → RegisterView)
-│   │   │   │   └── loading.tsx
-│   │   │   ├── orders/
-│   │   │   │   ├── page.tsx          # Daftar pesanan
-│   │   │   │   ├── OrdersClient.tsx
-│   │   │   │   ├── loading.tsx
-│   │   │   │   └── [id]/invoice/
-│   │   │   │       ├── page.tsx
-│   │   │   │       └── InvoicePageClient.tsx
-│   │   │   ├── reports/
-│   │   │   │   ├── page.tsx          # Laporan penjualan
-│   │   │   │   ├── ReportsClient.tsx
-│   │   │   │   └── loading.tsx
-│   │   │   ├── products/
-│   │   │   │   ├── page.tsx          # CRUD produk
-│   │   │   │   ├── AdminProductsClient.tsx
-│   │   │   │   └── loading.tsx
-│   │   │   ├── categories/
-│   │   │   │   ├── page.tsx          # CRUD kategori
-│   │   │   │   ├── AdminCategoriesClient.tsx
-│   │   │   │   └── loading.tsx
-│   │   │   ├── pricing-tiers/
-│   │   │   │   └── page.tsx          # CRUD pricing tiers
-│   │   │   ├── taxes/
-│   │   │   │   └── page.tsx          # CRUD pajak
-│   │   │   ├── discounts/
-│   │   │   │   └── page.tsx          # CRUD diskon
-│   │   │
-│   │   ├── superadmin/               # Panel superadmin
-│   │   │   ├── login/
-│   │   │   │   └── page.tsx          # Supabase Auth login
-│   │   │   └── (protected)/
-│   │   │       ├── layout.tsx        # Sidebar superadmin
-│   │   │       ├── companies/page.tsx
-│   │   │       ├── outlets/page.tsx
-│   │   │       ├── menus/page.tsx
-│   │   │       ├── roles/page.tsx
-│   │   │       ├── access-matrix/page.tsx
-│   │   │       ├── users/page.tsx
-│   │   │       └── audit-logs/page.tsx
-│   │   │
-│   │   └── api/                      # API Routes
-│   │       ├── auth/tenant/          # Auth endpoints
-│   │       ├── admin/                # Admin CRUD endpoints
-│   │       ├── superadmin/           # Superadmin CRUD endpoints
-│   │       └── reports/              # Reports endpoints
-│   │
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Sidebar.tsx           # Sidebar dinamis (role-based menu)
-│   │   │   └── MobileBottomNav.tsx   # Bottom nav mobile
-│   │   ├── owner/
-│   │   │   └── OwnerSidebar.tsx      # V3 — Sidebar dashboard Owner
-│   │   ├── register/                 # Komponen POS Register
-│   │   │   ├── RegisterView.tsx      # Main register (517 lines)
-│   │   │   ├── ProductGrid.tsx
-│   │   │   ├── ProductCard.tsx
-│   │   │   ├── CategoryTabs.tsx
-│   │   │   ├── OrderSidebar.tsx      # Cart sidebar (390 lines)
-│   │   │   ├── MobileCartBar.tsx
-│   │   │   ├── PaymentModal.tsx      # Alur pembayaran (457 lines)
-│   │   │   ├── PricingOptionSelector.tsx
-│   │   │   ├── DraftOrdersPanel.tsx
-│   │   │   ├── ItemDetailModal.tsx
-│   │   │   ├── InvoiceReceipt.tsx
-│   │   │   └── SplitBillPanel.tsx
-│   │   ├── admin/
-│   │   │   ├── PricingTierManager.tsx
-│   │   │   ├── TaxManager.tsx
-│   │   │   ├── DiscountManager.tsx
-│   │   │   └── PricingOptionsManager.tsx
-│   │   ├── reports/
-│   │   │   └── EmailReportModal.tsx
-│   │   └── shared/
-│   │       ├── Badge.tsx
-│   │       ├── EmptyState.tsx
-│   │       ├── QtyControl.tsx
-│   │       └── Toast.tsx
-│   │
-│   ├── hooks/
-│   │   ├── useMediaQuery.ts          # Breakpoints (mobile, tablet, desktop)
-│   │   └── useSwipe.ts               # Touch swipe gesture
-│   │
-│   ├── lib/
-│   │   ├── auth/                     # Auth utilities
-│   │   │   ├── tenant-session.ts     # JWT session kasir (12 jam)
-│   │   │   ├── owner-session.ts      # V3 — JWT session Owner (24 jam)
-│   │   │   ├── pending-login.ts      # JWT pending (10 menit)
-│   │   │   ├── pin.ts                # Hash/verify PIN + lockout
-│   │   │   ├── company.ts            # Login company + rate limiting
-│   │   │   ├── menus.ts              # getAllowedMenus(), getAllMenus()
-│   │   │   ├── superadmin.ts         # requireSuperadmin() guard
-│   │   │   └── audit-log.ts          # Pencatatan event auth
-│   │   ├── supabase/                 # Supabase clients & queries
-│   │   │   ├── admin.ts              # Service role key client
-│   │   │   ├── client.ts             # Browser anon key client
-│   │   │   ├── server.ts             # Server component client
-│   │   │   ├── queries.server.ts     # Server queries (tenant-scoped)
-│   │   │   ├── queries.client.ts     # Client-side API wrappers
-│   │   │   ├── queries.superadmin.ts # Superadmin CRUD queries
-│   │   │   ├── queries.owner.ts      # V3 — Owner CRUD queries (outlets, employees, onboarding)
-│   │   │   └── storage.ts            # Upload/delete gambar produk
-│   │   ├── store/
-│   │   │   └── cartStore.ts          # Zustand cart store (528 lines)
-│   │   ├── pricing/
-│   │   │   └── tiers.ts              # Default tier seeding helpers
-│   │   └── dummy-data.ts             # Sample data untuk development
-│   │
-│   └── types/
-│       └── index.ts                  # Semua TypeScript interfaces (275 lines)
+├── packages/                          # Shared code
+│   ├── shared-types/                  # @rakku/shared-types — semua TypeScript interfaces
+│   ├── supabase-clients/             # @rakku/supabase-clients — factory Supabase client
+│   ├── auth-utils/                   # @rakku/auth-utils — JWT + PIN + audit-log
+│   ├── ui/                           # @rakku/ui — Badge, Toast, EmptyState, QtyControl
+│   └── pricing/                      # @rakku/pricing — default tiers + seeding
 │
 ├── supabase/
-│   ├── migrations/                   # 13 file migrasi berurutan
+│   ├── migrations/                   # 14 file migrasi (001–014)
 │   │   ├── 001_init.sql
 │   │   ├── 002_multi_tenant.sql
 │   │   ├── 003_rls_permissive.sql
@@ -242,22 +163,28 @@ rakku/
 │   │   ├── 011_flatten_paths.sql
 │   │   ├── 012_pricing_per_tier.sql
 │   │   ├── 013_tax_discount.sql
-│   │   └── 014_owner_self_service.sql # V3 — tabel owners + alter companies
-│   └── seed.sql                      # Seed data awal (kategori, produk, modifier)
+│   │   └── 014_owner_self_service.sql
+│   └── seed.sql
 │
-├── scripts/                          # Script utilitas
-│   ├── seed.ts                       # Seed company RAKKU + role + user
+├── scripts/
+│   ├── seed.ts                       # Seed company RAKKU
 │   ├── seed-full.ts                  # Seed company TOKOKO + Outlet Cabang
-│   ├── backfill-owners.ts            # V3 — Backfill company existing ke model ownership
-│   ├── run-migration.ts              # Runner migrasi SQL via pgsql RPC
-│   ├── run-migration.js              # Helper manual copy-paste SQL
-│   └── migration-004.ts              # Programmatic M6 hardening
+│   └── backfill-owners.ts           # Backfill existing companies ke ownership model
 │
-└── public/
-    └── images/
-        ├── rakku_logo.png            # Logo kotak (sidebar, login)
-        └── rakku_logotype.png        # Logotype teks (halaman login)
+├── public/
+│   └── images/
+│       ├── rakku_logo.png
+│       └── rakku_logotype.png
+│
+├── turbo.json                        # Turborepo config
+├── pnpm-workspace.yaml               # Workspace: apps/* + packages/*
+├── package.json                      # Root scripts
+├── tsconfig.base.json                # Base TS config dengan path alias @rakku/*
+├── DOCS.md
+└── PROMPT_RAKKU_V4_MONOREPO_SPLIT.md
 ```
+
+> **Catatan:** Struktur di atas adalah kondisi setelah v4.0. Untuk struktur monolith lama (v3.0), lihat `PROMPT_RAKKU_V4_MONOREPO_SPLIT.md` Bagian 5. Rute aplikasi per app lihat Bagian 15.
 
 ---
 
@@ -265,27 +192,51 @@ rakku/
 
 ### 4.1 `.env.local`
 
+Di v4.0, setiap app punya `.env.local` sendiri di direktori app-nya (`apps/owner/.env.local`, `apps/pos/.env.local`, `apps/superadmin/.env.local`). Tidak ada `.env.local` di root.
+
+**`apps/owner/.env.local`**
 ```
 NEXT_PUBLIC_SUPABASE_URL=<supabase-project-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>
-NEXT_PUBLIC_TAX_RATE=11
-NEXT_PUBLIC_STORE_NAME=ABCD
-NEXT_PUBLIC_STORE_ADDRESS=ASDAS
-TENANT_JWT_SECRET=<random-secret-key>
-RESEND_API_KEY=<resend-api-key>
-RESEND_FROM_EMAIL=onboarding@resend.dev
+OWNER_JWT_SECRET=<random-secret-key>
+NEXT_PUBLIC_POS_URL=https://pos.rakku.com
+NEXT_PUBLIC_OWNER_URL=https://rakku.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+EMAIL=<your-email@gmail.com>
+APP_PASSWORD=<gmail-app-password>
 ```
 
-| Variabel | Fungsi |
-|----------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | URL project Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key untuk browser client |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key untuk operasi backend (bypass RLS) |
-| `NEXT_PUBLIC_TAX_RATE` | Default persentase pajak (legacy) |
-| `TENANT_JWT_SECRET` | Secret key untuk sign/verify JWT session & pending login |
-| `RESEND_API_KEY` | API key untuk kirim email laporan |
-| `RESEND_FROM_EMAIL` | Email pengirim untuk Resend |
+**`apps/pos/.env.local`**
+```
+NEXT_PUBLIC_SUPABASE_URL=<supabase-project-url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>
+POS_JWT_SECRET=<random-secret-key>
+NEXT_PUBLIC_TAX_RATE=11
+NEXT_PUBLIC_STORE_NAME=<store-name>
+NEXT_PUBLIC_STORE_ADDRESS=<store-address>
+```
+
+**`apps/superadmin/.env.local`**
+```
+NEXT_PUBLIC_SUPABASE_URL=<supabase-project-url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>
+```
+
+| Variabel | Owner | POS | Superadmin | Fungsi |
+|----------|-------|-----|------------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | ✅ | ✅ | URL project Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | ✅ | ✅ | Anon key untuk browser client |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | ✅ | ✅ | Service role key (bypass RLS) |
+| `OWNER_JWT_SECRET` | ✅ | ❌ | ❌ | JWT sign/verify owner_session |
+| `POS_JWT_SECRET` | ❌ | ✅ | ❌ | JWT sign/verify session + pending_login |
+| `NEXT_PUBLIC_POS_URL` | ✅ | ❌ | ❌ | URL POS untuk link "Buka POS Kasir" |
+| `NEXT_PUBLIC_OWNER_URL` | ✅ | ❌ | ❌ | URL owner untuk link di superadmin |
+| `NEXT_PUBLIC_TAX_RATE` | ❌ | ✅ | ❌ | Default persentase pajak |
+| `SMTP_*` | ✅ | ❌ | ❌ | nodemailer untuk email verifikasi owner |
 
 ### 4.2 `next.config.mjs`
 
@@ -335,17 +286,21 @@ Hanya mengizinkan gambar dari Supabase Storage.
 
 ### 4.5 `middleware.ts`
 
-Middleware melindungi route berdasarkan kategori:
+Di v4.0, setiap app punya `middleware.ts` sendiri. Tidak ada lagi satu middleware untuk semua route.
 
-| Route | Proteksi |
-|-------|----------|
-| `/_next`, `/api`, `/favicon`, `/` | Publik (tanpa proteksi) |
-| `/login`, `/login/*` | Tenant auth — diizinkan tanpa session |
-| `/register`, `/orders`, `/reports`, `/products`, `/categories`, `/pricing-tiers` | **Tenant session** — redirect ke `/login` jika invalid |
-| `/superadmin/login` | **Superadmin** — redirect ke `/superadmin/companies` jika sudah login |
-| `/superadmin/*` (kecuali login) | **Superadmin** — redirect ke `/superadmin/login` jika belum auth |
+**`apps/pos/middleware.ts`** — proteksi tenant session:
+- Publik: `/_next`, `/api/auth`, `/favicon`, `/images`
+- Proteksi: semua route `/dashboard/*` (register, orders, reports, products, dll.) → redirect ke `/login` jika session invalid
 
-**Matcher middleware:**
+**`apps/owner/middleware.ts`** — proteksi owner session:
+- Publik: `/_next`, `/api/auth`, `/favicon`, `/login`, `/register`, `/check-email`
+- Proteksi: `/dashboard/*`, `/onboarding` → redirect ke `/login` jika belum auth
+
+**`apps/superadmin/middleware.ts`** — proteksi superadmin session:
+- Publik: `/_next`, `/api`, `/favicon`, `/login`
+- Proteksi: `/companies`, `/outlets`, `/menus`, `/roles`, `/access-matrix`, `/users`, `/audit-logs` → redirect ke `/login` jika belum auth
+
+**Matcher pattern (sama untuk semua):**
 ```
 /((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)
 ```
@@ -761,6 +716,8 @@ idx_users_company, idx_roles_company
 ---
 
 ## 8. Rute Aplikasi
+
+> **Catatan:** Bagian ini mendokumentasikan struktur lama (monolith v3.0). Untuk routing saat ini di v4.0 monorepo, lihat **Bagian 15 — V4.0 Monorepo 3-App**.
 
 ### 8.1 Halaman Tenant (Auth)
 

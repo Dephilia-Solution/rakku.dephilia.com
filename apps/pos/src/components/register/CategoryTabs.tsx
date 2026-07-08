@@ -14,10 +14,10 @@ export default function CategoryTabs({
   onChange,
 }: CategoryTabsProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="flex gap-2 overflow-x-auto scrollbar-none flex-shrink-0 pb-1">
       <button
         onClick={() => onChange("all")}
-        className={`whitespace-nowrap rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+        className={`flex-shrink-0 whitespace-nowrap rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
           activeId === "all"
             ? "bg-forest text-white"
             : "text-neutral-600 hover:bg-neutral-100"
@@ -29,7 +29,7 @@ export default function CategoryTabs({
         <button
           key={cat.id}
           onClick={() => onChange(cat.id)}
-          className={`whitespace-nowrap rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+          className={`flex-shrink-0 whitespace-nowrap rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
             activeId === cat.id
               ? "bg-forest text-white"
               : "text-neutral-600 hover:bg-neutral-100"

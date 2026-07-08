@@ -16,6 +16,7 @@ interface OrderSidebarProps {
   onOpenDraft?: () => void;
   onEditItem?: (itemId: string) => void;
   refreshKey?: number;
+  initialDraftCount?: number;
 }
 
 export default function OrderSidebar({
@@ -26,9 +27,9 @@ export default function OrderSidebar({
   onOpenDraft,
   onEditItem,
   refreshKey,
+  initialDraftCount = 0,
 }: OrderSidebarProps) {
   const items = useCartStore((s) => s.items);
-  const pricingTierId = useCartStore((s) => s.pricingTierId);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const incrementQty = useCartStore((s) => s.incrementQty);
@@ -38,53 +39,26 @@ export default function OrderSidebar({
   const { subtotal, appliedTaxes, appliedDiscounts, total } = useCartTotals();
   const groupedCart = useCartGroupedByProduct();
 
-  const [draftCount, setDraftCount] = useState(0);
-  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftCount, setDraftCount] = useState(initialDraftCount);
   const [detailItem, setDetailItem] = useState<{ product: Product; variants: CartItem[] } | null>(null);
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyVal, setEditingQtyVal] = useState<string>("");
+
+  const savingDraft = useCartStore((s) => s.savingDraft);
+  const saveAsDraft = useCartStore((s) => s.saveAsDraft);
 
   const handleSaveDraft = async () => {
     if (!customerName.trim()) {
       showToast("error", "Nama customer wajib diisi");
       return;
     }
-    setSavingDraft(true);
-    try {
-      const sessionRes = await fetch("/api/auth/tenant/session");
-      let companyId: string | undefined;
-      let outletId: string | undefined;
-      let cashierId: string | undefined;
-      if (sessionRes.ok) {
-        const s = await sessionRes.json();
-        companyId = s.company_id;
-        outletId = s.outlet_id;
-        cashierId = s.user_id;
-      }
-
-      const res = await fetch("/api/admin/orders/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items,
-          customerName: customerName.trim(),
-          note: "",
-          companyId,
-          outletId,
-          cashierId,
-          pricingTierId,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Gagal menyimpan draft");
-
+    const success = await saveAsDraft();
+    if (success) {
       showToast("success", "Pesanan disimpan sebagai draft!");
       clear();
       if (isDrawer && onClose) onClose();
-    } catch {
+    } else {
       showToast("error", "Gagal menyimpan draft");
-    } finally {
-      setSavingDraft(false);
     }
   };
 
@@ -303,7 +277,7 @@ export default function OrderSidebar({
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="Nama Customer (wajib)"
-            className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+            className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
           />
         </div>
         <div className="flex justify-between text-sm text-neutral-600">

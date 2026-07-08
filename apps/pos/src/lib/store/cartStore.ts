@@ -63,6 +63,7 @@ interface CartState {
   activeTaxes: Tax[];
   activeProductDiscounts: ProductDiscount[];
   activeOrderDiscounts: OrderDiscount[];
+  savingDraft: boolean;
 
   addProduct: (product: Product, modifiers?: Modifier[], note?: string | null, isDraftRestore?: boolean) => void;
   restoreDraftItem: (item: CartItem, tierId: string | null) => void;
@@ -82,6 +83,7 @@ interface CartState {
   setActiveProductDiscounts: (discounts: ProductDiscount[]) => void;
   setActiveOrderDiscounts: (discounts: OrderDiscount[]) => void;
   fetchActiveTaxesAndDiscounts: () => Promise<void>;
+  saveAsDraft: () => Promise<boolean>;
   clear: () => void;
 }
 
@@ -99,6 +101,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   activeTaxes: [],
   activeProductDiscounts: [],
   activeOrderDiscounts: [],
+  savingDraft: false,
 
   addProduct: (product, modifiers, note, isDraftRestore) =>
     set((state) => {
@@ -371,6 +374,48 @@ export const useCartStore = create<CartState>((set, get) => ({
       }
     } catch {
       // silently fail - taxes/discounts will just be empty
+    }
+  },
+
+  saveAsDraft: async () => {
+    const state = get();
+    if (state.items.length === 0 || !state.customerName.trim()) {
+      return false;
+    }
+
+    set({ savingDraft: true });
+    try {
+      const sessionRes = await fetch("/api/auth/tenant/session");
+      let companyId: string | undefined;
+      let outletId: string | undefined;
+      let cashierId: string | undefined;
+      if (sessionRes.ok) {
+        const s = await sessionRes.json();
+        companyId = s.company_id;
+        outletId = s.outlet_id;
+        cashierId = s.user_id;
+      }
+
+      const res = await fetch("/api/admin/orders/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: state.items,
+          customerName: state.customerName.trim(),
+          note: "",
+          companyId,
+          outletId,
+          cashierId,
+          pricingTierId: state.pricingTierId,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Gagal menyimpan draft");
+      set({ savingDraft: false });
+      return true;
+    } catch {
+      set({ savingDraft: false });
+      return false;
     }
   },
 

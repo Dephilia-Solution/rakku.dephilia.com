@@ -258,6 +258,30 @@ export async function getActiveTaxes() {
   );
 }
 
+export async function getAllTaxes() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("taxes")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("sort_order", { ascending: true });
+  return (
+    (data as JsonLike[])?.map((t) => ({
+      id: t.id as string,
+      company_id: t.company_id as string,
+      outlet_id: t.outlet_id as string,
+      name: t.name as string,
+      type: t.type as "percentage" | "fixed",
+      value: Number(t.value),
+      is_active: t.is_active as boolean,
+      sort_order: t.sort_order as number,
+      created_at: t.created_at as string,
+    })) ?? []
+  );
+}
+
 export async function getActiveProductDiscounts() {
   const supabase = createAdminClient();
   const { company_id, outlet_id } = await getSessionScope();
@@ -270,6 +294,32 @@ export async function getActiveProductDiscounts() {
     .eq("is_active", true)
     .lte("start_date", now)
     .gte("end_date", now);
+  return (
+    (data as JsonLike[])?.map((d) => ({
+      id: d.id as string,
+      company_id: d.company_id as string,
+      outlet_id: d.outlet_id as string,
+      product_id: d.product_id as string,
+      name: d.name as string,
+      type: d.type as "percentage" | "fixed",
+      value: Number(d.value),
+      start_date: d.start_date as string,
+      end_date: d.end_date as string,
+      is_active: d.is_active as boolean,
+      created_at: d.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getAllProductDiscounts() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("product_discounts")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("created_at", { ascending: false });
   return (
     (data as JsonLike[])?.map((d) => ({
       id: d.id as string,
@@ -313,4 +363,76 @@ export async function getActiveOrderDiscounts() {
       created_at: d.created_at as string,
     })) ?? []
   );
+}
+
+export async function getAllOrderDiscounts() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("order_discounts")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("created_at", { ascending: false });
+  return (
+    (data as JsonLike[])?.map((d) => ({
+      id: d.id as string,
+      company_id: d.company_id as string,
+      outlet_id: d.outlet_id as string,
+      name: d.name as string,
+      type: d.type as "percentage" | "fixed",
+      value: Number(d.value),
+      start_date: d.start_date as string,
+      end_date: d.end_date as string,
+      is_active: d.is_active as boolean,
+      created_at: d.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getAllPricingTiers() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("pricing_tiers")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("sort_order");
+  return (
+    (data as JsonLike[])?.map((t) => ({
+      id: t.id as string,
+      company_id: t.company_id as string,
+      outlet_id: t.outlet_id as string,
+      name: t.name as string,
+      slug: t.slug as string,
+      is_active: t.is_active as boolean,
+      sort_order: t.sort_order as number,
+    })) ?? []
+  );
+}
+
+export async function getDraftOrders() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, customer_name, total_price, created_at, pricing_tier_id, order_items(id, product_id, product_name, quantity, unit_price, subtotal, modifier_label, note)")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("status", "draft")
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function getDraftOrderCount() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { count } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .eq("status", "draft");
+  return count ?? 0;
 }

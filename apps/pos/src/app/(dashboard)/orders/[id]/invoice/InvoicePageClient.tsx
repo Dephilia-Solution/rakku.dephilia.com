@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback } from "react";
 import Image from "next/image";
 import { formatCurrency, formatDate } from "@/lib/dummy-data";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
@@ -35,12 +35,119 @@ interface OrderData {
   discount_amount: number;
 }
 
-export default function InvoicePageClient({ order }: { order: OrderData }) {
-  const printRef = useRef<HTMLDivElement>(null);
+function buildReceiptHtml(order: OrderData) {
+  const paymentLabel =
+    order.payment_method === "cash" ? "Tunai" :
+    order.payment_method === "qris" ? "QRIS" :
+    order.payment_method === "card" ? "Kartu" : order.payment_method;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const itemRows = order.order_items
+    .map((item) => `
+    <tr>
+      <td colspan="2" style="font-size:9px;padding:2px 0;">
+        <strong>${item.product_name}</strong>
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size:8px;color:#555;padding:0 0 4px 8px;">
+        ${item.quantity}x ${formatCurrency(item.unit_price)}
+        ${item.modifier_label ? ` — ${item.modifier_label}` : ""}
+      </td>
+      <td style="font-size:8px;color:#555;text-align:right;padding:0 0 4px 0;">
+        ${formatCurrency(item.subtotal)}
+      </td>
+    </tr>
+    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`)
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice #${order.order_number}</title>
+  <style>
+    @page { margin: 0; size: 58mm auto; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', 'Consolas', monospace;
+      width: 58mm;
+      padding: 6mm 4mm;
+      color: #222;
+      font-size: 9px;
+      line-height: 1.35;
+    }
+    .header { text-align: center; margin-bottom: 8px; }
+    .header h1 { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
+    .header p { font-size: 8px; color: #555; }
+    .divider { border-top: 1px dashed #999; margin: 5px 0; }
+    .info-table { width: 100%; font-size: 8px; }
+    .info-table td { padding: 1px 0; }
+    .info-table td:last-child { text-align: right; }
+    table.items { width: 100%; border-collapse: collapse; }
+    .totals-table { width: 100%; font-size: 9px; }
+    .totals-table td { padding: 2px 0; }
+    .totals-table td:last-child { text-align: right; font-family: 'Courier New', monospace; }
+    .grand-total { font-size: 11px; font-weight: bold; }
+    .grand-total td { padding-top: 4px; border-top: 1px solid #222; }
+    .footer { text-align: center; margin-top: 10px; font-size: 8px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>RAKKU</h1>
+    <p>Invoice #${order.order_number}</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <table class="info-table">
+    <tr><td>Tanggal</td><td>${formatDate(order.created_at)}</td></tr>
+    <tr><td>Customer</td><td>${order.customer_name}</td></tr>
+    ${order.cashier_name ? `<tr><td>Kasir</td><td>${order.cashier_name}</td></tr>` : ""}
+    <tr><td>Tipe</td><td style="text-transform:capitalize">${order.order_type.replace(/_/g, " ")}</td></tr>
+    <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <table class="items">
+    ${itemRows}
+  </table>
+
+  <div class="divider"></div>
+
+  <table class="totals-table">
+    <tr><td>Subtotal</td><td>${formatCurrency(order.subtotal)}</td></tr>
+    ${(order.discounts ?? []).map((d) => `<tr><td>${d.name}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
+    ${(order.taxes ?? []).map((t) => `<tr><td>${t.name}${t.type === 'percentage' ? ` (${t.value}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
+    <tr class="grand-total">
+      <td>Total</td>
+      <td>${formatCurrency(order.total_price)}</td>
+    </tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <div class="footer">
+    <p>Terima kasih atas kunjungan Anda</p>
+  </div>
+</body>
+</html>`;
+}
+
+export default function InvoicePageClient({ order }: { order: OrderData }) {
+  const handlePrint = useCallback(() => {
+    const html = buildReceiptHtml(order);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Izinkan pop-up untuk mencetak invoice");
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [order]);
 
   const paymentLabel =
     order.payment_method === "cash"
@@ -74,7 +181,7 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
       </div>
 
       {/* Invoice Content */}
-      <div ref={printRef} className="invoice-card max-w-md mx-auto bg-white p-6 sm:p-8 my-4 shadow-sm rounded-2xl sm:my-8">
+      <div className="invoice-card max-w-md mx-auto bg-white p-6 sm:p-8 my-4 shadow-sm rounded-2xl sm:my-8">
         <div className="text-center mb-6">
           <Image
             src="/images/rakku_logotype.png"
@@ -164,31 +271,6 @@ export default function InvoicePageClient({ order }: { order: OrderData }) {
           <p>Terima kasih atas kunjungan Anda</p>
         </div>
       </div>
-
-      <style jsx global>{`
-        @media print {
-          body {
-            background: white !important;
-            -webkit-print-color-adjust: exact;
-            font-family: 'Courier New', 'Consolas', monospace;
-          }
-          .no-print { display: none !important; }
-          @page { margin: 0; size: 58mm auto; }
-          .invoice-card {
-            width: 58mm !important;
-            max-width: 58mm !important;
-            padding: 6mm 4mm !important;
-            margin: 0 !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            font-size: 9px !important;
-          }
-          .invoice-card .text-sm { font-size: 8px !important; }
-          .invoice-card .text-xs { font-size: 8px !important; }
-          .invoice-card .text-lg { font-size: 11px !important; }
-          .invoice-card img { height: 6mm !important; width: auto !important; }
-        }
-      `}</style>
     </div>
   );
 }

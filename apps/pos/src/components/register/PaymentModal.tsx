@@ -93,7 +93,11 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     return Array.from(new Set(suggestions)).sort((a, b) => a - b).slice(0, 6);
   })();
 
-  const handleClose = () => {
+  const handleCancel = () => {
+    onClose();
+  };
+
+  const handleSuccessClose = () => {
     setIsSuccess(false);
     setInvoiceData(null);
     setMethod(null);
@@ -238,7 +242,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           paymentMethod={method ?? "cash"}
           orderType={orderType}
           createdAt={invoiceData.createdAt}
-          onClose={handleClose}
+          onClose={handleSuccessClose}
           cashAmount={method === "cash" ? (Number(cashAmount) || undefined) : undefined}
           change={method === "cash" ? (change >= 0 ? change : undefined) : undefined}
         />
@@ -249,7 +253,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
               Pembayaran
             </h3>
             <button
-              onClick={handleClose}
+              onClick={handleCancel}
               className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
               <X size={18} />
@@ -274,7 +278,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Masukkan nama customer"
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
               />
             </div>
 
@@ -434,8 +438,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-        <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90vh] animate-slide-up pb-safe">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCancel} />
+        <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90dvh] animate-slide-up pb-safe">
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-neutral-300" />
           </div>
@@ -446,8 +450,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto">
-      <div className="min-h-full flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto" onClick={handleCancel}>
+      <div className="min-h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-2xl shadow-md w-full max-w-md">
           {content}
         </div>
