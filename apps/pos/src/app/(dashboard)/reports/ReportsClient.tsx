@@ -53,12 +53,12 @@ export default function ReportsClient({ orders }: { orders: OrderWithItems[] }) 
         <h1 className="font-display font-bold text-xl sm:text-2xl text-neutral-900">
           Laporan Penjualan
         </h1>
-        <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+        <div className="flex flex-wrap gap-2 pb-1 sm:pb-0 items-center">
           {ranges.map((r) => (
             <button
               key={r.value}
               onClick={() => setDateRange(r.value)}
-              className={`whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              className={`flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                 dateRange === r.value
                   ? "bg-forest text-white"
                   : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
@@ -69,7 +69,7 @@ export default function ReportsClient({ orders }: { orders: OrderWithItems[] }) 
           ))}
           <button
             onClick={() => setShowEmailModal(true)}
-            className="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center gap-1.5"
+            className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center gap-1.5"
           >
             <Mail size={13} />
             Kirim Email

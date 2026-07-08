@@ -1,7 +1,7 @@
 export default function RegisterLoading() {
   return (
-    <div className="flex h-screen overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+    <div className="flex h-dvh overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 md:ml-16">
         <div className="mb-4 h-11 w-full animate-pulse rounded-xl bg-neutral-200" />
         <div className="mb-4 flex gap-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -11,7 +11,7 @@ export default function RegisterLoading() {
             />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
@@ -26,7 +26,7 @@ export default function RegisterLoading() {
           ))}
         </div>
       </div>
-      <div className="hidden w-[380px] animate-pulse border-l border-neutral-200 bg-white p-5 lg:block">
+      <div className="hidden w-[380px] animate-pulse border-l border-neutral-200 bg-white p-5 md:flex">
         <div className="mb-6 h-6 w-3/4 rounded bg-neutral-200" />
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="mb-4 space-y-2">

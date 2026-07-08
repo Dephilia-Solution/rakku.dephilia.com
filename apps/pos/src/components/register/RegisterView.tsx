@@ -94,6 +94,20 @@ export default function RegisterView({
     return modifierTierDeltaMap[mod.id]?.[pricingTierId] ?? mod.price_delta ?? 0;
   };
 
+  // --- FIX: lock body scroll whenever any full-screen overlay is open.
+  // Mencegah rubber-band scroll di iOS Safari yang kelihatan seperti
+  // "overflow atas-bawah" saat modal/drawer terbuka.
+  useEffect(() => {
+    const anyOverlayOpen = showModifierModal || showCartDrawer || showDraftPanel || showPayment;
+    if (anyOverlayOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = original;
+      };
+    }
+  }, [showModifierModal, showCartDrawer, showDraftPanel, showPayment]);
+
   const filteredProducts = products.filter((p) => {
     if (!p.is_active) return false;
     if (activeCategory !== "all" && p.category_id !== activeCategory)
@@ -230,18 +244,25 @@ export default function RegisterView({
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    // FIX: w-full + max-w-full mengunci lebar row terhadap viewport,
+    // jadi kalau ada child yang "bandel" (fixed width, gak responsive),
+    // dia dipotong bukan mendorong body ikut melebar.
+    <div className="flex w-full max-w-full min-w-0 h-dvh overflow-hidden">
       {/* Left: Product area */}
-      <div className="flex-1 flex flex-col overflow-hidden pt-safe">
+      {/* FIX: min-w-0 wajib di flex child yang isinya bisa lebih lebar
+          dari ruang tersisa (search bar, grid produk, dsb). Tanpa ini,
+          flex item defaultnya min-width:auto dan akan mendorong lebar
+          keluar viewport alih-alih menyusut. */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden pt-safe">
         {/* Tier Selector */}
         {pricingTiers.length > 0 && (
-          <div className="px-4 sm:px-6 pt-4 pb-2">
-            <div className="flex gap-2">
+          <div className="px-4 sm:px-6 pt-4 pb-2 overflow-hidden">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
               {pricingTiers.map((tier) => (
                 <button
                   key={tier.id}
                   onClick={() => handleSelectTier(tier.id)}
-                  className={`flex-1 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all ${
+                  className={`flex-shrink-0 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
                     pricingTierId === tier.id
                       ? "bg-forest text-white shadow-sm"
                       : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
@@ -266,7 +287,7 @@ export default function RegisterView({
               placeholder="Cari produk..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-neutral-200 rounded-xl pl-11 pr-12 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+              className="w-full bg-white border border-neutral-200 rounded-xl pl-11 pr-12 py-2.5 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 items-center gap-1 text-[10px] font-mono text-neutral-400 bg-neutral-100 rounded-md px-1.5 py-1 hidden sm:flex">
               <Command size={12} />
@@ -276,7 +297,7 @@ export default function RegisterView({
         </div>
 
         {/* Categories */}
-        <div className="px-4 sm:px-6 pb-3">
+        <div className="px-4 sm:px-6 pb-3 overflow-hidden">
           <CategoryTabs
             categories={categories}
             activeId={activeCategory}
@@ -285,7 +306,10 @@ export default function RegisterView({
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto pt-2 px-4 sm:px-6 pb-[140px] lg:pb-6">
+        {/* FIX: min-h-0 supaya flex-1 + overflow-y-auto benar-benar
+            mengunci tinggi di dalam h-dvh, bukan mendorong parent
+            lebih tinggi dari viewport (overflow atas-bawah). */}
+        <div className="flex-1 min-h-0 overflow-y-auto pt-2 px-4 sm:px-6 pb-[var(--content-bottom-offset,5rem)] lg:pb-6">
           <ProductGrid
             products={filteredProducts}
             onSelect={handleSelectProduct}
@@ -294,6 +318,11 @@ export default function RegisterView({
       </div>
 
       {/* Desktop: Order Sidebar */}
+      {/* CATATAN: pastikan di dalam OrderSidebar.tsx, versi non-drawer
+          pakai className mengandung "hidden lg:flex" (bukan cuma
+          "lg:w-96"). Kalau tidak, dia tetap ambil ruang di flex row
+          pada layar HP walau gak kelihatan, dan itu penyebab paling
+          umum overflow kiri-kanan. */}
       <OrderSidebar
         onCheckout={handleCheckout}
         onOpenDraft={() => setShowDraftPanel(true)}
@@ -318,10 +347,7 @@ export default function RegisterView({
       {/* Mobile: Persistent Cart Bar */}
       <MobileCartBar
         onViewCart={() => setShowCartDrawer(true)}
-        onCheckout={() => setShowPayment(true)}
       />
-
-
 
       {/* Draft Orders Panel */}
       <DraftOrdersPanel
@@ -354,14 +380,16 @@ export default function RegisterView({
         const groupNames = Object.keys(groups);
 
         return (
-          <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto overscroll-contain">
             <div className="min-h-full flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-6">
+              {/* FIX: w-full + max-w-sm + mx-4 supaya modal gak pernah
+                  lebih lebar dari viewport HP kecil (< 360px). */}
+              <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-6 max-h-[90dvh] overflow-y-auto">
                 <h3 className="font-display font-semibold text-base text-neutral-900 mb-4">
                   {editingItemId ? "Edit" : "Tambah"} — {selectedProduct.name}
                 </h3>
 
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-4">
                   {groupNames.map((groupName) => (
                     <div key={groupName}>
                       <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
@@ -458,12 +486,12 @@ export default function RegisterView({
                           value={customPrice}
                           onChange={(e) => setCustomPrice(e.target.value)}
                           placeholder="Harga"
-                          className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+                          className="flex-1 min-w-0 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                         />
                         <button
                           onClick={handleAddCustom}
                           disabled={!customName.trim()}
-                          className="bg-forest text-white rounded-xl px-5 py-3 text-sm font-semibold hover:bg-forest-dark disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          className="bg-forest text-white rounded-xl px-5 py-3 text-sm font-semibold hover:bg-forest-dark disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
                         >
                           Tambah
                         </button>
@@ -496,13 +524,13 @@ export default function RegisterView({
                 <div className="mt-4 flex gap-2">
                   <button
                     onClick={closeModifierModal}
-                    className="flex-1 text-sm text-neutral-500 hover:text-neutral-700 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50"
+                    className="flex-1 min-w-0 text-sm text-neutral-500 hover:text-neutral-700 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleConfirmModifiers}
-                    className="flex-1 bg-forest text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-forest-dark"
+                    className="flex-1 min-w-0 bg-forest text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-forest-dark"
                   >
                     {editingItemId ? "Simpan" : "Tambahkan"}
                   </button>

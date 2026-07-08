@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/layout/Sidebar";
-import MobileBottomNav from "@/components/layout/MobileBottomNav";
+import ResponsiveNav from "@/components/layout/ResponsiveNav";
 import { ToastContainer } from "@rakku/ui";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { getAllowedMenus } from "@/lib/auth/menus";
@@ -25,10 +24,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar menus={menus} />
-      <main className="flex-1 lg:ml-16 pb-[56px] lg:pb-0">{children}</main>
-      <MobileBottomNav menus={menus} />
+    <div className="flex min-h-dvh overflow-hidden">
+      <ResponsiveNav menus={menus} />
+      <main className="flex-1 min-w-0 overflow-hidden md:ml-16 pb-[var(--nav-bottom-safe)] md:pb-0">{children}</main>
       <ToastContainer />
     </div>
   );

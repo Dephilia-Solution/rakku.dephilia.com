@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 :root {
   --background: #fafafa;
   --foreground: #18181b;
@@ -11,6 +16,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  --nav-bottom-height: 56px;
+  --nav-bottom-safe: calc(var(--nav-bottom-height) + env(safe-area-inset-bottom, 0px));
+  --cart-bar-height: 120px;
+  --content-bottom-offset: calc(var(--nav-bottom-safe) + var(--cart-bar-height));
 }
 
 body {
@@ -19,11 +28,25 @@ body {
   font-family: "DM Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -38,10 +61,10 @@ body {
 
 @layer base {
   html {
-    -webkit-tap-highlight-color: transparent;
     -webkit-overflow-scrolling: touch;
   }
   * {
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
   }
 }

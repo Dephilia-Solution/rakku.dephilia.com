@@ -18,7 +18,10 @@ export default function ProductGrid({ products, onSelect }: ProductGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
+    <div
+      className="grid gap-1.5 sm:gap-3 overflow-hidden"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}
+    >
       {products.map((product) => (
         <ProductCard
           key={product.id}
