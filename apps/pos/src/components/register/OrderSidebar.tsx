@@ -16,6 +16,7 @@ interface OrderSidebarProps {
   onOpenDraft?: () => void;
   onEditItem?: (itemId: string) => void;
   refreshKey?: number;
+  initialDraftCount?: number;
 }
 
 export default function OrderSidebar({
@@ -26,6 +27,7 @@ export default function OrderSidebar({
   onOpenDraft,
   onEditItem,
   refreshKey,
+  initialDraftCount = 0,
 }: OrderSidebarProps) {
   const items = useCartStore((s) => s.items);
   const customerName = useCartStore((s) => s.customerName);
@@ -37,7 +39,7 @@ export default function OrderSidebar({
   const { subtotal, appliedTaxes, appliedDiscounts, total } = useCartTotals();
   const groupedCart = useCartGroupedByProduct();
 
-  const [draftCount, setDraftCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(initialDraftCount);
   const [detailItem, setDetailItem] = useState<{ product: Product; variants: CartItem[] } | null>(null);
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyVal, setEditingQtyVal] = useState<string>("");

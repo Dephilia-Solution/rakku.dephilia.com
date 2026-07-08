@@ -11,16 +11,30 @@ import PaymentModal from "@/components/register/PaymentModal";
 import DraftOrdersPanel from "@/components/register/DraftOrdersPanel";
 import { Search, Command } from "lucide-react";
 
+type ModifierWithTierPrices = Modifier & { tier_prices?: { modifier_id: string; tier_id: string; price_delta: number }[] };
+
 interface RegisterViewProps {
   products: ProductWithCategory[];
   categories: Category[];
-  modifiers: Modifier[];
+  modifiers: ModifierWithTierPrices[];
+  initialPricingTiers: PricingTier[];
+  initialProductTierPrices: { product_id: string; tier_id: string; price: number }[];
+  initialActiveTaxes: { id: string; name: string; type: "percentage" | "fixed"; value: number; is_active: boolean; sort_order: number; company_id: string; outlet_id: string; created_at: string }[];
+  initialActiveProductDiscounts: { id: string; product_id: string; name: string; type: "percentage" | "fixed"; value: number; start_date: string; end_date: string; is_active: boolean; company_id: string; outlet_id: string; created_at: string }[];
+  initialActiveOrderDiscounts: { id: string; name: string; type: "percentage" | "fixed"; value: number; start_date: string; end_date: string; is_active: boolean; company_id: string; outlet_id: string; created_at: string }[];
+  initialDraftCount: number;
 }
 
 export default function RegisterView({
   products,
   categories,
   modifiers,
+  initialPricingTiers,
+  initialProductTierPrices,
+  initialActiveTaxes,
+  initialActiveProductDiscounts,
+  initialActiveOrderDiscounts,
+  initialDraftCount,
 }: RegisterViewProps) {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,6 +42,7 @@ export default function RegisterView({
   const [showCartDrawer, setShowCartDrawer] = useState(false);
   const [showDraftPanel, setShowDraftPanel] = useState(false);
   const [draftVersion, setDraftVersion] = useState(0);
+  const [draftCount] = useState(initialDraftCount);
 
   const [showModifierModal, setShowModifierModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithCategory | null>(null);
@@ -38,7 +53,9 @@ export default function RegisterView({
   const cartItems = useCartStore((s) => s.items);
   const pricingTierId = useCartStore((s) => s.pricingTierId);
   const setPricingTiers = useCartStore((s) => s.setPricingTiers);
-  const fetchActiveTaxesAndDiscounts = useCartStore((s) => s.fetchActiveTaxesAndDiscounts);
+  const setActiveTaxes = useCartStore((s) => s.setActiveTaxes);
+  const setActiveProductDiscounts = useCartStore((s) => s.setActiveProductDiscounts);
+  const setActiveOrderDiscounts = useCartStore((s) => s.setActiveOrderDiscounts);
 
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customName, setCustomName] = useState("");
@@ -48,44 +65,32 @@ export default function RegisterView({
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [itemNote, setItemNote] = useState("");
 
-  const [pricingTiers, setLocalTiers] = useState<PricingTier[]>([]);
+  const [pricingTiers] = useState<PricingTier[]>(initialPricingTiers);
 
   useEffect(() => {
-    const loadTiers = async () => {
-      try {
-        const sessionRes = await fetch("/api/auth/tenant/session");
-        if (!sessionRes.ok) return;
-        const session = await sessionRes.json();
-        const res = await fetch(
-          `/api/admin/pricing-tiers?company_id=${session.company_id}&outlet_id=${session.outlet_id}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setLocalTiers(data.tiers);
+    const tierPriceMap: Record<string, Record<string, number>> = {};
+    for (const ptp of initialProductTierPrices) {
+      if (!tierPriceMap[ptp.product_id]) {
+        tierPriceMap[ptp.product_id] = {};
+      }
+      tierPriceMap[ptp.product_id][ptp.tier_id] = ptp.price;
+    }
 
-          const tierPriceMap: Record<string, Record<string, number>> = {};
-          for (const ptp of data.productTierPrices) {
-            if (!tierPriceMap[ptp.product_id]) {
-              tierPriceMap[ptp.product_id] = {};
-            }
-            tierPriceMap[ptp.product_id][ptp.tier_id] = ptp.price;
-          }
-
-          const modifierDeltaMap: Record<string, Record<string, number>> = {};
-          for (const mtp of data.modifierTierPrices ?? []) {
-            if (!modifierDeltaMap[mtp.modifier_id]) {
-              modifierDeltaMap[mtp.modifier_id] = {};
-            }
-            modifierDeltaMap[mtp.modifier_id][mtp.tier_id] = mtp.price_delta;
-          }
-
-          setPricingTiers(data.tiers, tierPriceMap, modifierDeltaMap);
+    const modifierDeltaMap: Record<string, Record<string, number>> = {};
+    for (const mod of modifiers) {
+      if (mod.tier_prices && mod.tier_prices.length > 0) {
+        modifierDeltaMap[mod.id] = {};
+        for (const tp of mod.tier_prices) {
+          modifierDeltaMap[mod.id][tp.tier_id] = tp.price_delta;
         }
-      } catch {}
-    };
-    loadTiers();
-    fetchActiveTaxesAndDiscounts();
-  }, [setPricingTiers, fetchActiveTaxesAndDiscounts]);
+      }
+    }
+
+    setPricingTiers(initialPricingTiers, tierPriceMap, modifierDeltaMap);
+    setActiveTaxes(initialActiveTaxes);
+    setActiveProductDiscounts(initialActiveProductDiscounts);
+    setActiveOrderDiscounts(initialActiveOrderDiscounts);
+  }, [setPricingTiers, setActiveTaxes, setActiveProductDiscounts, setActiveOrderDiscounts, initialPricingTiers, initialProductTierPrices, initialActiveTaxes, initialActiveProductDiscounts, initialActiveOrderDiscounts, modifiers]);
 
   const modifierTierDeltaMap = useCartStore((s) => s.modifierTierDeltaMap);
 
@@ -328,6 +333,7 @@ export default function RegisterView({
         onOpenDraft={() => setShowDraftPanel(true)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
+        initialDraftCount={draftCount}
       />
 
       {/* Mobile: Cart Drawer */}
@@ -342,6 +348,7 @@ export default function RegisterView({
         onOpenDraft={() => setShowDraftPanel(true)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
+        initialDraftCount={draftCount}
       />
 
       {/* Mobile: Persistent Cart Bar */}
