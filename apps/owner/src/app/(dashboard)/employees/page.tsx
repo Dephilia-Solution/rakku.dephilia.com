@@ -530,7 +530,7 @@ export default function OwnerEmployeesPage() {
       ) : (
         <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
           {/* Desktop Table */}
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-neutral-50 border-b border-neutral-200">
                 <tr>
@@ -643,7 +643,7 @@ export default function OwnerEmployeesPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden divide-y divide-neutral-100">
+          <div className="md:hidden divide-y divide-neutral-100">
             {employees.map((emp) => (
               <div key={emp.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -714,9 +714,9 @@ export default function OwnerEmployeesPage() {
 
       {/* Form Modal */}
       {showForm && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
               <h2 className="font-bold text-lg text-neutral-900">
                 {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
               </h2>
@@ -729,7 +729,7 @@ export default function OwnerEmployeesPage() {
             </div>
             <form
               onSubmit={handleSubmit}
-              className="p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto"
+              className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]"
             >
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
@@ -741,7 +741,7 @@ export default function OwnerEmployeesPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Budi Santoso"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
                 />
               </div>
 
@@ -757,7 +757,7 @@ export default function OwnerEmployeesPage() {
                   }
                   placeholder="budi"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all lowercase"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all lowercase"
                 />
                 <p className="text-xs text-neutral-400">
                   Dipakai untuk login kasir di step &quot;pilih akun&quot;.
@@ -779,7 +779,7 @@ export default function OwnerEmployeesPage() {
                     }
                     placeholder="123456"
                     required
-                    className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
+                    className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
                   />
                   <p className="text-xs text-neutral-400">
                     Beritahu PIN ini ke karyawan secara manual.
@@ -795,7 +795,7 @@ export default function OwnerEmployeesPage() {
                   value={formRoleId}
                   onChange={(e) => setFormRoleId(e.target.value)}
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
                 >
                   {roles.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -876,8 +876,8 @@ export default function OwnerEmployeesPage() {
 
       {/* Reset PIN Modal */}
       {resetTarget && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-warning/10 rounded-xl flex items-center justify-center text-warning">
                 <Key size={24} />
@@ -902,7 +902,7 @@ export default function OwnerEmployeesPage() {
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
                 placeholder="123456"
-                className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
+                className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
               />
             </div>
             <div className="flex gap-3">
@@ -934,8 +934,8 @@ export default function OwnerEmployeesPage() {
 
       {/* Delete Confirmation */}
       {deleteTarget && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
                 <AlertCircle size={24} />
@@ -975,9 +975,9 @@ export default function OwnerEmployeesPage() {
 
       {/* Kelola Role Modal */}
       {showRoleModal && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
                   <Shield size={20} />
@@ -995,7 +995,7 @@ export default function OwnerEmployeesPage() {
               </button>
             </div>
 
-            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto space-y-6">
+            <div className="p-6 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)] space-y-6">
               <div className="flex justify-end">
                 <button
                   onClick={() => { setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(true); }}
@@ -1125,7 +1125,7 @@ export default function OwnerEmployeesPage() {
               )}
             </div>
 
-            <div className="p-4 border-t border-neutral-200 sticky bottom-0 bg-white rounded-b-2xl">
+            <div className="p-4 border-t border-neutral-200 sticky bottom-0 bg-white rounded-b-2xl pb-[env(safe-area-inset-bottom,0px)]">
               <button
                 onClick={() => { setShowRoleModal(false); setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(false); }}
                 className="w-full py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
@@ -1140,8 +1140,8 @@ export default function OwnerEmployeesPage() {
 
       {/* Add/Edit Role Form Modal */}
       {showRoleForm && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
                 <Shield size={20} />
@@ -1165,7 +1165,7 @@ export default function OwnerEmployeesPage() {
                   value={roleFormName}
                   onChange={(e) => setRoleFormName(e.target.value)}
                   placeholder="contoh: Kasir, Koki, Admin"
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
                   autoFocus
                 />
               </div>
@@ -1199,8 +1199,8 @@ export default function OwnerEmployeesPage() {
 
       {/* Delete Role Confirmation */}
       {deletingRole && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
                 <AlertCircle size={24} />

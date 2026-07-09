@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useModalHistory } from "@/hooks/useModalHistory";
 import Image from "next/image";
 import { ProductWithCategory, Category, Modifier, PricingTier } from "@rakku/shared-types";
 import { formatCurrency } from "@/lib/dummy-data";
@@ -81,6 +82,13 @@ export default function AdminProductsClient({ products: initialProducts, categor
   const [productModifiers, setProductModifiers] = useState<(typeof initialModifiers)[number][]>([]);
   const [newProductModifiers, setNewProductModifiers] = useState<Array<{name: string, group_name: string, tierDeltas: Record<string, number>}>>([]);
   const [modifierForm, setModifierForm] = useState<{ name: string; group_name: string; tierDeltas: Record<string, string> }>({ name: "", group_name: "", tierDeltas: {} });
+
+  const closeProductForm = useCallback(() => {
+    setShowForm(false);
+    setEditingProduct(null);
+  }, []);
+
+  const { handleCloseAndPop: closeProductFormWithHistory } = useModalHistory(showForm, closeProductForm);
 
   useEffect(() => {
     if (editingProduct) {
@@ -607,20 +615,24 @@ export default function AdminProductsClient({ products: initialProducts, categor
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto overscroll-contain" onClick={closeProductFormWithHistory}>
           <div className="min-h-full flex items-end sm:items-center justify-center sm:p-4">
-          <div className="bg-white sm:rounded-2xl shadow-md w-full sm:max-w-md sm:p-6 p-4 pb-safe min-h-[80vh] sm:min-h-0">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-display font-semibold text-base text-neutral-900">
-                {editingProduct ? "Edit Produk" : "Tambah Produk"}
-              </h3>
-              <button onClick={() => { setShowForm(false); setEditingProduct(null); }}
-                className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600">
-                <X size={16} />
-              </button>
-            </div>
+            <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-md w-full sm:max-w-md mobile-slide-up pb-safe sm:pb-0 max-h-[90dvh] sm:max-h-none overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-neutral-300" />
+              </div>
 
-            <div className="space-y-4">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200">
+                <h3 className="font-display font-semibold text-base text-neutral-900">
+                  {editingProduct ? "Edit Produk" : "Tambah Produk"}
+                </h3>
+                <button onClick={closeProductFormWithHistory}
+                  className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
               {/* Image Upload */}
               <div className="relative">
                 <input
@@ -842,25 +854,26 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => { setShowForm(false); setEditingProduct(null); }}
-                  className="flex-1 text-sm font-medium text-neutral-600 bg-neutral-100 rounded-xl py-2.5 hover:bg-neutral-200 transition-colors">
-                  Batal
-                </button>
-                <button onClick={handleSave} disabled={saving}
-                  className="flex-1 bg-forest text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-forest-dark active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  Simpan
-                </button>
-              </div>
+            </div>
+
+            <div className="px-4 sm:px-6 py-4 border-t border-neutral-200 bg-white flex gap-2">
+              <button onClick={closeProductFormWithHistory}
+                className="flex-1 text-sm font-medium text-neutral-600 bg-neutral-100 rounded-xl py-3 hover:bg-neutral-200 transition-colors active:scale-[0.98]">
+                Batal
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 bg-forest text-white rounded-xl py-3 text-sm font-semibold hover:bg-forest-dark active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Check size={16} />
+                )}
+                Simpan
+              </button>
             </div>
           </div>
-          </div>
         </div>
+      </div>
       )}
 
       {showCatModal && (

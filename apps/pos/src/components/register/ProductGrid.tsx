@@ -19,7 +19,7 @@ export default function ProductGrid({ products, onSelect }: ProductGridProps) {
 
   return (
     <div
-      className="grid gap-1.5 sm:gap-3 overflow-hidden"
+      className="grid p-2 gap-1.5 sm:gap-3 overflow-hidden"
       style={{ gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}
     >
       {products.map((product) => (

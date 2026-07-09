@@ -9,7 +9,8 @@ import OrderSidebar from "@/components/register/OrderSidebar";
 import MobileCartBar from "@/components/register/MobileCartBar";
 import PaymentModal from "@/components/register/PaymentModal";
 import DraftOrdersPanel from "@/components/register/DraftOrdersPanel";
-import { Search, Command } from "lucide-react";
+import { Search, Command, X } from "lucide-react";
+import { useModalHistory } from "@/hooks/useModalHistory";
 
 type ModifierWithTierPrices = Modifier & { tier_prices?: { modifier_id: string; tier_id: string; price_delta: number }[] };
 
@@ -196,7 +197,7 @@ export default function RegisterView({
     setCustomGroup("");
   };
 
-  const closeModifierModal = () => {
+  const closeModifierModal = useCallback(() => {
     setShowModifierModal(false);
     setEditingItemId(null);
     setSelectedProduct(null);
@@ -206,7 +207,10 @@ export default function RegisterView({
     setCustomName("");
     setCustomPrice("0");
     setCustomGroup("");
-  };
+  }, []);
+
+  const isModifierOpen = showModifierModal && !!selectedProduct;
+  const { handleCloseAndPop: closeModifierWithHistory } = useModalHistory(isModifierOpen, closeModifierModal);
 
   const handleCheckout = () => {
     setShowPayment(true);
@@ -387,16 +391,26 @@ export default function RegisterView({
         const groupNames = Object.keys(groups);
 
         return (
-          <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto overscroll-contain">
-            <div className="min-h-full flex items-center justify-center p-4">
-              {/* FIX: w-full + max-w-sm + mx-4 supaya modal gak pernah
-                  lebih lebar dari viewport HP kecil (< 360px). */}
-              <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-6 max-h-[90dvh] overflow-y-auto">
-                <h3 className="font-display font-semibold text-base text-neutral-900 mb-4">
-                  {editingItemId ? "Edit" : "Tambah"} — {selectedProduct.name}
-                </h3>
+          <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm overflow-y-auto overscroll-contain" onClick={closeModifierWithHistory}>
+            <div className="min-h-full flex items-end sm:items-center justify-center sm:p-4">
+              <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-md w-full sm:max-w-sm mobile-slide-up pb-safe sm:pb-0 max-h-[90dvh] sm:max-h-none overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                  <div className="w-10 h-1 rounded-full bg-neutral-300" />
+                </div>
 
-                <div className="space-y-4">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200">
+                  <h3 className="font-display font-semibold text-base text-neutral-900">
+                    {editingItemId ? "Edit" : "Tambah"} — {selectedProduct.name}
+                  </h3>
+                  <button
+                    onClick={closeModifierWithHistory}
+                    className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
                   {groupNames.map((groupName) => (
                     <div key={groupName}>
                       <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
@@ -472,7 +486,7 @@ export default function RegisterView({
                     + Tambahan Lain
                   </button>
                   {showCustomInput && (
-                    <div className="space-y-2 pl-2">
+                    <div className="space-y-2">
                       <input
                         type="text"
                         value={customGroup}
@@ -518,26 +532,26 @@ export default function RegisterView({
                       className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
                     />
                   </div>
+
+                  {selectedModifiers.length > 0 && (
+                    <div className="p-2 bg-neutral-50 rounded-lg">
+                      <p className="text-xs text-neutral-500">
+                        Dipilih: {selectedModifiers.map((m) => m.name).join(", ")}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {selectedModifiers.length > 0 && (
-                  <div className="mt-3 p-2 bg-neutral-50 rounded-lg">
-                    <p className="text-xs text-neutral-500">
-                      Dipilih: {selectedModifiers.map((m) => m.name).join(", ")}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 flex gap-2">
+                <div className="px-4 sm:px-6 py-4 border-t border-neutral-200 bg-white flex gap-2">
                   <button
-                    onClick={closeModifierModal}
-                    className="flex-1 min-w-0 text-sm text-neutral-500 hover:text-neutral-700 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50"
+                    onClick={closeModifierWithHistory}
+                    className="flex-1 min-w-0 text-sm text-neutral-500 hover:text-neutral-700 py-3.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 active:scale-[0.98] transition-all"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleConfirmModifiers}
-                    className="flex-1 min-w-0 bg-forest text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-forest-dark"
+                    className="flex-1 min-w-0 bg-forest text-white rounded-xl px-4 py-3.5 text-sm font-semibold hover:bg-forest-dark active:scale-[0.98] transition-all"
                   >
                     {editingItemId ? "Simpan" : "Tambahkan"}
                   </button>

@@ -120,6 +120,18 @@ export default function OrderSidebar({
         </div>
       </div>
 
+      <div className="px-5 py-3 border-b border-neutral-200">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="Nama Customer (wajib)"
+            className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+          />
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
         {items.length === 0 ? (
           <EmptyState
@@ -271,15 +283,6 @@ export default function OrderSidebar({
       </div>
 
       <div className="px-5 py-3 border-t border-neutral-200 space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Nama Customer (wajib)"
-            className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
-          />
-        </div>
         <div className="flex justify-between text-sm text-neutral-600">
           <span>Subtotal</span>
           <span className="font-mono">{formatCurrency(subtotal)}</span>

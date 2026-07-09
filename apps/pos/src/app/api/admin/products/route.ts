@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
 import { syncProductTierPrices } from "@rakku/pricing";
 
+export async function GET() {
+  const { getAllProducts } = await import("@/lib/supabase/queries.server");
+  const products = await getAllProducts();
+  return NextResponse.json(products);
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { name, price, category_id, description, is_active, company_id, outlet_id } = body;

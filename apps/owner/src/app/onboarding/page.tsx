@@ -91,7 +91,7 @@ export default function OnboardingPage() {
       }
 
       showToast("success", "Perusahaan berhasil dibuat!");
-      router.push("/owner");
+      router.push("/dashboard");
     } catch {
       showToast("error", "Terjadi kesalahan, coba lagi");
       setIsLoading(false);
