@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Tax } from "@rakku/shared-types";
 import { showToast } from "@rakku/ui";
 import TaxManager from "@/components/admin/TaxManager";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Plus, Pencil, Trash2, DollarSign } from "lucide-react";
 
 interface Props {
@@ -14,6 +15,7 @@ export default function TaxesClient({ initialTaxes }: Props) {
   const [taxes, setTaxes] = useState<Tax[]>(initialTaxes);
   const [showManager, setShowManager] = useState(false);
   const [editingTax, setEditingTax] = useState<Tax | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchTaxes = async () => {
     try {
@@ -38,7 +40,6 @@ export default function TaxesClient({ initialTaxes }: Props) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Hapus tax ini?")) return;
     try {
       const res = await fetch(`/api/admin/taxes?id=${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -106,7 +107,7 @@ export default function TaxesClient({ initialTaxes }: Props) {
           className="flex items-center gap-1.5 bg-forest text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-forest-dark transition-colors"
         >
           <Plus size={16} />
-          Tambah Tax
+          Tambah
         </button>
       </div>
 
@@ -161,7 +162,7 @@ export default function TaxesClient({ initialTaxes }: Props) {
                   <Pencil size={14} />
                 </button>
                 <button
-                  onClick={() => handleDelete(tax.id)}
+                  onClick={() => setPendingDeleteId(tax.id)}
                   className="p-2 text-neutral-400 hover:text-danger rounded-lg hover:bg-neutral-100 transition-colors"
                 >
                   <Trash2 size={14} />
@@ -172,21 +173,31 @@ export default function TaxesClient({ initialTaxes }: Props) {
         </div>
       )}
 
-      {showManager && (
-        <TaxManager
-          tax={editingTax}
-          onSave={handleSave}
-          onClose={() => {
-            setShowManager(false);
-            setEditingTax(null);
-          }}
-          onSuccess={() => {
-            setShowManager(false);
-            setEditingTax(null);
-            fetchTaxes();
-          }}
-        />
-      )}
+      <TaxManager
+        isOpen={showManager}
+        tax={editingTax}
+        onSave={handleSave}
+        onClose={() => {
+          setShowManager(false);
+          setEditingTax(null);
+        }}
+        onSuccess={() => {
+          setShowManager(false);
+          setEditingTax(null);
+          fetchTaxes();
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) handleDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+        title="Hapus Tax"
+        message="Apakah kamu yakin ingin menghapus tax ini? Tindakan ini tidak dapat dibatalkan."
+      />
     </div>
   );
 }

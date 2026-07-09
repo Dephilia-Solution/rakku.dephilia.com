@@ -8,6 +8,7 @@ import { createOrder } from "@/lib/supabase/queries.client";
 import InvoiceReceipt from "@/components/register/InvoiceReceipt";
 import { PaymentMethod, SplitPayment } from "@rakku/shared-types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useModalHistory } from "@/hooks/useModalHistory";
 import SplitBillPanel from "@/components/register/SplitBillPanel";
 import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
 
@@ -54,6 +55,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const groupedCart = useCartGroupedArray();
 
   const isMobile = useIsMobile();
+  const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -438,7 +440,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCancel} />
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCloseAndPop} />
         <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90dvh] animate-slide-up pb-safe">
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-neutral-300" />
@@ -450,9 +452,9 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto" onClick={handleCancel}>
-      <div className="min-h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-white rounded-2xl shadow-md w-full max-w-md">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto" onClick={handleCloseAndPop}>
+      <div className="min-h-full flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-md w-full max-w-md" onClick={(e) => e.stopPropagation()}>
           {content}
         </div>
       </div>

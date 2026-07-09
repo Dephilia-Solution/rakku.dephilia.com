@@ -128,7 +128,7 @@ export default function OwnerSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-[95vw] sm:max-w-2xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-neutral-900">Pengaturan</h1>
@@ -166,12 +166,12 @@ export default function OwnerSettingsPage() {
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 required
-                className="w-full pl-11 pr-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
                 Kode Perusahaan
@@ -245,7 +245,7 @@ export default function OwnerSettingsPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full pl-11 pr-11 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                className="w-full pl-11 pr-11 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
               />
               <button
                 type="button"

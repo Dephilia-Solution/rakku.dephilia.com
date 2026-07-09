@@ -110,7 +110,7 @@ export default function OwnerLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="merchant@example.com"
                   required
-                  className="w-full h-12 pl-11 pr-4 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:border-forest focus:bg-white focus:ring-2 focus:ring-forest/10 transition-all"
+                  className="w-full h-12 pl-11 pr-4 bg-neutral-50 border border-neutral-200 rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:border-forest focus:bg-white focus:ring-2 focus:ring-forest/10 transition-all"
                 />
               </div>
             </div>
@@ -134,7 +134,7 @@ export default function OwnerLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full h-12 pl-11 pr-11 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:border-forest focus:bg-white focus:ring-2 focus:ring-forest/10 transition-all"
+                  className="w-full h-12 pl-11 pr-11 bg-neutral-50 border border-neutral-200 rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:border-forest focus:bg-white focus:ring-2 focus:ring-forest/10 transition-all"
                 />
                 <button
                   type="button"

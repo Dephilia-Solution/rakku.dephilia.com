@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { PricingTier } from "@rakku/shared-types";
 import { showToast } from "@rakku/ui";
 import PricingTierManager from "@/components/admin/PricingTierManager";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Plus, Pencil, Trash2, DollarSign } from "lucide-react";
 
 interface Props {
@@ -14,6 +15,7 @@ export default function PricingTiersClient({ initialTiers }: Props) {
   const [tiers, setTiers] = useState<PricingTier[]>(initialTiers);
   const [showManager, setShowManager] = useState(false);
   const [editingTier, setEditingTier] = useState<PricingTier | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchTiers = async () => {
     try {
@@ -38,7 +40,6 @@ export default function PricingTiersClient({ initialTiers }: Props) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Hapus pricing tier ini?")) return;
     try {
       const res = await fetch(`/api/admin/pricing-tiers?id=${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -87,7 +88,7 @@ export default function PricingTiersClient({ initialTiers }: Props) {
           className="flex items-center gap-1.5 bg-forest text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-forest-dark transition-colors"
         >
           <Plus size={16} />
-          Tambah Tier
+          Tambah
         </button>
       </div>
 
@@ -131,7 +132,7 @@ export default function PricingTiersClient({ initialTiers }: Props) {
                   <Pencil size={14} />
                 </button>
                 <button
-                  onClick={() => handleDelete(tier.id)}
+                  onClick={() => setPendingDeleteId(tier.id)}
                   className="p-2 text-neutral-400 hover:text-danger rounded-lg hover:bg-neutral-100 transition-colors"
                 >
                   <Trash2 size={14} />
@@ -142,21 +143,31 @@ export default function PricingTiersClient({ initialTiers }: Props) {
         </div>
       )}
 
-      {showManager && (
-        <PricingTierManager
-          tier={editingTier}
-          onSave={handleSave}
-          onClose={() => {
-            setShowManager(false);
-            setEditingTier(null);
-          }}
-          onSuccess={() => {
-            setShowManager(false);
-            setEditingTier(null);
-            fetchTiers();
-          }}
-        />
-      )}
+      <PricingTierManager
+        isOpen={showManager}
+        tier={editingTier}
+        onSave={handleSave}
+        onClose={() => {
+          setShowManager(false);
+          setEditingTier(null);
+        }}
+        onSuccess={() => {
+          setShowManager(false);
+          setEditingTier(null);
+          fetchTiers();
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) handleDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+        title="Hapus Pricing Tier"
+        message="Apakah kamu yakin ingin menghapus pricing tier ini? Tindakan ini tidak dapat dibatalkan."
+      />
     </div>
   );
 }

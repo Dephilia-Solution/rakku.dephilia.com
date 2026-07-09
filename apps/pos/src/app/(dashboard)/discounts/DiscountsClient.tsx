@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ProductDiscount, OrderDiscount } from "@rakku/shared-types";
 import { showToast } from "@rakku/ui";
 import DiscountManager from "@/components/admin/DiscountManager";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Plus, Pencil, Trash2, Percent } from "lucide-react";
 
 type TabType = "product" | "order";
@@ -19,6 +20,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
   const [orderDiscounts, setOrderDiscounts] = useState<OrderDiscount[]>(initialOrderDiscounts);
   const [showManager, setShowManager] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<(ProductDiscount | OrderDiscount) | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; scope: "product" | "order" } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -44,7 +46,6 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
   };
 
   const handleDelete = async (id: string, scope: "product" | "order") => {
-    if (!confirm("Hapus diskon ini?")) return;
     try {
       const res = await fetch(`/api/admin/discounts?id=${id}&scope=${scope}`, { method: "DELETE" });
       if (res.ok) {
@@ -110,7 +111,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
           className="flex items-center gap-1.5 bg-forest text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-forest-dark transition-colors"
         >
           <Plus size={16} />
-          Tambah Diskon
+          Tambah
         </button>
       </div>
 
@@ -189,7 +190,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
                     <Pencil size={14} />
                   </button>
                   <button
-                    onClick={() => handleDelete(d.id, tab)}
+                    onClick={() => setPendingDelete({ id: d.id, scope: tab })}
                     className="p-2 text-neutral-400 hover:text-danger rounded-lg hover:bg-neutral-100 transition-colors"
                   >
                     <Trash2 size={14} />
@@ -201,22 +202,32 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
         </div>
       )}
 
-      {showManager && (
-        <DiscountManager
-          discount={editingDiscount}
-          scope={tab}
-          onSave={handleSave}
-          onClose={() => {
-            setShowManager(false);
-            setEditingDiscount(null);
-          }}
-          onSuccess={() => {
-            setShowManager(false);
-            setEditingDiscount(null);
-            fetchData();
-          }}
-        />
-      )}
+      <DiscountManager
+        isOpen={showManager}
+        discount={editingDiscount}
+        scope={tab}
+        onSave={handleSave}
+        onClose={() => {
+          setShowManager(false);
+          setEditingDiscount(null);
+        }}
+        onSuccess={() => {
+          setShowManager(false);
+          setEditingDiscount(null);
+          fetchData();
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) handleDelete(pendingDelete.id, pendingDelete.scope);
+          setPendingDelete(null);
+        }}
+        title="Hapus Diskon"
+        message="Apakah kamu yakin ingin menghapus diskon ini? Tindakan ini tidak dapat dibatalkan."
+      />
     </div>
   );
 }

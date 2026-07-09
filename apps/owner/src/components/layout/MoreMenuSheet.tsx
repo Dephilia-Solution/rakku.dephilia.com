@@ -4,26 +4,25 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, X } from "lucide-react";
-import type { Menu } from "@rakku/shared-types";
+
+interface MenuItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  external?: boolean;
+}
 
 interface MoreMenuSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  overflowItems: Menu[];
+  overflowItems: MenuItem[];
 }
 
-function getIcon(iconName: string | null) {
-  if (!iconName) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const icons = require("lucide-react");
-    return icons[iconName] || null;
-  } catch {
-    return null;
-  }
-}
-
-export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMenuSheetProps) {
+export default function MoreMenuSheet({
+  isOpen,
+  onClose,
+  overflowItems,
+}: MoreMenuSheetProps) {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -40,13 +39,12 @@ export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMe
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] animate-fade-in lg:hidden"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] animate-fade-in md:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
       <div
-        className="fixed bottom-0 left-0 right-0 z-[71] animate-slide-up rounded-t-2xl bg-white shadow-[0_-4px_30px_rgba(0,0,0,0.15)] lg:hidden"
-        
+        className="fixed bottom-0 left-0 right-0 z-[71] animate-slide-up rounded-t-2xl bg-white shadow-[0_-4px_30px_rgba(0,0,0,0.15)] md:hidden"
         role="dialog"
         aria-modal="true"
       >
@@ -67,15 +65,37 @@ export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMe
           </button>
         </div>
 
-        <div className="px-3 pb-2 space-y-1">
+        <div className="px-3 pb-6 space-y-1">
           {overflowItems.map((item) => {
-            const active = pathname === item.path || pathname.startsWith(item.path + "/");
-            const Icon = getIcon(item.icon);
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            const Icon = item.icon;
+
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onClose}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left transition-colors active:scale-[0.98] text-neutral-700 hover:bg-neutral-100"
+                >
+                  <Icon
+                    size={20}
+                    className={active ? "text-forest" : "text-neutral-400"}
+                  />
+                  <span className="font-medium text-sm">{item.label}</span>
+                </a>
+              );
+            }
 
             return (
               <Link
-                key={item.id}
-                href={item.path}
+                key={item.href}
+                href={item.href}
                 onClick={onClose}
                 className={`flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left transition-colors active:scale-[0.98] ${
                   active
@@ -83,15 +103,18 @@ export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMe
                     : "text-neutral-700 hover:bg-neutral-100"
                 }`}
               >
-                {Icon && <Icon size={20} className={active ? "text-forest" : "text-neutral-400"} />}
-                <span className="font-medium text-sm">{item.name}</span>
+                <Icon
+                  size={20}
+                  className={active ? "text-forest" : "text-neutral-400"}
+                />
+                <span className="font-medium text-sm">{item.label}</span>
               </Link>
             );
           })}
 
           <div className="h-px bg-neutral-200 my-3" />
 
-          <form action="/api/auth/tenant/logout" method="post">
+          <form action="/api/auth/owner/logout" method="POST">
             <button
               type="submit"
               className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left text-danger hover:bg-red-50 transition-colors active:scale-[0.98]"

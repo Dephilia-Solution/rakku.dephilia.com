@@ -224,7 +224,7 @@ export default function OwnerOutletsPage() {
       ) : (
         <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
           {/* Desktop Table */}
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-neutral-50 border-b border-neutral-200">
                 <tr>
@@ -299,7 +299,7 @@ export default function OwnerOutletsPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden divide-y divide-neutral-100">
+          <div className="md:hidden divide-y divide-neutral-100">
             {outlets.map((outlet) => (
               <div key={outlet.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -358,9 +358,9 @@ export default function OwnerOutletsPage() {
 
       {/* Form Modal — rendered via portal ke document.body */}
       {showForm && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
                   <Building2 size={20} />
@@ -381,7 +381,7 @@ export default function OwnerOutletsPage() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
                   Nama Outlet
@@ -392,7 +392,7 @@ export default function OwnerOutletsPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Outlet Utama"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
                 />
               </div>
               <div className="space-y-2">
@@ -405,7 +405,7 @@ export default function OwnerOutletsPage() {
                   onChange={(e) => setFormAddress(e.target.value)}
                   placeholder="Jl. Contoh No. 1, Jakarta"
                   rows={3}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-sm text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all resize-none"
+                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all resize-none"
                 />
               </div>
               <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
@@ -438,8 +438,8 @@ export default function OwnerOutletsPage() {
 
       {/* Delete Confirmation — rendered via portal ke document.body */}
       {deleteTarget && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
                 <AlertCircle size={24} />
