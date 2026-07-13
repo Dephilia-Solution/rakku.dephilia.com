@@ -52,6 +52,7 @@ export default function AuditLogsPage() {
     { value: "pin_verify", label: "PIN Verify" },
     { value: "shift_start", label: "Shift Start" },
     { value: "shift_end", label: "Shift End" },
+    { value: "switch_user", label: "Switch User" },
   ];
 
   const fetchCompanies = useCallback(async () => {

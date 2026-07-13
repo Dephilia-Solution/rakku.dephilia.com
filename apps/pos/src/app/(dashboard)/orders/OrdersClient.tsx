@@ -4,7 +4,7 @@ import { useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/dummy-data";
 import { OrderWithItems } from "@rakku/shared-types";
 import { Badge, EmptyState } from "@rakku/ui";
-import { Search, ClipboardList, ChevronDown, ChevronUp, Printer } from "lucide-react";
+import { Search, ClipboardList, ChevronDown, ChevronUp, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 const paymentLabels: Record<string, string> = {
@@ -30,6 +30,8 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
 
   const filtered = orders.filter((o) => {
     if (filter !== "all") {
@@ -54,6 +56,24 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
   const totalOrders = filtered.length;
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const handleSearch = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleFilter = (val: string) => {
+    setFilter(val);
+    setPage(1);
+  };
+
+  const handlePerPage = (val: number) => {
+    setPerPage(val);
+    setPage(1);
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -64,7 +84,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
           {["all", "today", "week"].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => handleFilter(f)}
               className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                 filter === f
                   ? "bg-forest text-white"
@@ -98,7 +118,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
           type="text"
           placeholder="Cari nomor order..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           className="w-full sm:max-w-xs bg-white border border-neutral-200 rounded-xl pl-10 pr-4 py-2.5 sm:py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
         />
       </div>
@@ -127,7 +147,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((order) => {
+                {paginated.map((order) => {
                   const isExpanded = expandedId === order.id;
                   return (
                     <>
@@ -236,7 +256,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
 
           {/* Mobile Cards */}
           <div className="grid gap-3 md:hidden">
-            {filtered.map((order) => {
+            {paginated.map((order) => {
               const isExpanded = expandedId === order.id;
               return (
                 <div key={order.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -308,6 +328,58 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                 </div>
               );
             })}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 px-1">
+            <div className="flex items-center gap-2 text-sm text-neutral-500">
+              <span>Show</span>
+              <select
+                value={perPage}
+                onChange={(e) => handlePerPage(Number(e.target.value))}
+                className="bg-white border border-neutral-200 rounded-lg px-2 py-1 text-sm text-neutral-900 focus:outline-none focus:border-forest"
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span>of {filtered.length} orders</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, arr) => (
+                  <span key={p} className="flex items-center">
+                    {idx > 0 && arr[idx - 1] !== p - 1 && (
+                      <span className="px-1 text-neutral-300">...</span>
+                    )}
+                    <button
+                      onClick={() => setPage(p)}
+                      className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                        page === p
+                          ? "bg-forest text-white"
+                          : "text-neutral-600 hover:bg-neutral-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </span>
+                ))}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </>
       )}

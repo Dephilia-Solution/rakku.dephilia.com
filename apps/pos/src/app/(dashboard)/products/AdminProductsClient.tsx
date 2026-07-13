@@ -6,10 +6,12 @@ import Image from "next/image";
 import { ProductWithCategory, Category, Modifier, PricingTier } from "@rakku/shared-types";
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast, Badge, EmptyState } from "@rakku/ui";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   toggleProductActive,
   createProduct,
   updateProduct,
+  deleteProduct,
   deleteModifier,
   createCategory,
   updateCategory,
@@ -30,6 +32,8 @@ import {
   Upload,
   GripHorizontal,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface Props {
@@ -64,8 +68,11 @@ export default function AdminProductsClient({ products: initialProducts, categor
   const [catEditName, setCatEditName] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductWithCategory | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     category_id: "",
@@ -137,6 +144,24 @@ export default function AdminProductsClient({ products: initialProducts, categor
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const handleSearch = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleCategoryFilter = (val: string) => {
+    setCategoryFilter(val);
+    setPage(1);
+  };
+
+  const handlePerPage = (val: number) => {
+    setPerPage(val);
+    setPage(1);
+  };
 
   const handleEdit = (product: ProductWithCategory) => {
     setEditingProduct(product);
@@ -357,6 +382,17 @@ export default function AdminProductsClient({ products: initialProducts, categor
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProduct(id);
+      setProductList((prev) => prev.filter((p) => p.id !== id));
+      showToast("success", "Produk berhasil dihapus");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal menghapus produk";
+      showToast("error", msg);
+    }
+  };
+
   const handleAddModifier = async () => {
     const name = modifierForm.name.trim();
     if (!name) {
@@ -491,13 +527,13 @@ export default function AdminProductsClient({ products: initialProducts, categor
             type="text"
             placeholder="Cari produk..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl pl-10 pr-4 py-2.5 sm:py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
           />
         </div>
         <select
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          onChange={(e) => handleCategoryFilter(e.target.value)}
           className="w-full sm:w-auto bg-white border border-neutral-200 rounded-xl px-4 py-2.5 sm:py-2 text-sm text-neutral-600 focus:outline-none focus:border-forest"
         >
           <option value="all">Semua Kategori</option>
@@ -526,7 +562,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((product) => (
+                {paginated.map((product) => (
                   <tr key={product.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -562,6 +598,10 @@ export default function AdminProductsClient({ products: initialProducts, categor
                           className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors">
                           {product.is_active ? <EyeOff size={14} /> : <Eye size={14} />}
                         </button>
+                        <button onClick={() => setPendingDeleteId(product.id)}
+                          className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-red-100 flex items-center justify-center text-neutral-500 hover:text-danger transition-colors">
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -572,7 +612,7 @@ export default function AdminProductsClient({ products: initialProducts, categor
 
           {/* Mobile Cards */}
           <div className="grid gap-3 md:hidden">
-            {filtered.map((product) => (
+            {paginated.map((product) => (
               <div key={product.id} className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-neutral-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {product.image_url ? (
@@ -602,6 +642,10 @@ export default function AdminProductsClient({ products: initialProducts, categor
                         className="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-700 transition-colors">
                         {product.is_active ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
+                      <button onClick={() => setPendingDeleteId(product.id)}
+                        className="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-red-100 flex items-center justify-center text-neutral-500 hover:text-danger transition-colors">
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
                   {product.description && (
@@ -610,6 +654,58 @@ export default function AdminProductsClient({ products: initialProducts, categor
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 px-1">
+            <div className="flex items-center gap-2 text-sm text-neutral-500">
+              <span>Show</span>
+              <select
+                value={perPage}
+                onChange={(e) => handlePerPage(Number(e.target.value))}
+                className="bg-white border border-neutral-200 rounded-lg px-2 py-1 text-sm text-neutral-900 focus:outline-none focus:border-forest"
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span>of {filtered.length} products</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, arr) => (
+                  <span key={p} className="flex items-center">
+                    {idx > 0 && arr[idx - 1] !== p - 1 && (
+                      <span className="px-1 text-neutral-300">...</span>
+                    )}
+                    <button
+                      onClick={() => setPage(p)}
+                      className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                        page === p
+                          ? "bg-forest text-white"
+                          : "text-neutral-600 hover:bg-neutral-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </span>
+                ))}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -957,6 +1053,17 @@ export default function AdminProductsClient({ products: initialProducts, categor
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) handleDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+        title="Hapus Produk"
+        message="Apakah kamu yakin ingin menghapus produk ini? Tindakan ini tidak dapat dibatalkan."
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Users } from "lucide-react";
 import { useCartStore } from "@/lib/store/cartStore";
 import type { Menu } from "@rakku/shared-types";
 
@@ -59,15 +59,26 @@ export default function SideRail({ menus }: SideRailProps) {
 
       <div className="w-8 h-px bg-neutral-200 my-1" />
 
-      <form action="/api/auth/tenant/logout" method="post">
-        <button
-          type="submit"
-          title="Keluar"
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-neutral-400 hover:text-danger hover:bg-red-50 transition-colors active:scale-95"
-        >
-          <LogOut size={20} />
-        </button>
-      </form>
+      <div className="flex flex-col items-center gap-1">
+        <form action="/api/auth/tenant/switch-user" method="post">
+          <button
+            type="submit"
+            title="Ganti User"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-neutral-400 hover:text-forest hover:bg-forest/5 transition-colors active:scale-95"
+          >
+            <Users size={20} />
+          </button>
+        </form>
+        <form action="/api/auth/tenant/logout" method="post">
+          <button
+            type="submit"
+            title="Keluar"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-neutral-400 hover:text-danger hover:bg-red-50 transition-colors active:scale-95"
+          >
+            <LogOut size={20} />
+          </button>
+        </form>
+      </div>
     </aside>
   );
 }
