@@ -4,7 +4,17 @@ import { createAdminClient } from "@rakku/supabase-clients";
 
 const ownerAuthPaths = ["/register", "/login"];
 const ownerOnboardingPath = "/onboarding";
-const ownerDashboardPaths = ["/dashboard", "/outlets", "/employees", "/settings"];
+const ownerDashboardPaths = [
+  "/dashboard",
+  "/outlets",
+  "/employees",
+  "/settings",
+  "/reports",
+  "/orders",
+  "/pricing-tiers",
+  "/taxes",
+  "/discounts",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

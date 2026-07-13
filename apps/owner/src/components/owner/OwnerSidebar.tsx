@@ -10,6 +10,11 @@ import {
   Settings,
   LogOut,
   ExternalLink,
+  BarChart3,
+  ClipboardList,
+  Layers,
+  DollarSign,
+  Percent,
 } from "lucide-react";
 
 interface OwnerSidebarProps {
@@ -23,8 +28,13 @@ interface OwnerSidebarProps {
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/reports", label: "Laporan", icon: BarChart3 },
+  { href: "/orders", label: "Pesanan", icon: ClipboardList },
   { href: "/outlets", label: "Outlet", icon: Building2 },
   { href: "/employees", label: "Karyawan", icon: Users },
+  { href: "/pricing-tiers", label: "Pricing Tiers", icon: Layers },
+  { href: "/taxes", label: "Tax", icon: DollarSign },
+  { href: "/discounts", label: "Diskon", icon: Percent },
   { href: "/settings", label: "Pengaturan", icon: Settings },
 ];
 
