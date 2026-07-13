@@ -100,6 +100,10 @@ export async function toggleProductActive(id: string, is_active: boolean) {
   });
 }
 
+export async function deleteProduct(id: string) {
+  return api(`/api/admin/products?id=${id}`, { method: "DELETE" });
+}
+
 export async function getModifiersByProduct(productId: string) {
   return api(`/api/admin/modifiers?product_id=${productId}`);
 }

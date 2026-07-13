@@ -68,8 +68,8 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
         </span>
         {discount && (
           <span className="absolute top-2 right-2 bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-            <Percent size={8} />
-            {discount.type === "percentage" ? `${discount.value}%` : "Diskon"}
+            
+            {discount.type === "percentage" ? `${discount.value}%` : "%"}
           </span>
         )}
       </div>

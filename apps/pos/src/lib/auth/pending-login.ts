@@ -8,8 +8,8 @@ const SECRET = new TextEncoder().encode(
   process.env.POS_JWT_SECRET || "dev-secret-change-in-production-min-32-chars!!"
 );
 
-export async function signPendingLogin(data: PendingLogin): Promise<string> {
-  return signJwt(SECRET, { ...data }, PENDING_DURATION);
+export async function signPendingLogin(data: PendingLogin, expiresInSeconds: number = PENDING_DURATION): Promise<string> {
+  return signJwt(SECRET, { ...data }, expiresInSeconds);
 }
 
 export async function verifyPendingLogin(token: string): Promise<PendingLogin | null> {
@@ -34,6 +34,9 @@ export function clearPendingLoginCookie() {
   return `${PENDING_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-export function setPendingLoginCookie(token: string) {
-  return `${PENDING_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${PENDING_DURATION}`;
+export function setPendingLoginCookie(token: string, maxAgeSeconds: number = PENDING_DURATION) {
+  if (maxAgeSeconds > 0) {
+    return `${PENDING_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+  }
+  return `${PENDING_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax`;
 }

@@ -5,7 +5,7 @@ import { ProductDiscount, OrderDiscount } from "@rakku/shared-types";
 import { showToast } from "@rakku/ui";
 import DiscountManager from "@/components/admin/DiscountManager";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { Plus, Pencil, Trash2, Percent } from "lucide-react";
+import { Plus, Pencil, Trash2, Percent, ChevronLeft, ChevronRight } from "lucide-react";
 
 type TabType = "product" | "order";
 
@@ -21,6 +21,8 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
   const [showManager, setShowManager] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<(ProductDiscount | OrderDiscount) | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; scope: "product" | "order" } | null>(null);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
 
   const fetchData = async () => {
     try {
@@ -95,6 +97,19 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
 
   const discounts = tab === "product" ? productDiscounts : orderDiscounts;
 
+  const totalPages = Math.ceil(discounts.length / perPage);
+  const paginated = discounts.slice((page - 1) * perPage, page * perPage);
+
+  const handleTab = (t: TabType) => {
+    setTab(t);
+    setPage(1);
+  };
+
+  const handlePerPage = (val: number) => {
+    setPerPage(val);
+    setPage(1);
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -118,7 +133,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setTab("product")}
+          onClick={() => handleTab("product")}
           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             tab === "product"
               ? "bg-forest text-white shadow-sm"
@@ -128,7 +143,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
           Diskon Produk
         </button>
         <button
-          onClick={() => setTab("order")}
+          onClick={() => handleTab("order")}
           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             tab === "order"
               ? "bg-forest text-white shadow-sm"
@@ -146,7 +161,7 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
         </div>
       ) : (
         <div className="space-y-2">
-          {discounts.map((discount) => {
+          {paginated.map((discount) => {
             const d = discount as ProductDiscount;
             const active = isActive(d.start_date, d.end_date);
             return (
@@ -199,6 +214,59 @@ export default function DiscountsClient({ initialProductDiscounts, initialOrderD
               </div>
             );
           })}
+        </div>
+      )}
+
+      {discounts.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 px-1">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <span>Show</span>
+            <select
+              value={perPage}
+              onChange={(e) => handlePerPage(Number(e.target.value))}
+              className="bg-white border border-neutral-200 rounded-lg px-2 py-1 text-sm text-neutral-900 focus:outline-none focus:border-forest"
+            >
+              {[10, 20, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span>of {discounts.length} discounts</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => (
+                <span key={p} className="flex items-center">
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span className="px-1 text-neutral-300">...</span>
+                  )}
+                  <button
+                    onClick={() => setPage(p)}
+                    className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                      page === p
+                        ? "bg-forest text-white"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </span>
+              ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
       )}
 

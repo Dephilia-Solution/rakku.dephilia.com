@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, X } from "lucide-react";
+import { LogOut, Users, X } from "lucide-react";
 import type { Menu } from "@rakku/shared-types";
 
 interface MoreMenuSheetProps {
@@ -90,6 +90,16 @@ export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMe
           })}
 
           <div className="h-px bg-neutral-200 my-3" />
+
+          <form action="/api/auth/tenant/switch-user" method="post">
+            <button
+              type="submit"
+              className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left text-forest hover:bg-forest/5 transition-colors active:scale-[0.98]"
+            >
+              <Users size={20} />
+              <span className="font-medium text-sm">Ganti User</span>
+            </button>
+          </form>
 
           <form action="/api/auth/tenant/logout" method="post">
             <button

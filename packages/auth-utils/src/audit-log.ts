@@ -6,7 +6,8 @@ export type AuthEventType =
   | "account_select"
   | "pin_verify"
   | "shift_start"
-  | "shift_end";
+  | "shift_end"
+  | "switch_user";
 
 interface LogAuthEventParams {
   company_id?: string | null;
