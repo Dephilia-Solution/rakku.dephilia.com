@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ProductWithCategory } from "@rakku/shared-types";
 import { formatCurrency } from "@/lib/dummy-data";
 import { useCartStore, getTierPrice } from "@/lib/store/cartStore";
-import { ImageIcon, Percent } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 
 interface ProductCardProps {
   product: ProductWithCategory;
