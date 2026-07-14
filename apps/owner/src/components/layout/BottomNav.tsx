@@ -10,30 +10,38 @@ import {
   Settings,
   MoreHorizontal,
   ExternalLink,
+  BarChart3,
+  ClipboardList,
+  Layers,
+  DollarSign,
+  Percent,
 } from "lucide-react";
 import MoreMenuSheet from "./MoreMenuSheet";
 
-const menuItems = [
+const primaryItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/orders", label: "Pesanan", icon: ClipboardList },
   { href: "/outlets", label: "Outlet", icon: Building2 },
   { href: "/employees", label: "Karyawan", icon: Users },
-  { href: process.env.NEXT_PUBLIC_POS_URL || "http://localhost:3001", label: "Login Kasir", icon: ExternalLink },
+];
+
+const overflowMenuItems = [
+  { href: "/reports", label: "Laporan", icon: BarChart3 },
+  { href: "/pricing-tiers", label: "Pricing Tiers", icon: Layers },
+  { href: "/taxes", label: "Tax", icon: DollarSign },
+  { href: "/discounts", label: "Diskon", icon: Percent },
+  { href: "/settings", label: "Pengaturan", icon: Settings },
+  {
+    href: process.env.NEXT_PUBLIC_POS_URL || "http://localhost:3001",
+    label: "Login Kasir",
+    icon: ExternalLink,
+    external: true,
+  },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
-
-  const primaryItems = menuItems.slice(0,4);
-  const overflowItems = [
-    ...menuItems.slice(4),
-    {
-      href: "/settings",
-      label: "Pengaturan",
-      icon: Settings,
-      external: true,
-    },
-  ];
 
   return (
     <>
@@ -80,7 +88,7 @@ export default function BottomNav() {
       <MoreMenuSheet
         isOpen={showMore}
         onClose={() => setShowMore(false)}
-        overflowItems={overflowItems}
+        overflowItems={overflowMenuItems}
       />
     </>
   );
