@@ -112,22 +112,22 @@ async function seed() {
   const accessEntries: { role_id: string; menu_id: string; can_view: boolean }[] = [];
 
   // Owner: semua
-  for (const slug of ["register", "orders", "reports", "products"]) {
+  for (const slug of ["register", "orders", "reports", "products", "printer"]) {
     accessEntries.push({ role_id: roleMap["Owner"], menu_id: menuMap[slug], can_view: true });
   }
 
-  // Kepala Cabang: register, orders, reports
-  for (const slug of ["register", "orders", "reports"]) {
+  // Kepala Cabang: register, orders, reports, printer
+  for (const slug of ["register", "orders", "reports", "printer"]) {
     accessEntries.push({ role_id: roleMap["Kepala Cabang"], menu_id: menuMap[slug], can_view: true });
   }
 
-  // Admin: orders, reports, products
-  for (const slug of ["orders", "reports", "products"]) {
+  // Admin: orders, reports, products, printer
+  for (const slug of ["orders", "reports", "products", "printer"]) {
     accessEntries.push({ role_id: roleMap["Admin"], menu_id: menuMap[slug], can_view: true });
   }
 
-  // Kasir: register, orders
-  for (const slug of ["register", "orders"]) {
+  // Kasir: register, orders, printer
+  for (const slug of ["register", "orders", "printer"]) {
     accessEntries.push({ role_id: roleMap["Kasir"], menu_id: menuMap[slug], can_view: true });
   }
 
