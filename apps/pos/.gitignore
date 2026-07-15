@@ -1,2 +1,14 @@
 public/sw*
 public/swe-worker*
+
+# Capacitor Android build artifacts & local config
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/local.properties
+android/captures/
+android/.idea/
+*.keystore
+*.jks
+android/keystore.properties
