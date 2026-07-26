@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth/tenant-session";
 
 const tenantAuthPaths = ["/login", "/login/select-outlet", "/login/select-user", "/login/enter-pin"];
-const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/categories", "/pricing-tiers", "/taxes", "/discounts", "/settings"];
+const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/categories", "/pricing-tiers", "/taxes", "/discounts"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

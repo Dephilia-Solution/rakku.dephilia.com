@@ -1,19 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { formatCurrency } from "@/lib/dummy-data";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
-import { Printer, X, Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { isNative } from "@/lib/printer/capacitor-platform";
-import {
-  getSavedDevice,
-  isConnected,
-  autoReconnect,
-  write,
-} from "@/lib/printer/bluetooth-bridge";
-import { buildOrderReceipt } from "@/lib/printer/escpos-builder";
-import { ReceiptData } from "@/lib/printer/types";
-import { showToast } from "@rakku/ui";
+import { Printer, X } from "lucide-react";
 
 interface InvoiceItem {
   product_name: string;
@@ -151,8 +141,6 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
 </html>`;
 }
 
-type PrintState = "idle" | "sending" | "success" | "error";
-
 export default function InvoiceReceipt(props: InvoiceReceiptProps) {
   const {
     orderNumber, customerName, cashierName, items,
@@ -160,75 +148,18 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
     createdAt, onClose, cashAmount, change,
   } = props;
 
-  const [printState, setPrintState] = useState<PrintState>("idle");
-  const [printError, setPrintError] = useState<string>("");
-
-  const handlePrint = useCallback(async () => {
-    if (!isNative()) {
-      const html = buildReceiptHtml(props);
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        alert("Izinkan pop-up untuk mencetak invoice");
-        return;
-      }
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+  const handlePrint = useCallback(() => {
+    const html = buildReceiptHtml(props);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Izinkan pop-up untuk mencetak invoice");
       return;
     }
-
-    const saved = getSavedDevice();
-    if (!saved) {
-      showToast("error", "Printer belum diatur. Buka Pengaturan Printer untuk menyambungkan.");
-      return;
-    }
-
-    let connected = false;
-    try {
-      connected = await isConnected();
-      if (!connected) {
-        connected = await autoReconnect();
-      }
-    } catch {
-      connected = false;
-    }
-
-    if (!connected) {
-      showToast("error", `Printer "${saved.name}" tidak terhubung. Buka Pengaturan Printer.`);
-      return;
-    }
-
-    setPrintState("sending");
-    setPrintError("");
-    try {
-      const receiptData: ReceiptData = {
-        orderNumber,
-        customerName,
-        cashierName,
-        items,
-        subtotal,
-        appliedTaxes,
-        appliedDiscounts,
-        total,
-        paymentMethod,
-        orderType,
-        createdAt,
-        cashAmount,
-        change,
-      };
-      const bytes = buildOrderReceipt(receiptData);
-      await write(bytes);
-      setPrintState("success");
-      setTimeout(() => setPrintState("idle"), 3000);
-    } catch (err) {
-      setPrintState("error");
-      const msg = err instanceof Error ? err.message : "Gagal mencetak struk";
-      setPrintError(msg);
-      showToast("error", msg);
-      setTimeout(() => setPrintState("idle"), 5000);
-    }
-  }, [props, orderNumber, customerName, cashierName, items, subtotal, appliedTaxes, appliedDiscounts, total, paymentMethod, orderType, createdAt, cashAmount, change]);
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [props]);
 
   const paymentLabel =
     paymentMethod === "cash" ? "Tunai" :
@@ -244,42 +175,11 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrint}
-            disabled={printState === "sending"}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${
-              printState === "success"
-                ? "bg-success text-white"
-                : printState === "error"
-                  ? "bg-danger text-white"
-                  : "bg-forest text-white hover:bg-forest-dark"
-            }`}
+            className="bg-forest text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-forest-dark transition-colors flex items-center gap-1.5"
           >
-            {printState === "sending" ? (
-              <>
-                <Loader2 size={15} className="animate-spin" />
-                Mencetak...
-              </>
-            ) : printState === "success" ? (
-              <>
-                <CheckCircle2 size={15} />
-                Tercetak
-              </>
-            ) : printState === "error" ? (
-              <>
-                <XCircle size={15} />
-                Gagal
-              </>
-            ) : (
-              <>
-                <Printer size={15} />
-                Print
-              </>
-            )}
+            <Printer size={15} />
+            Print
           </button>
-          {printState === "error" && printError && (
-            <div className="text-xs text-danger mr-2 max-w-[160px] truncate" title={printError}>
-              {printError}
-            </div>
-          )}
           {onClose && (
             <button
               onClick={onClose}
