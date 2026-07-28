@@ -3,41 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Building2,
-  Users,
-  Settings,
-  MoreHorizontal,
-  ExternalLink,
-  BarChart3,
-  ClipboardList,
-  Layers,
-  DollarSign,
-  Percent,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import MoreMenuSheet from "./MoreMenuSheet";
-
-const primaryItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/orders", label: "Pesanan", icon: ClipboardList },
-  { href: "/outlets", label: "Outlet", icon: Building2 },
-  { href: "/employees", label: "Karyawan", icon: Users },
-];
-
-const overflowMenuItems = [
-  { href: "/reports", label: "Laporan", icon: BarChart3 },
-  { href: "/pricing-tiers", label: "Pricing Tiers", icon: Layers },
-  { href: "/taxes", label: "Tax", icon: DollarSign },
-  { href: "/discounts", label: "Diskon", icon: Percent },
-  { href: "/settings", label: "Pengaturan", icon: Settings },
-  {
-    href: process.env.NEXT_PUBLIC_POS_URL || "http://localhost:3001",
-    label: "Login Kasir",
-    icon: ExternalLink,
-    external: true,
-  },
-];
+import { ownerPrimaryItems, ownerOverflowItems } from "./nav-config";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -46,10 +14,10 @@ export default function BottomNav() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-neutral-200/60 flex items-stretch z-50 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+        className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/90 backdrop-blur-xl border-t border-surface-container flex items-stretch z-50 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
         aria-label="Navigasi utama"
       >
-        {primaryItems.map((item) => {
+        {ownerPrimaryItems.map((item) => {
           const active =
             item.href === "/"
               ? pathname === "/"
@@ -61,11 +29,13 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 ${
-                active ? "text-forest" : "text-neutral-400 hover:text-neutral-600"
+                active
+                  ? "text-primary"
+                  : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
               {active && (
-                <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-forest rounded-full" />
+                <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-primary rounded-full" />
               )}
               <Icon size={22} />
               <span className="text-[10px] font-medium leading-none">
@@ -77,7 +47,7 @@ export default function BottomNav() {
 
         <button
           onClick={() => setShowMore(true)}
-          className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-neutral-400 hover:text-neutral-600`}
+          className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-on-surface-variant hover:text-on-surface`}
         >
           <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-transparent rounded-full" />
           <MoreHorizontal size={22} />
@@ -88,7 +58,7 @@ export default function BottomNav() {
       <MoreMenuSheet
         isOpen={showMore}
         onClose={() => setShowMore(false)}
-        overflowItems={overflowMenuItems}
+        overflowItems={ownerOverflowItems}
       />
     </>
   );

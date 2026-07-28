@@ -43,7 +43,7 @@ export default function BottomNav({ menus, primaryCount = 4 }: BottomNavProps) {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-neutral-200/60 flex items-stretch z-50 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+        className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/90 backdrop-blur-xl border-t border-surface-container flex items-stretch z-50 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
         aria-label="Navigasi utama"
       >
         {primaryItems.map((item) => {
@@ -55,11 +55,11 @@ export default function BottomNav({ menus, primaryCount = 4 }: BottomNavProps) {
               key={item.id}
               href={item.path}
               className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 ${
-                active ? "text-forest" : "text-neutral-400 hover:text-neutral-600"
+                active ? "text-primary" : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
               {active && (
-                <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-forest rounded-full" />
+                <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-primary rounded-full" />
               )}
               <div className="relative">
                 {Icon ? <Icon size={22} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
@@ -74,14 +74,16 @@ export default function BottomNav({ menus, primaryCount = 4 }: BottomNavProps) {
           );
         })}
 
-        <button
-          onClick={() => setShowMore(true)}
-          className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-neutral-400 hover:text-neutral-600`}
-        >
-          <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-transparent rounded-full" />
-          <MoreHorizontal size={22} />
-          <span className="text-[10px] font-medium leading-none">Lainnya</span>
-        </button>
+        {overflowItems.length > 0 && (
+          <button
+            onClick={() => setShowMore(true)}
+            className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-on-surface-variant hover:text-on-surface`}
+          >
+            <span className="absolute top-0 left-1/4 right-1/4 h-[3px] bg-transparent rounded-full" />
+            <MoreHorizontal size={22} />
+            <span className="text-[10px] font-medium leading-none">Lainnya</span>
+          </button>
+        )}
       </nav>
 
       <MoreMenuSheet

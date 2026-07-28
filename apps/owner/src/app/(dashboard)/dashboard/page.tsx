@@ -51,7 +51,7 @@ export default async function OwnerDashboardPage() {
       value: String(outlets.length),
       sub: `${activeOutlets} aktif`,
       icon: Building2,
-      color: "bg-forest",
+      color: "bg-primary",
       href: "/outlets",
     },
     {
@@ -76,10 +76,10 @@ export default async function OwnerDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
+          <h1 className="text-2xl font-bold text-on-surface">
             Halo, {session.name}!
           </h1>
-          <p className="text-sm text-neutral-400 mt-1">
+          <p className="text-sm text-on-surface-variant mt-1">
             Berikut ringkasan bisnis Anda hari ini.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default async function OwnerDashboardPage() {
             <Link
               key={stat.label}
               href={stat.href}
-              className="bg-white rounded-2xl border border-neutral-200 p-5 hover:shadow-md transition-all"
+              className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5 hover:shadow-md transition-all"
             >
               <div className="flex items-start justify-between mb-4">
                 <div
@@ -101,37 +101,37 @@ export default async function OwnerDashboardPage() {
                 >
                   <Icon size={20} />
                 </div>
-                <ArrowRight size={16} className="text-neutral-300" />
+                <ArrowRight size={16} className="text-on-surface-variant/50" />
               </div>
-              <p className="text-sm text-neutral-400">{stat.label}</p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">
+              <p className="text-sm text-on-surface-variant">{stat.label}</p>
+              <p className="text-2xl font-bold text-on-surface mt-1">
                 {stat.value}
               </p>
-              <p className="text-xs text-neutral-400 mt-1">{stat.sub}</p>
+              <p className="text-xs text-on-surface-variant mt-1">{stat.sub}</p>
             </Link>
           );
         })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-neutral-200 p-5">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
               <Store size={20} />
             </div>
-            <h2 className="font-bold text-neutral-900">Outlet Terbaru</h2>
+            <h2 className="font-bold text-on-surface">Outlet Terbaru</h2>
           </div>
           <div className="space-y-2">
             {outlets.slice(0, 3).map((outlet) => (
               <div
                 key={outlet.id}
-                className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl"
+                className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl"
               >
                 <div>
-                  <p className="text-sm font-semibold text-neutral-900">
+                  <p className="text-sm font-semibold text-on-surface">
                     {outlet.name}
                   </p>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-on-surface-variant">
                     {outlet.employee_count} karyawan
                   </p>
                 </div>
@@ -139,7 +139,7 @@ export default async function OwnerDashboardPage() {
                   className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     outlet.status === "active"
                       ? "bg-success/10 text-success"
-                      : "bg-neutral-200 text-neutral-400"
+                      : "bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
                   {outlet.status === "active" ? "Aktif" : "Nonaktif"}
@@ -147,41 +147,41 @@ export default async function OwnerDashboardPage() {
               </div>
             ))}
             {outlets.length === 0 && (
-              <p className="text-sm text-neutral-400 text-center py-4">
+              <p className="text-sm text-on-surface-variant text-center py-4">
                 Belum ada outlet
               </p>
             )}
           </div>
           <Link
             href="/outlets"
-            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-forest hover:underline"
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
           >
             Kelola outlet <ArrowRight size={14} />
           </Link>
         </div>
 
-        <div className="bg-white rounded-2xl border border-neutral-200 p-5">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
               <Users size={20} />
             </div>
-            <h2 className="font-bold text-neutral-900">Karyawan Terbaru</h2>
+            <h2 className="font-bold text-on-surface">Karyawan Terbaru</h2>
           </div>
           <div className="space-y-2">
             {employees.slice(0, 3).map((emp) => (
               <div
                 key={emp.id}
-                className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl"
+                className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-forest/10 rounded-full flex items-center justify-center text-forest font-bold text-xs">
+                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs">
                     {emp.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-neutral-900">
+                    <p className="text-sm font-semibold text-on-surface">
                       {emp.name}
                     </p>
-                    <p className="text-xs text-neutral-400">
+                    <p className="text-xs text-on-surface-variant">
                       {emp.role_name}
                     </p>
                   </div>
@@ -190,7 +190,7 @@ export default async function OwnerDashboardPage() {
                   className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     emp.status === "active"
                       ? "bg-success/10 text-success"
-                      : "bg-neutral-200 text-neutral-400"
+                      : "bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
                   {emp.status === "active" ? "Aktif" : "Nonaktif"}
@@ -198,14 +198,14 @@ export default async function OwnerDashboardPage() {
               </div>
             ))}
             {employees.length === 0 && (
-              <p className="text-sm text-neutral-400 text-center py-4">
+              <p className="text-sm text-on-surface-variant text-center py-4">
                 Belum ada karyawan
               </p>
             )}
           </div>
           <Link
             href="/employees"
-            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-forest hover:underline"
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
           >
             Kelola karyawan <ArrowRight size={14} />
           </Link>

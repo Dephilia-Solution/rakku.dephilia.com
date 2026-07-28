@@ -58,6 +58,18 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
 
   useEffect(() => {
+    if (!isOpen) {
+      setIsSuccess(false);
+      setInvoiceData(null);
+      setMethod(null);
+      setCashAmount("");
+      setSplitBillMode(false);
+      setSplitPayments([]);
+      setCashierName(null);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen) {
       fetch("/api/auth/tenant/session")
         .then((res) => res.ok ? res.json() : null)

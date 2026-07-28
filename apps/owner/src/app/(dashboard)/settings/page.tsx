@@ -10,7 +10,7 @@ import {
   EyeOff,
   AlertCircle,
 } from "lucide-react";
-import { showToast, ToastContainer } from "@rakku/ui";
+import { showToast } from "@rakku/ui";
 
 export default function OwnerSettingsPage() {
   const [company, setCompany] = useState<{
@@ -112,17 +112,17 @@ export default function OwnerSettingsPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-48 bg-neutral-100 rounded-lg animate-pulse" />
-        <div className="h-64 bg-white rounded-2xl border border-neutral-200 animate-pulse" />
+        <div className="h-8 w-48 bg-surface-container rounded-lg animate-pulse" />
+        <div className="h-64 bg-surface-container-lowest rounded-2xl border border-surface-container animate-pulse" />
       </div>
     );
   }
 
   if (!company) {
     return (
-      <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
-        <AlertCircle size={32} className="text-danger mx-auto mb-2" />
-        <p className="text-sm text-neutral-400">Data perusahaan tidak ditemukan</p>
+      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">
+        <AlertCircle size={32} className="text-error mx-auto mb-2" />
+        <p className="text-sm text-on-surface-variant">Data perusahaan tidak ditemukan</p>
       </div>
     );
   }
@@ -131,21 +131,21 @@ export default function OwnerSettingsPage() {
     <div className="space-y-6 max-w-[95vw] sm:max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Pengaturan</h1>
-        <p className="text-sm text-neutral-400 mt-1">
+        <h1 className="text-2xl font-bold text-on-surface">Pengaturan</h1>
+        <p className="text-sm text-on-surface-variant mt-1">
           Kelola profil dan keamanan perusahaan Anda.
         </p>
       </div>
 
       {/* Profile Section */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
             <Building2 size={20} />
           </div>
           <div>
-            <h2 className="font-bold text-neutral-900">Profil Perusahaan</h2>
-            <p className="text-xs text-neutral-400">
+            <h2 className="font-bold text-on-surface">Profil Perusahaan</h2>
+            <p className="text-xs text-on-surface-variant">
               Nama & informasi dasar perusahaan
             </p>
           </div>
@@ -153,41 +153,41 @@ export default function OwnerSettingsPage() {
 
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
               Nama Perusahaan
             </label>
             <div className="relative group">
               <Building2
                 size={20}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-forest transition-colors"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors"
               />
               <input
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 required
-                className="w-full pl-11 pr-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                 Kode Perusahaan
               </label>
-              <div className="px-4 py-3 bg-neutral-100 rounded-xl text-sm font-mono text-neutral-600">
+              <div className="px-4 py-3 bg-surface-container rounded-xl text-sm font-mono text-on-surface-variant">
                 {company.code}
               </div>
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-on-surface-variant">
                 Kode tidak bisa diubah
               </p>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                 Status
               </label>
-              <div className="px-4 py-3 bg-neutral-100 rounded-xl text-sm text-neutral-600">
+              <div className="px-4 py-3 bg-surface-container rounded-xl text-sm text-on-surface-variant">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-2 h-2 bg-success rounded-full"></span>
                   {company.status === "active" ? "Aktif" : company.status}
@@ -199,7 +199,7 @@ export default function OwnerSettingsPage() {
           <button
             type="submit"
             disabled={isSavingProfile}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70"
           >
             {isSavingProfile ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -214,16 +214,16 @@ export default function OwnerSettingsPage() {
       </div>
 
       {/* Password Section */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
             <Lock size={20} />
           </div>
           <div>
-            <h2 className="font-bold text-neutral-900">
+            <h2 className="font-bold text-on-surface">
               Password Perusahaan
             </h2>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-on-surface-variant">
               Dipakai kasir di langkah 1 login POS
             </p>
           </div>
@@ -231,13 +231,13 @@ export default function OwnerSettingsPage() {
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
               Password Baru
             </label>
             <div className="relative group">
               <Lock
                 size={20}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-forest transition-colors"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors"
               />
               <input
                 type={showPassword ? "text" : "password"}
@@ -245,17 +245,17 @@ export default function OwnerSettingsPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full pl-11 pr-11 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                className="w-full pl-11 pr-11 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-forest transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-on-surface-variant">
               Minimal 6 karakter. Beritahu karyawan setelah diubah.
             </p>
           </div>
@@ -263,7 +263,7 @@ export default function OwnerSettingsPage() {
           <button
             type="submit"
             disabled={isSavingPassword}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70"
           >
             {isSavingPassword ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -278,11 +278,11 @@ export default function OwnerSettingsPage() {
       </div>
 
       {/* Info Card */}
-      <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-5">
+      <div className="bg-surface-container-low rounded-2xl border border-surface-container p-5">
         <div className="flex items-start gap-3">
-          <Settings size={20} className="text-neutral-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-neutral-600 space-y-1">
-            <p className="font-semibold text-neutral-900">Informasi</p>
+          <Settings size={20} className="text-on-surface-variant flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-on-surface-variant space-y-1">
+            <p className="font-semibold text-on-surface">Informasi</p>
             <p>
               Perusahaan terdaftar sejak{" "}
               {new Date(company.created_at).toLocaleDateString("id-ID", {
@@ -294,15 +294,13 @@ export default function OwnerSettingsPage() {
             </p>
             <p>
               Slug:{" "}
-              <span className="font-mono text-neutral-500">
+              <span className="font-mono text-on-surface-variant">
                 {company.slug || "-"}
               </span>
             </p>
           </div>
         </div>
       </div>
-
-      <ToastContainer />
     </div>
   );
 }

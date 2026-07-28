@@ -102,8 +102,8 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Laporan Penjualan</h1>
-          <p className="text-sm text-neutral-400 mt-1">
+          <h1 className="text-2xl font-bold text-on-surface">Laporan Penjualan</h1>
+          <p className="text-sm text-on-surface-variant mt-1">
             Ringkasan penjualan {companyName}
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
           <select
             value={outletId}
             onChange={(e) => setOutletId(e.target.value)}
-            className="bg-white border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+            className="bg-surface-container-lowest border border-surface-container rounded-xl px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           >
             <option value="">Semua Outlet</option>
             {outlets.map((o) => (
@@ -127,8 +127,8 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
               onClick={() => setDateRange(r.value)}
               className={`flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors ${
                 dateRange === r.value
-                  ? "bg-forest text-white"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  ? "bg-primary text-white"
+                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
               }`}
             >
               {r.label}
@@ -137,7 +137,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
 
           <button
             onClick={() => setShowEmailModal(true)}
-            className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center gap-1.5"
+            className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center gap-1.5"
           >
             <Mail size={13} />
             Kirim Email
@@ -153,50 +153,50 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-          <div className="w-10 h-10 rounded-xl bg-forest/10 flex items-center justify-center mb-3 text-forest">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3 text-primary">
             <BarChart3 size={20} />
           </div>
-          <p className="text-xs text-neutral-400 mb-1">Total Transaksi</p>
-          <p className="text-2xl font-bold text-neutral-900">
+          <p className="text-xs text-on-surface-variant mb-1">Total Transaksi</p>
+          <p className="text-2xl font-bold text-on-surface">
             {loading ? "—" : totalTransactions}
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-          <div className="w-10 h-10 rounded-xl bg-forest/10 flex items-center justify-center mb-3 text-forest">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3 text-primary">
             <TrendingUp size={20} />
           </div>
-          <p className="text-xs text-neutral-400 mb-1">Total Pendapatan</p>
-          <p className="text-2xl font-bold text-forest">
+          <p className="text-xs text-on-surface-variant mb-1">Total Pendapatan</p>
+          <p className="text-2xl font-bold text-primary">
             {loading ? "—" : formatCurrency(totalRevenue)}
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-          <div className="w-10 h-10 rounded-xl bg-forest/10 flex items-center justify-center mb-3 text-forest">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3 text-primary">
             <CupSoda size={20} />
           </div>
-          <p className="text-xs text-neutral-400 mb-1">Item Terlaris</p>
-          <p className="text-2xl font-bold text-neutral-900">
+          <p className="text-xs text-on-surface-variant mb-1">Item Terlaris</p>
+          <p className="text-2xl font-bold text-on-surface">
             {loading || !topItem ? "-" : `${topItem[0]} (${topItem[1]})`}
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
-        <div className="p-5 border-b border-neutral-100">
-          <h3 className="font-bold text-neutral-900">Detail Transaksi</h3>
+      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden">
+        <div className="p-5 border-b border-surface-container">
+          <h3 className="font-bold text-on-surface">Detail Transaksi</h3>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-sm text-neutral-400">
+          <div className="p-8 text-center text-sm text-on-surface-variant">
             Memuat data...
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-14 h-14 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <BarChart3 size={28} className="text-neutral-400" />
+            <div className="w-14 h-14 bg-surface-container rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <BarChart3 size={28} className="text-on-surface-variant" />
             </div>
-            <p className="text-sm text-neutral-400">
+            <p className="text-sm text-on-surface-variant">
               Tidak ada transaksi di periode ini
             </p>
           </div>
@@ -205,40 +205,40 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-neutral-50 border-b border-neutral-200">
+                <thead className="bg-surface-container-low border-b border-surface-container">
                   <tr>
                     {["Order", "Waktu", "Outlet", "Items", "Metode", "Total"].map((h) => (
                       <th
                         key={h}
-                        className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3"
+                        className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3"
                       >
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y divide-surface-container">
                   {filtered.map((order) => (
-                    <tr key={order.id} className="hover:bg-neutral-50">
-                      <td className="px-6 py-3 font-mono text-sm font-semibold text-neutral-900">
+                    <tr key={order.id} className="hover:bg-surface-container-low">
+                      <td className="px-6 py-3 font-mono text-sm font-semibold text-on-surface">
                         #{order.order_number}
                       </td>
-                      <td className="px-6 py-3 text-sm text-neutral-600">
+                      <td className="px-6 py-3 text-sm text-on-surface-variant">
                         {formatDate(order.created_at)}
                       </td>
                       <td className="px-6 py-3">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-neutral-600">
-                          <Building2 size={12} className="text-neutral-400" />
+                        <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant">
+                          <Building2 size={12} className="text-on-surface-variant" />
                           {order.outlet_name || "-"}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-sm text-neutral-600">
+                      <td className="px-6 py-3 text-sm text-on-surface-variant">
                         {order.items.length} item
                       </td>
-                      <td className="px-6 py-3 text-sm text-neutral-600 capitalize">
+                      <td className="px-6 py-3 text-sm text-on-surface-variant capitalize">
                         {order.payment_method}
                       </td>
-                      <td className="px-6 py-3 font-mono text-sm font-semibold text-neutral-900">
+                      <td className="px-6 py-3 font-mono text-sm font-semibold text-on-surface">
                         {formatCurrency(order.total_price)}
                       </td>
                     </tr>
@@ -248,18 +248,18 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
             </div>
 
             {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-neutral-100">
+            <div className="md:hidden divide-y divide-surface-container">
               {filtered.map((order) => (
                 <div key={order.id} className="p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono text-sm font-semibold text-neutral-900">
+                    <span className="font-mono text-sm font-semibold text-on-surface">
                       #{order.order_number}
                     </span>
-                    <span className="font-mono text-sm font-bold text-forest">
+                    <span className="font-mono text-sm font-bold text-primary">
                       {formatCurrency(order.total_price)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-neutral-400 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant flex-wrap">
                     <span className="inline-flex items-center gap-1">
                       <Building2 size={11} />
                       {order.outlet_name || "-"}
@@ -268,7 +268,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
                     <span>{formatDate(order.created_at)}</span>
                     <span>&middot;</span>
                     <span>{order.items.length} item</span>
-                    <span className="text-[10px] capitalize bg-neutral-100 rounded-full px-2 py-0.5">
+                    <span className="text-[10px] capitalize bg-surface-container rounded-full px-2 py-0.5">
                       {order.payment_method}
                     </span>
                   </div>

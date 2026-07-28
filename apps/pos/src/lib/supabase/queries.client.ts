@@ -53,6 +53,13 @@ export async function deleteCategory(id: string) {
   return api(`/api/admin/categories?id=${id}`, { method: "DELETE" });
 }
 
+export async function reorderCategories(orders: { id: string; sort_order: number }[]) {
+  return api("/api/admin/categories", {
+    method: "PUT",
+    body: JSON.stringify({ orders }),
+  });
+}
+
 export async function createProduct(product: {
   name: string;
   price: number;

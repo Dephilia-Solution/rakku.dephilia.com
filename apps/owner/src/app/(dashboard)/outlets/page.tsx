@@ -180,14 +180,14 @@ export default function OwnerOutletsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Outlet</h1>
-          <p className="text-sm text-neutral-400 mt-1">
+          <h1 className="text-2xl font-bold text-on-surface">Outlet</h1>
+          <p className="text-sm text-on-surface-variant mt-1">
             Kelola cabang/outlet bisnis Anda.
           </p>
         </div>
         <button
           onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
         >
           <Plus size={16} />
           Tambah Outlet
@@ -200,68 +200,68 @@ export default function OwnerOutletsPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-48 bg-white rounded-2xl border border-neutral-200 animate-pulse"
+              className="h-48 bg-surface-container-lowest rounded-2xl border border-surface-container animate-pulse"
             />
           ))}
         </div>
       ) : outlets.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
-          <div className="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Building2 size={32} className="text-neutral-400" />
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">
+          <div className="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Building2 size={32} className="text-on-surface-variant" />
           </div>
-          <h3 className="font-bold text-neutral-900 mb-1">Belum ada outlet</h3>
-          <p className="text-sm text-neutral-400 mb-4">
+          <h3 className="font-bold text-on-surface mb-1">Belum ada outlet</h3>
+          <p className="text-sm text-on-surface-variant mb-4">
             Tambahkan outlet pertama Anda untuk mulai berjualan.
           </p>
           <button
             onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
           >
             <Plus size={16} />
             Tambah Outlet
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden">
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-neutral-50 border-b border-neutral-200">
+              <thead className="bg-surface-container-low border-b border-surface-container">
                 <tr>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">Nama</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">Alamat</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">Karyawan</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">Status</th>
-                  <th className="text-right text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">Aksi</th>
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Nama</th>
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Alamat</th>
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Karyawan</th>
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Status</th>
+                  <th className="text-right text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-surface-container">
                 {outlets.map((outlet) => (
-                  <tr key={outlet.id} className="hover:bg-neutral-50">
+                  <tr key={outlet.id} className="hover:bg-surface-container-low">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+                        <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                           <Building2 size={18} />
                         </div>
-                        <span className="text-sm font-semibold text-neutral-900">{outlet.name}</span>
+                        <span className="text-sm font-semibold text-on-surface">{outlet.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       {outlet.address ? (
-                        <span className="text-sm text-neutral-500 line-clamp-2 max-w-[200px]">{outlet.address}</span>
+                        <span className="text-sm text-on-surface-variant line-clamp-2 max-w-[200px]">{outlet.address}</span>
                       ) : (
-                        <span className="text-sm text-neutral-300 italic">-</span>
+                        <span className="text-sm text-on-surface-variant/50 italic">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-neutral-500">{outlet.employee_count} karyawan</span>
+                      <span className="text-sm text-on-surface-variant">{outlet.employee_count} karyawan</span>
                     </td>
                     <td className="px-6 py-4">
                       <span
                         className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                           outlet.status === "active"
                             ? "bg-success/10 text-success"
-                            : "bg-neutral-200 text-neutral-400"
+                            : "bg-surface-container-high text-on-surface-variant"
                         }`}
                       >
                         {outlet.status === "active" ? "Aktif" : "Nonaktif"}
@@ -271,21 +271,21 @@ export default function OwnerOutletsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditForm(outlet)}
-                          className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg transition-all"
                           title="Edit"
                         >
                           <Pencil size={16} />
                         </button>
                         <button
                           onClick={() => handleToggleStatus(outlet)}
-                          className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg transition-all"
                           title={outlet.status === "active" ? "Nonaktifkan" : "Aktifkan"}
                         >
                           {outlet.status === "active" ? <X size={16} /> : <Check size={16} />}
                         </button>
                         <button
                           onClick={() => setDeleteTarget(outlet)}
-                          className="p-2 text-neutral-400 hover:text-danger hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-error hover:bg-surface-container rounded-lg transition-all"
                           title="Hapus"
                         >
                           <Trash2 size={16} />
@@ -299,53 +299,53 @@ export default function OwnerOutletsPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="md:hidden divide-y divide-neutral-100">
+          <div className="md:hidden divide-y divide-surface-container">
             {outlets.map((outlet) => (
               <div key={outlet.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                       <Building2 size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900">{outlet.name}</p>
-                      <p className="text-xs text-neutral-400">{outlet.employee_count} karyawan</p>
+                      <p className="text-sm font-semibold text-on-surface">{outlet.name}</p>
+                      <p className="text-xs text-on-surface-variant">{outlet.employee_count} karyawan</p>
                     </div>
                   </div>
                   <span
                     className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       outlet.status === "active"
                         ? "bg-success/10 text-success"
-                        : "bg-neutral-200 text-neutral-400"
+                        : "bg-surface-container-high text-on-surface-variant"
                     }`}
                   >
                     {outlet.status === "active" ? "Aktif" : "Nonaktif"}
                   </span>
                 </div>
                 {outlet.address ? (
-                  <p className="text-xs text-neutral-400 flex items-start gap-1.5 mb-3">
+                  <p className="text-xs text-on-surface-variant flex items-start gap-1.5 mb-3">
                     <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                     <span>{outlet.address}</span>
                   </p>
                 ) : (
-                  <p className="text-xs text-neutral-300 italic mb-3">Tanpa alamat</p>
+                  <p className="text-xs text-on-surface-variant/50 italic mb-3">Tanpa alamat</p>
                 )}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => openEditForm(outlet)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-50 text-neutral-600 text-xs font-semibold rounded-lg hover:bg-neutral-100 transition-all"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-low text-on-surface-variant text-xs font-semibold rounded-lg hover:bg-surface-container transition-all"
                   >
                     <Pencil size={14} /> Edit
                   </button>
                   <button
                     onClick={() => handleToggleStatus(outlet)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-50 text-neutral-600 text-xs font-semibold rounded-lg"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-low text-on-surface-variant text-xs font-semibold rounded-lg"
                   >
                     {outlet.status === "active" ? "Nonaktifkan" : "Aktifkan"}
                   </button>
                   <button
                     onClick={() => setDeleteTarget(outlet)}
-                    className="px-3 py-2 bg-neutral-50 text-danger text-xs font-semibold rounded-lg"
+                    className="px-3 py-2 bg-surface-container-low text-error text-xs font-semibold rounded-lg"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -359,31 +359,31 @@ export default function OwnerOutletsPage() {
       {/* Form Modal — rendered via portal ke document.body */}
       {showForm && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
+            <div className="flex items-center justify-between p-6 border-b border-surface-container bg-surface-container-lowest">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                   <Building2 size={20} />
                 </div>
                 <div>
-                  <h2 className="font-bold text-lg text-neutral-900">
+                  <h2 className="font-bold text-lg text-on-surface">
                     {editingOutlet ? "Edit Outlet" : "Tambah Outlet"}
                   </h2>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-on-surface-variant">
                     {editingOutlet ? "Ubah data outlet." : "Buat outlet baru untuk bisnis Anda."}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
-                className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-lg"
+                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]">
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Nama Outlet
                 </label>
                 <input
@@ -392,34 +392,34 @@ export default function OwnerOutletsPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Outlet Utama"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Alamat{" "}
-                  <span className="text-neutral-400 normal-case font-normal">(opsional)</span>
+                  <span className="text-on-surface-variant normal-case font-normal">(opsional)</span>
                 </label>
                 <textarea
                   value={formAddress}
                   onChange={(e) => setFormAddress(e.target.value)}
                   placeholder="Jl. Contoh No. 1, Jakarta"
                   rows={3}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all resize-none"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none"
                 />
               </div>
-              <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
+              <div className="flex gap-3 pt-2 sticky bottom-0 bg-surface-container-lowest">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -439,21 +439,21 @@ export default function OwnerOutletsPage() {
       {/* Delete Confirmation — rendered via portal ke document.body */}
       {deleteTarget && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
+              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-error">
                 <AlertCircle size={24} />
               </div>
               <div>
-                <h2 className="font-bold text-lg text-neutral-900">
+                <h2 className="font-bold text-lg text-on-surface">
                   Hapus Outlet?
                 </h2>
-                <p className="text-sm text-neutral-400">
+                <p className="text-sm text-on-surface-variant">
                   Tindakan ini tidak bisa dibatalkan.
                 </p>
               </div>
             </div>
-            <p className="text-sm text-neutral-600 mb-6">
+            <p className="text-sm text-on-surface-variant mb-6">
               Anda akan menghapus outlet{" "}
               <span className="font-bold">{deleteTarget.name}</span> beserta
               semua data terkait (produk, order, dll).
@@ -461,7 +461,7 @@ export default function OwnerOutletsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
               >
                 Batal
               </button>

@@ -212,6 +212,10 @@ export default function RegisterView({
   const isModifierOpen = showModifierModal && !!selectedProduct;
   const { handleCloseAndPop: closeModifierWithHistory } = useModalHistory(isModifierOpen, closeModifierModal);
 
+  const handleClosePayment = useCallback(() => {
+    setShowPayment(false);
+  }, []);
+
   const handleCheckout = () => {
     setShowPayment(true);
   };
@@ -371,7 +375,7 @@ export default function RegisterView({
       {/* Payment Modal */}
       <PaymentModal
         isOpen={showPayment}
-        onClose={() => setShowPayment(false)}
+        onClose={handleClosePayment}
         onOrderComplete={() => setDraftVersion((v) => v + 1)}
       />
 

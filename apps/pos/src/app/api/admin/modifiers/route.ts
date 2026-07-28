@@ -59,6 +59,54 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(modifier, { status: 201 });
 }
 
+export async function PATCH(request: NextRequest) {
+  const body = await request.json();
+  const { id, name, group_name, prices } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "ID modifier harus diisi" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  if (name !== undefined || group_name !== undefined) {
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name;
+    if (group_name !== undefined) updates.group_name = group_name || null;
+
+    const { error: updateError } = await supabase
+      .from("modifiers")
+      .update(updates)
+      .eq("id", id);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+  }
+
+  if (prices && Array.isArray(prices)) {
+    await supabase.from("modifier_tier_prices").delete().eq("modifier_id", id);
+
+    if (prices.length > 0) {
+      const inserts = prices.map((p: { tier_id: string; price_delta: number }) => ({
+        modifier_id: id,
+        tier_id: p.tier_id,
+        price_delta: p.price_delta,
+      }));
+
+      const { error: tierError } = await supabase
+        .from("modifier_tier_prices")
+        .insert(inserts);
+
+      if (tierError) {
+        console.error("Failed to update modifier tier prices:", tierError.message);
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");

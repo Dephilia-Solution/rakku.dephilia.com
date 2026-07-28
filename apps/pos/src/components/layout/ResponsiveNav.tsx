@@ -21,5 +21,5 @@ export default function ResponsiveNav({ menus }: ResponsiveNavProps) {
     return <SideRail menus={menus} />;
   }
 
-  return <BottomNav menus={menus} primaryCount={4} />;
+  return <BottomNav menus={menus} primaryCount={5} />;
 }

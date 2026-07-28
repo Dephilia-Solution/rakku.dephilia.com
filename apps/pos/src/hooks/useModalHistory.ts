@@ -6,6 +6,11 @@ const MODAL_STATE_KEY = "modal-open";
 
 export function useModalHistory(isOpen: boolean, onClose: () => void) {
   const isClosingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -16,7 +21,7 @@ export function useModalHistory(isOpen: boolean, onClose: () => void) {
     const handlePopState = () => {
       if (isClosingRef.current) return;
       isClosingRef.current = true;
-      onClose();
+      onCloseRef.current();
     };
 
     window.history.pushState({ key: MODAL_STATE_KEY }, "");
@@ -29,7 +34,8 @@ export function useModalHistory(isOpen: boolean, onClose: () => void) {
       }
       isClosingRef.current = false;
     };
-  }, [isOpen, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleCloseAndPop = () => {
     if (isClosingRef.current) return;
@@ -37,7 +43,7 @@ export function useModalHistory(isOpen: boolean, onClose: () => void) {
       window.history.back();
     } else {
       isClosingRef.current = true;
-      onClose();
+      onCloseRef.current();
     }
   };
 

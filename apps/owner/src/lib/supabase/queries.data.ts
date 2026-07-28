@@ -11,6 +11,11 @@ import {
   ProductDiscount,
   OrderDiscount,
   ProductWithCategory,
+  Category,
+  Modifier,
+  ModifierTierPrice,
+  ProductTierPrice,
+  Product,
 } from "@rakku/shared-types";
 
 type JsonLike = Record<string, unknown>;
@@ -725,4 +730,131 @@ export async function getOutletProducts(
       category_name: ((p.categories as JsonLike)?.name as string) ?? "",
     })) ?? []
   );
+}
+
+// ============================================================
+// CATEGORIES — scoped by company + outlet (admin client bypasses RLS)
+// ============================================================
+export async function getCompanyCategories(
+  companyId: string,
+  outletId: string
+): Promise<Category[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("outlet_id", outletId)
+    .order("sort_order");
+
+  return (data as JsonLike[])?.map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    sort_order: c.sort_order as number,
+  })) ?? [];
+}
+
+// ============================================================
+// PRICING TIERS — scoped by company + outlet (for server-side fetch)
+// Returns plain PricingTier[] (consistent with POS pattern)
+// ============================================================
+export async function getCompanyPricingTiersSimple(
+  companyId: string,
+  outletId: string
+): Promise<PricingTier[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("pricing_tiers")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("outlet_id", outletId)
+    .order("sort_order");
+
+  return (data as JsonLike[])?.map((t) => ({
+    id: t.id as string,
+    company_id: t.company_id as string,
+    outlet_id: t.outlet_id as string,
+    name: t.name as string,
+    slug: t.slug as string,
+    is_active: t.is_active as boolean,
+    sort_order: t.sort_order as number,
+  })) ?? [];
+}
+
+// ============================================================
+// PRODUCT — single product by ID (scoped by company)
+// ============================================================
+export async function getCompanyProductById(
+  companyId: string,
+  productId: string
+): Promise<(Product & { image_url: string | null; description: string | null }) | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("products")
+    .select("id, name, price, category_id, image_url, is_active, description")
+    .eq("id", productId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (!data) return null;
+  const p = data as JsonLike;
+  return {
+    id: p.id as string,
+    name: p.name as string,
+    price: Number(p.price),
+    category_id: p.category_id as string,
+    image_url: p.image_url as string | null,
+    is_active: p.is_active as boolean,
+    description: p.description as string | null,
+  };
+}
+
+// ============================================================
+// MODIFIERS — for a product (scoped by company via products join)
+// ============================================================
+export async function getProductModifiers(
+  companyId: string,
+  productId: string
+): Promise<(Modifier & { tier_prices?: ModifierTierPrice[] })[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("modifiers")
+    .select("*, modifier_tier_prices(*), products!inner(company_id)")
+    .eq("product_id", productId)
+    .eq("products.company_id", companyId)
+    .order("name");
+
+  return (data as JsonLike[])?.map((m) => ({
+    id: m.id as string,
+    product_id: m.product_id as string,
+    name: m.name as string,
+    price_delta: m.price_delta as number | undefined,
+    group_name: m.group_name as string | null,
+    tier_prices: ((m.modifier_tier_prices as JsonLike[]) ?? []).map((tp) => ({
+      id: tp.id as string,
+      modifier_id: tp.modifier_id as string,
+      tier_id: tp.tier_id as string,
+      price_delta: Number(tp.price_delta),
+    })),
+  })) ?? [];
+}
+
+// ============================================================
+// PRODUCT TIER PRICES — for a product
+// ============================================================
+export async function getProductTierPricesByProduct(
+  productId: string
+): Promise<ProductTierPrice[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("product_tier_prices")
+    .select("*")
+    .eq("product_id", productId);
+
+  return (data as JsonLike[])?.map((p) => ({
+    id: p.id as string,
+    product_id: p.product_id as string,
+    tier_id: p.tier_id as string,
+    price: Number(p.price),
+  })) ?? [];
 }

@@ -26,7 +26,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-dvh overflow-hidden">
       <ResponsiveNav menus={menus} />
-      <main className="flex-1 min-w-0 overflow-hidden md:ml-16 pb-[var(--nav-bottom-safe)] md:pb-0">{children}</main>
+      <main className="flex-1 min-w-0 overflow-hidden md:ml-60 pb-[var(--nav-bottom-safe)] md:pb-0">{children}</main>
       <ToastContainer />
     </div>
   );

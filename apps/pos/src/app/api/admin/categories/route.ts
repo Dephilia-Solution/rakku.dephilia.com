@@ -51,6 +51,27 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
+export async function PUT(request: NextRequest) {
+  const body = await request.json();
+  const { orders } = body;
+
+  if (!Array.isArray(orders) || orders.length === 0) {
+    return NextResponse.json({ error: "orders harus array of { id, sort_order }" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+  const promises = orders.map((o: { id: string; sort_order: number }) =>
+    supabase.from("categories").update({ sort_order: o.sort_order }).eq("id", o.id)
+  );
+  const results = await Promise.all(promises);
+  const err = results.find((r) => r.error);
+  if (err) {
+    return NextResponse.json({ error: err.error!.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");

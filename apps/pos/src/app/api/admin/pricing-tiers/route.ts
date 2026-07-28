@@ -145,6 +145,37 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json(data);
 }
 
+export async function PUT(request: NextRequest) {
+  const session = await getTenantSessionFromCookies();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { orders } = body;
+
+  if (!Array.isArray(orders) || orders.length === 0) {
+    return NextResponse.json({ error: "orders harus array of { id, sort_order }" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+  const promises = orders.map((o: { id: string; sort_order: number }) =>
+    supabase
+      .from("pricing_tiers")
+      .update({ sort_order: o.sort_order })
+      .eq("id", o.id)
+      .eq("company_id", session.company_id)
+      .eq("outlet_id", session.outlet_id)
+  );
+  const results = await Promise.all(promises);
+  const err = results.find((r) => r.error);
+  if (err) {
+    return NextResponse.json({ error: err.error!.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function DELETE(request: NextRequest) {
   const session = await getTenantSessionFromCookies();
   if (!session) {

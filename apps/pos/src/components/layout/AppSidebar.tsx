@@ -29,26 +29,31 @@ function isActive(href: string, pathname: string): boolean {
 
 export default function AppSidebar({ menus }: AppSidebarProps) {
   const pathname = usePathname();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const itemCount = useCartStore((s) =>
+    s.items.reduce((sum, i) => sum + i.quantity, 0)
+  );
 
   return (
     <aside
-      className="w-16 h-dvh fixed left-0 top-0 bg-white border-r border-neutral-200 flex flex-col items-center z-40 hidden md:flex"
+      className="fixed left-0 top-0 h-full w-60 bg-surface-container-lowest z-50 hidden md:flex flex-col border-r border-surface-container"
       aria-label="Navigasi utama"
     >
-      <div className="w-10 h-10 rounded-xl bg-forest overflow-hidden flex-shrink-0 mt-3 mb-2">
-        <Image
-          src="/images/rakku_logo.png"
-          alt="Rakku"
-          width={40}
-          height={40}
-          className="w-full h-full object-cover"
-        />
+      <div className="p-6 mb-2 flex items-center gap-3">
+        <div className="w-8 h-8 bg-primary rounded-lg overflow-hidden flex-shrink-0">
+          <Image
+            src="/images/rakku_logo.png"
+            alt="Rakku"
+            width={32}
+            height={32}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <span className="font-display font-bold text-lg text-primary tracking-tight">
+          Rakku
+        </span>
       </div>
 
-      <div className="w-8 h-px bg-neutral-100 my-2" />
-
-      <nav className="flex flex-col gap-1 items-center flex-1 overflow-y-auto py-2 scrollbar-none">
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto scrollbar-none">
         {menus.map((item) => {
           const active = isActive(item.path, pathname);
           const Icon = getIcon(item.icon);
@@ -57,49 +62,50 @@ export default function AppSidebar({ menus }: AppSidebarProps) {
             <Link
               key={item.id}
               href={item.path}
-              title={item.name}
-              className={`relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+              aria-current={active ? "page" : undefined}
+              className={`flex items-center px-4 py-3 rounded-lg transition-all group ${
                 active
-                  ? "bg-forest text-white shadow-sm"
-                  : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+                  ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
+                  : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
               }`}
             >
-              {Icon ? (
-                <Icon size={20} />
-              ) : (
-                <span className={`text-xs font-bold ${active ? "text-white" : "text-neutral-400"}`}>
-                  {item.name.charAt(0)}
-                </span>
-              )}
-              {item.path === "/register" && itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-danger text-[8px] font-bold text-white flex items-center justify-center">
-                  {itemCount > 9 ? "9+" : itemCount}
-                </span>
-              )}
+              <span className="relative mr-3 flex-shrink-0">
+                {Icon ? (
+                  <Icon size={22} />
+                ) : (
+                  <span className="text-sm font-bold">
+                    {item.name.charAt(0)}
+                  </span>
+                )}
+                {item.path === "/register" && itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-danger text-[9px] font-bold text-white flex items-center justify-center">
+                    {itemCount > 9 ? "9+" : itemCount}
+                  </span>
+                )}
+              </span>
+              <span className="text-sm font-medium">{item.name}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="w-8 h-px bg-neutral-200 my-1" />
-
-      <div className="flex flex-col items-center gap-1 mb-3">
+      <div className="px-4 py-4 border-t border-surface-container space-y-1">
         <form action="/api/auth/tenant/switch-user" method="post">
           <button
             type="submit"
-            title="Ganti User"
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-neutral-400 hover:text-forest hover:bg-forest/5 transition-colors active:scale-95"
+            className="w-full flex items-center px-4 py-2.5 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all"
           >
-            <Users size={20} />
+            <Users size={20} className="mr-3" />
+            Ganti User
           </button>
         </form>
         <form action="/api/auth/tenant/logout" method="post">
           <button
             type="submit"
-            title="Keluar"
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-neutral-400 hover:text-danger hover:bg-red-50 transition-colors active:scale-95"
+            className="w-full flex items-center px-4 py-2.5 rounded-lg text-sm font-medium text-error hover:bg-error-container/20 transition-all"
           >
-            <LogOut size={20} />
+            <LogOut size={20} className="mr-3" />
+            Keluar
           </button>
         </form>
       </div>

@@ -87,9 +87,11 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │   │   ├── employees/        # CRUD karyawan + panel Kelola Role & akses menu
 │   │   │   │   ├── orders/           # Daftar pesanan + invoice (Owner view)
 │   │   │   │   ├── reports/          # Laporan penjualan + kirim email
-│   │   │   │   ├── pricing-tiers/   # CRUD tier harga
-│   │   │   │   ├── taxes/            # CRUD pajak
-│   │   │   │   ├── discounts/        # CRUD diskon
+│   │   │   │   ├── products/         # CRUD produk + kategori (slide-over) + tier pricing (slide-over)
+│   │   │   │   │   ├── add/          # Form tambah produk
+│   │   │   │   │   ├── [id]/edit/    # Form edit produk
+│   │   │   │   │   └── page.tsx      # List produk
+│   │   │   │   ├── tax-discounts/    # Pajak & Diskon (tab pajak, diskon produk, diskon order)
 │   │   │   │   └── settings/         # Edit profil company + ganti password
 │   │   │   ├── login/page.tsx        # Login Owner (email + password)
 │   │   │   ├── register/page.tsx     # Daftar Owner baru
@@ -99,10 +101,12 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │       ├── auth/owner/       # login, register, verify-email, resend-verification, session, logout
 │   │   │       ├── onboarding/       # GET/POST company (suggest kode/slug + buat company+outlet+seed)
 │   │   │       └── owner/            # CRUD: outlets, employees, roles (+access), menus, orders, products,
-│   │   │                              #        pricing-tiers, taxes, discounts, settings, reports/send-email
+│   │   │                              #        categories, modifiers, product-tier-prices, taxes, discounts,
+│   │   │                              #        settings, reports/send-email
 │   │   ├── src/components/
 │   │   │   ├── owner/OwnerSidebar.tsx
-│   │   │   ├── admin/                # DiscountManager, PricingTierManager, TaxManager
+│   │   │   ├── charges/              # TaxFormSlideOver, DiscountFormSlideOver
+│   │   │   ├── products/             # ProductForm, CategoryManagerSlideOver, TierManagerSlideOver
 │   │   │   ├── layout/               # ResponsiveNav, BottomNav, MoreMenuSheet
 │   │   │   ├── reports/EmailReportModal.tsx
 │   │   │   └── ui/ConfirmDialog.tsx
@@ -130,11 +134,10 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │   │   ├── register/         # POS Register (kasir)
 │   │   │   │   ├── orders/           # Daftar pesanan + [id]/invoice
 │   │   │   │   ├── reports/          # Laporan penjualan + kirim email
-│   │   │   │   ├── products/         # CRUD produk + upload gambar
-│   │   │   │   ├── categories/       # CRUD kategori
-│   │   │   │   ├── pricing-tiers/   # CRUD tier harga
-│   │   │   │   ├── taxes/            # CRUD pajak
-│   │   │   │   └── discounts/        # CRUD diskon
+│   │   │   │   ├── products/         # List produk (CRUD via halaman dedicated)
+│   │   │   │   │   ├── add/          # Form tambah produk
+│   │   │   │   │   └── [id]/edit/    # Form edit produk
+│   │   │   │   └── tax-discounts/    # Pajak & Diskon (tab pajak, diskon produk, diskon order)
 │   │   │   ├── sw.ts                 # PWA Service Worker (Serwist)
 │   │   │   ├── manifest.ts           # PWA Web App Manifest
 │   │   │   └── ~offline/page.tsx    # Halaman fallback offline
@@ -142,14 +145,15 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │       ├── auth/tenant/      # company, outlet, accounts, verify-pin, session, switch-user, logout
 │   │   │       ├── admin/            # CRUD: products, categories, modifiers, orders (+draft+split),
 │   │   │       │                      #        pricing-options, pricing-tiers, product/modifier-tier-prices,
-│   │   │       │                      #        taxes (+active), discounts (+active)
+│   │   │       │                      #        taxes (+active), discounts (+active), products/upload
 │   │   │       └── reports/          # send-email (Resend)
 │   │   ├── src/components/
 │   │   │   ├── register/             # RegisterView, ProductGrid, ProductCard, CategoryTabs, OrderSidebar,
 │   │   │   │                          # MobileCartBar, PaymentModal, DraftOrdersPanel, InvoiceReceipt,
 │   │   │   │                          # ItemDetailModal, SplitBillPanel, PricingOptionSelector
-│   │   │   ├── admin/                # DiscountManager, PricingOptionsManager, PricingTierManager, TaxManager
-│   │   │   ├── layout/               # AppSidebar (rail), BottomNav, MobileBottomNav, MoreMenuSheet, ResponsiveNav, SideRail, Sidebar
+│   │   │   ├── charges/              # TaxFormSlideOver, DiscountFormSlideOver
+│   │   │   ├── products/             # ProductForm, CategoryManagerSlideOver, TierManagerSlideOver
+│   │   │   ├── layout/               # AppSidebar (240px labeled), BottomNav, MoreMenuSheet, ResponsiveNav, SideRail, Sidebar
 │   │   │   ├── reports/EmailReportModal.tsx
 │   │   │   └── ui/ConfirmDialog.tsx
 │   │   ├── src/hooks/                # useMediaQuery, useModalHistory, useNavMode, useSwipe
@@ -196,7 +200,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   └── pricing/                      # DEFAULT_TIERS, seedDefaultTiers, syncProductTierPrices
 │
 ├── supabase/
-│   ├── migrations/                   # 13 file migrasi (001–014, tanpa 005)
+│   ├── migrations/                   # 14 file migrasi (001–015, tanpa 005)
 │   │   ├── 001_init.sql              # Schema awal (tabel core)
 │   │   ├── 002_multi_tenant.sql      # Multi-tenant & RBAC
 │   │   ├── 003_rls_permissive.sql    # Non-aktifkan RLS
@@ -209,7 +213,8 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   ├── 011_flatten_paths.sql
 │   │   ├── 012_pricing_per_tier.sql  # Modifier tier prices
 │   │   ├── 013_tax_discount.sql      # Pajak & diskon dinamis
-│   │   └── 014_owner_self_service.sql # Tabel owners + alter companies (owner_id, slug)
+│   │   ├── 014_owner_self_service.sql # Tabel owners + alter companies (owner_id, slug)
+│   │   └── 015_menu_consolidation.sql # Gabung taxes+discounts → tax-discounts, hapus pricing-tiers, rename ke ID
 │   └── seed.sql
 │
 ├── scripts/
@@ -603,7 +608,7 @@ MODIFIERS ||--o{ MODIFIER_TIER_PRICES : priced via
 | Kolom | Tipe | Keterangan |
 |-------|------|------------|
 | id | uuid PK | |
-| slug | text UNIQUE | register, orders, reports, products, taxes, discounts, pricing-tiers |
+| slug | text UNIQUE | register, orders, reports, products, tax-discounts |
 | name | text | |
 | icon | text | Nama icon lucide-react |
 | path | text | Route path |
@@ -794,9 +799,10 @@ idx_users_company, idx_roles_company
 | `/orders` | `app/(dashboard)/orders/page.tsx` + `OrdersClient.tsx` | Daftar pesanan |
 | `/orders/[id]/invoice` | `app/(dashboard)/orders/[id]/invoice/page.tsx` + `InvoicePageClient.tsx` | Invoice print |
 | `/reports` | `app/(dashboard)/reports/page.tsx` + `ReportsClient.tsx` | Laporan penjualan + email |
-| `/pricing-tiers` | `app/(dashboard)/pricing-tiers/page.tsx` + `PricingTiersClient.tsx` | CRUD tier harga |
-| `/taxes` | `app/(dashboard)/taxes/page.tsx` + `TaxesClient.tsx` | CRUD pajak |
-| `/discounts` | `app/(dashboard)/discounts/page.tsx` + `DiscountsClient.tsx` | CRUD diskon |
+| `/products` | `app/(dashboard)/products/page.tsx` + `OwnerProductsClient.tsx` | List produk (CRUD via halaman add/edit) |
+| `/products/add` | `app/(dashboard)/products/add/page.tsx` + `ProductForm` | Form tambah produk |
+| `/products/[id]/edit` | `app/(dashboard)/products/[id]/edit/page.tsx` + `ProductForm` | Form edit produk |
+| `/tax-discounts` | `app/(dashboard)/tax-discounts/page.tsx` | Pajak & Diskon dengan tab (pajak, diskon produk, diskon order) |
 | `/settings` | `app/(dashboard)/settings/page.tsx` | Edit profil company + ganti password |
 
 #### API — `apps/owner/src/app/api/`
@@ -819,7 +825,11 @@ idx_users_company, idx_roles_company
 | `/api/owner/roles/[id]/access` | GET/POST | List / toggle akses menu per role |
 | `/api/owner/menus` | GET | List semua menu sistem |
 | `/api/owner/orders` | GET | List pesanan per company |
-| `/api/owner/products` | GET | List produk per company |
+| `/api/owner/products` | GET/POST/PATCH/DELETE | CRUD produk per outlet |
+| `/api/owner/products/upload` | POST | Upload gambar produk (sharp) |
+| `/api/owner/categories` | GET/POST/PATCH/DELETE | CRUD kategori per outlet |
+| `/api/owner/modifiers` | GET/POST/DELETE | CRUD modifier |
+| `/api/owner/product-tier-prices` | GET/POST | Baca / simpan tier price per produk |
 | `/api/owner/pricing-tiers` | GET/POST | List / buat tier |
 | `/api/owner/pricing-tiers/[id]` | PATCH/DELETE | Edit / hapus tier |
 | `/api/owner/taxes` | GET/POST | List / buat pajak |
@@ -848,11 +858,10 @@ idx_users_company, idx_roles_company
 | `/orders` | `(dashboard)/orders/page.tsx` + `OrdersClient.tsx` | Daftar pesanan |
 | `/orders/[id]/invoice` | `(dashboard)/orders/[id]/invoice/page.tsx` + `InvoicePageClient.tsx` | Invoice print |
 | `/reports` | `(dashboard)/reports/page.tsx` + `ReportsClient.tsx` | Laporan penjualan + email |
-| `/products` | `(dashboard)/products/page.tsx` + `AdminProductsClient.tsx` | Manajemen produk + upload gambar |
-| `/categories` | `(dashboard)/categories/page.tsx` + `AdminCategoriesClient.tsx` | Manajemen kategori |
-| `/pricing-tiers` | `(dashboard)/pricing-tiers/page.tsx` + `PricingTiersClient.tsx` | Manajemen tier harga |
-| `/taxes` | `(dashboard)/taxes/page.tsx` + `TaxesClient.tsx` | Manajemen pajak |
-| `/discounts` | `(dashboard)/discounts/page.tsx` + `DiscountsClient.tsx` | Manajemen diskon |
+| `/products` | `(dashboard)/products/page.tsx` + `AdminProductsClient.tsx` | List produk (search, filter, toggle, delete) |
+| `/products/add` | `(dashboard)/products/add/page.tsx` + `ProductForm` | Form tambah produk |
+| `/products/[id]/edit` | `(dashboard)/products/[id]/edit/page.tsx` + `ProductForm` | Form edit produk |
+| `/tax-discounts` | `(dashboard)/tax-discounts/page.tsx` | Pajak & Diskon dengan tab (pajak, diskon produk, diskon order) |
 
 > Setiap halaman `(dashboard)/` punya `loading.tsx` (skeleton) + `error.tsx` boundary.
 
@@ -979,21 +988,25 @@ idx_users_company, idx_roles_company
 | **SplitBillPanel** | Konfigurasi split pembayaran |
 | **PricingOptionSelector** | Pilih opsi harga tambahan |
 
-### 9.4 Admin (per app) — `src/components/admin/`
+### 9.4 Admin Components (slide-over & form)
 
-| Komponen | Dipakai di | Deskripsi |
-|----------|-----------|-----------|
-| **PricingTierManager** | pos, owner | CRUD pricing tiers |
-| **TaxManager** | pos, owner | CRUD pajak (percentage/fixed) |
-| **DiscountManager** | pos, owner | CRUD diskon (produk & order) |
-| **PricingOptionsManager** | pos | CRUD pricing options per produk |
+#### apps/owner — `src/components/charges/` & `src/components/products/`
 
-> `apps/owner` juga punya `src/components/reports/EmailReportModal.tsx`. `apps/pos` punya `src/components/reports/EmailReportModal.tsx` sendiri.
+Komponen slide-over untuk manajemen data kecil:
+- **TaxFormSlideOver** — Buat/edit pajak (percentage/fixed)
+- **DiscountFormSlideOver** — Buat/edit diskon (produk & order)
+- **CategoryManagerSlideOver** — Buat/edit kategori produk
+- **TierManagerSlideOver** — Buat/edit pricing tiers
+- **ProductForm** — Form utama tambah/edit produk (layout grid 12, upload gambar, modifier, tier pricing)
+
+#### apps/pos — `src/components/charges/` & `src/components/products/`
+
+Sama seperti Owner, dengan endpoint `/api/admin/*`.
 
 ### 9.5 Owner Sidebar — `apps/owner/src/components/owner/OwnerSidebar.tsx`
 
-Sidebar statis (bukan dari DB) untuk dashboard Owner. Menu:
-Dashboard, Laporan, Pesanan, Outlet, Karyawan, Pricing Tiers, Tax, Diskon, Pengaturan, + link eksternal "Login Kasir" ke `NEXT_PUBLIC_POS_URL`.
+Sidebar statis (bukan dari DB) untuk dashboard Owner. Menu (dari `nav-config.ts`):
+Dashboard, Laporan, Pesanan, Outlet, Karyawan, Produk, Pajak & Diskon, Pengaturan, + link eksternal "Login Kasir" ke `NEXT_PUBLIC_POS_URL`.
 
 ### 9.6 Hooks (per app — identik di owner & pos)
 

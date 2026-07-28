@@ -145,8 +145,8 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Pesanan</h1>
-          <p className="text-sm text-neutral-400 mt-1">
+          <h1 className="text-2xl font-bold text-on-surface">Pesanan</h1>
+          <p className="text-sm text-on-surface-variant mt-1">
             Semua transaksi dari seluruh outlet
           </p>
         </div>
@@ -154,7 +154,7 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
           <select
             value={outletId}
             onChange={(e) => handleOutlet(e.target.value)}
-            className="bg-white border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+            className="bg-surface-container-lowest border border-surface-container rounded-xl px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           >
             <option value="">Semua Outlet</option>
             {outlets.map((o) => (
@@ -170,8 +170,8 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
               onClick={() => handleFilter(f)}
               className={`text-xs font-medium px-3 py-2 rounded-full transition-colors ${
                 filter === f
-                  ? "bg-forest text-white"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  ? "bg-primary text-white"
+                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
               }`}
             >
               {f === "all" ? "Semua" : f === "today" ? "Hari ini" : "7 Hari"}
@@ -182,30 +182,30 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Transaksi", value: loading ? "—" : String(totalOrders), color: "text-neutral-900" },
-          { label: "Total Pendapatan", value: loading ? "—" : formatCurrency(totalRevenue), color: "text-forest" },
-          { label: "Rata-rata", value: loading ? "—" : formatCurrency(avgOrder), color: "text-neutral-600" },
+          { label: "Total Transaksi", value: loading ? "—" : String(totalOrders), color: "text-on-surface" },
+          { label: "Total Pendapatan", value: loading ? "—" : formatCurrency(totalRevenue), color: "text-primary" },
+          { label: "Rata-rata", value: loading ? "—" : formatCurrency(avgOrder), color: "text-on-surface-variant" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl border border-neutral-200 p-5">
-            <p className="text-xs text-neutral-400 mb-1">{stat.label}</p>
+          <div key={stat.label} className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
+            <p className="text-xs text-on-surface-variant mb-1">{stat.label}</p>
             <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
           </div>
         ))}
       </div>
 
       <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
         <input
           type="text"
           placeholder="Cari nomor order..."
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          className="w-full sm:max-w-xs bg-white border border-neutral-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+          className="w-full sm:max-w-xs bg-surface-container-lowest border border-surface-container rounded-xl pl-10 pr-4 py-2.5 text-sm text-on-surface placeholder-neutral-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         />
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center text-sm text-neutral-400">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center text-sm text-on-surface-variant">
           Memuat data...
         </div>
       ) : filtered.length === 0 ? (
@@ -217,14 +217,14 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
       ) : (
         <>
           {/* Desktop Table */}
-          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden hidden md:block">
+          <div className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden hidden md:block">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-neutral-200 bg-neutral-50">
+                <tr className="border-b border-surface-container bg-surface-container-low">
                   {["Order", "Waktu", "Outlet", "Tipe", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
                     <th
                       key={h}
-                      className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3"
+                      className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-4 py-3"
                     >
                       {h}
                     </th>
@@ -238,17 +238,17 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                     <Fragment key={order.id}>
                       <tr
                         onClick={() => setExpandedId(isExpanded ? null : order.id)}
-                        className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer transition-colors"
+                        className="border-b border-surface-container hover:bg-surface-container-low cursor-pointer transition-colors"
                       >
-                        <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">
+                        <td className="px-4 py-3 font-mono text-sm font-semibold text-on-surface">
                           #{order.order_number}
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-600">
+                        <td className="px-4 py-3 text-sm text-on-surface-variant">
                           {formatDate(order.created_at)}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1.5 text-xs text-neutral-600">
-                            <Building2 size={12} className="text-neutral-400" />
+                          <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant">
+                            <Building2 size={12} className="text-on-surface-variant" />
                             {order.outlet_name || "-"}
                           </span>
                         </td>
@@ -266,28 +266,28 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                             {orderTypeLabelsAll[order.order_type] ?? order.order_type}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-600">
+                        <td className="px-4 py-3 text-sm text-on-surface-variant">
                           {order.items.length} item
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-600">
+                        <td className="px-4 py-3 text-sm text-on-surface-variant">
                           {order.cashier_name ?? "—"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-600">
+                        <td className="px-4 py-3 text-sm text-on-surface-variant">
                           {paymentLabels[order.payment_method] ?? order.payment_method}
                         </td>
-                        <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">
+                        <td className="px-4 py-3 font-mono text-sm font-semibold text-on-surface">
                           {formatCurrency(order.total_price)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
                             <Link
                               href={`/orders/${order.id}/invoice`}
-                              className="p-1.5 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 transition-colors"
+                              className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors"
                               title="Print Invoice"
                             >
                               <Printer size={14} />
                             </Link>
-                            <span className="text-neutral-300">
+                            <span className="text-on-surface-variant/50">
                               {isExpanded ? (
                                 <ChevronUp size={16} />
                               ) : (
@@ -299,32 +299,32 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                       </tr>
                       {isExpanded && (
                         <tr key={`${order.id}-detail`}>
-                          <td colSpan={9} className="px-4 py-3 bg-neutral-50">
-                            <div className="pl-4 border-l-2 border-forest/30 space-y-2">
+                          <td colSpan={9} className="px-4 py-3 bg-surface-container-low">
+                            <div className="pl-4 border-l-2 border-primary/30 space-y-2">
                               {order.items.map((item) => (
                                 <div
                                   key={item.id}
                                   className="flex items-center justify-between text-sm"
                                 >
                                   <div>
-                                    <span className="text-neutral-900 font-medium">
+                                    <span className="text-on-surface font-medium">
                                       {item.product_name}
                                     </span>
                                     {item.modifier_label && (
-                                      <span className="text-neutral-400 text-xs ml-2">
+                                      <span className="text-on-surface-variant text-xs ml-2">
                                         ({item.modifier_label})
                                       </span>
                                     )}
                                     {item.note && (
-                                      <span className="text-neutral-400 text-xs italic ml-2">
+                                      <span className="text-on-surface-variant text-xs italic ml-2">
                                         — {item.note}
                                       </span>
                                     )}
-                                    <span className="text-neutral-400 ml-2">
+                                    <span className="text-on-surface-variant ml-2">
                                       x{item.quantity}
                                     </span>
                                   </div>
-                                  <span className="font-mono text-neutral-900">
+                                  <span className="font-mono text-on-surface">
                                     {formatCurrency(item.subtotal)}
                                   </span>
                                 </div>
@@ -345,13 +345,13 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
             {paginated.map((order) => {
               const isExpanded = expandedId === order.id;
               return (
-                <div key={order.id} className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                <div key={order.id} className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden">
                   <button
                     onClick={() => setExpandedId(isExpanded ? null : order.id)}
                     className="w-full text-left px-4 py-3 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-neutral-900">
+                      <span className="font-mono font-bold text-on-surface">
                         #{order.order_number}
                       </span>
                       <Badge
@@ -370,22 +370,22 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/orders/${order.id}/invoice`}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-forest transition-colors"
+                        className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary transition-colors"
                         title="Print Invoice"
                       >
                         <Printer size={14} />
                       </Link>
-                      <span className="font-mono font-semibold text-sm text-forest">
+                      <span className="font-mono font-semibold text-sm text-primary">
                         {formatCurrency(order.total_price)}
                       </span>
                       {isExpanded ? (
-                        <ChevronUp size={16} className="text-neutral-400" />
+                        <ChevronUp size={16} className="text-on-surface-variant" />
                       ) : (
-                        <ChevronDown size={16} className="text-neutral-400" />
+                        <ChevronDown size={16} className="text-on-surface-variant" />
                       )}
                     </div>
                   </button>
-                  <div className="px-4 pb-2 flex items-center gap-2 flex-wrap text-xs text-neutral-400">
+                  <div className="px-4 pb-2 flex items-center gap-2 flex-wrap text-xs text-on-surface-variant">
                     <span className="inline-flex items-center gap-1">
                       <Building2 size={11} />
                       {order.outlet_name || "-"}
@@ -404,23 +404,23 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                     )}
                   </div>
                   {isExpanded && (
-                    <div className="px-4 pb-3 pt-1 border-t border-neutral-100">
-                      <div className="pl-3 border-l-2 border-forest/30 space-y-1.5">
+                    <div className="px-4 pb-3 pt-1 border-t border-surface-container">
+                      <div className="pl-3 border-l-2 border-primary/30 space-y-1.5">
                         {order.items.map((item) => (
                           <div key={item.id} className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-neutral-900 font-medium truncate">
+                              <span className="text-on-surface font-medium truncate">
                                 {item.product_name}
                               </span>
                               {item.modifier_label && (
-                                <span className="text-neutral-400">({item.modifier_label})</span>
+                                <span className="text-on-surface-variant">({item.modifier_label})</span>
                               )}
                               {item.note && (
-                                <span className="text-neutral-400 italic">— {item.note}</span>
+                                <span className="text-on-surface-variant italic">— {item.note}</span>
                               )}
-                              <span className="text-neutral-400">x{item.quantity}</span>
+                              <span className="text-on-surface-variant">x{item.quantity}</span>
                             </div>
-                            <span className="font-mono text-neutral-900 whitespace-nowrap ml-2">
+                            <span className="font-mono text-on-surface whitespace-nowrap ml-2">
                               {formatCurrency(item.subtotal)}
                             </span>
                           </div>
@@ -435,12 +435,12 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
 
           {/* Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
-            <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <div className="flex items-center gap-2 text-sm text-on-surface-variant">
               <span>Show</span>
               <select
                 value={perPage}
                 onChange={(e) => handlePerPage(Number(e.target.value))}
-                className="bg-white border border-neutral-200 rounded-lg px-2 py-1 text-sm text-neutral-900 focus:outline-none focus:border-forest"
+                className="bg-surface-container-lowest border border-surface-container rounded-lg px-2 py-1 text-sm text-on-surface focus:outline-none focus:border-primary"
               >
                 {[10, 20, 50, 100].map((n) => (
                   <option key={n} value={n}>{n}</option>
@@ -452,7 +452,7 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={18} />
               </button>
@@ -461,14 +461,14 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                 .map((p, idx, arr) => (
                   <span key={p} className="flex items-center">
                     {idx > 0 && arr[idx - 1] !== p - 1 && (
-                      <span className="px-1 text-neutral-300">...</span>
+                      <span className="px-1 text-on-surface-variant/50">...</span>
                     )}
                     <button
                       onClick={() => setPage(p)}
                       className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
                         page === p
-                          ? "bg-forest text-white"
-                          : "text-neutral-600 hover:bg-neutral-100"
+                          ? "bg-primary text-white"
+                          : "text-on-surface-variant hover:bg-surface-container"
                       }`}
                     >
                       {p}
@@ -478,7 +478,7 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="p-2 rounded-lg text-neutral-400 hover:text-forest hover:bg-forest/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                   <ChevronRight size={18} />
                 </button>

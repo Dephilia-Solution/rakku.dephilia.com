@@ -14,7 +14,7 @@ import {
   Store,
   Shield,
 } from "lucide-react";
-import { showToast } from "@rakku/ui";
+import { showToast, Tabs } from "@rakku/ui";
 
 interface Employee {
   id: string;
@@ -76,8 +76,10 @@ export default function OwnerEmployeesPage() {
   const [newPin, setNewPin] = useState("");
   const [isResetting, setIsResetting] = useState(false);
 
-  // Role modal state
-  const [showRoleModal, setShowRoleModal] = useState(false);
+  // Tab state: karyawan list vs role & akses management
+  const [activeTab, setActiveTab] = useState<"karyawan" | "role">("karyawan");
+
+  // Role management state
   const [rolesWithAccess, setRolesWithAccess] = useState<RoleWithAccess[]>([]);
   const [menusList, setMenusList] = useState<Menu[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -138,9 +140,9 @@ export default function OwnerEmployeesPage() {
     if (roles.length === 0) {
       showToast(
         "info",
-        "Belum ada role. Buat role dulu di Kelola Role sebelum menambah karyawan."
+        "Belum ada role. Buat role dulu di tab Role & Akses sebelum menambah karyawan."
       );
-      setShowRoleModal(true);
+      setActiveTab("role");
       void fetchRolesData();
       return;
     }
@@ -319,9 +321,10 @@ export default function OwnerEmployeesPage() {
   // ============================================================
   // ROLE HANDLERS
   // ============================================================
-  const openRoleModal = async () => {
-    setShowRoleModal(true);
-    await fetchRolesData();
+  const handleTabChange = (key: string) => {
+    const next = key as "karyawan" | "role";
+    setActiveTab(next);
+    if (next === "role") void fetchRolesData();
   };
 
   const handleRoleSubmit = async (e: React.FormEvent) => {
@@ -425,10 +428,8 @@ export default function OwnerEmployeesPage() {
     register: "Mencatat transaksi penjualan dan pemesanan",
     orders: "Melihat daftar pesanan masuk dan riwayat transaksi",
     reports: "Mengakses laporan keuangan dan analisis bisnis",
-    products: "Mengelola daftar produk dan menu makanan",
-    "pricing-tiers": "Mengatur tingkatan harga dan kategori harga",
-    taxes: "Mengelola pengaturan pajak",
-    discounts: "Mengatur promo dan diskon produk",
+    products: "Mengelola produk, kategori, dan tier harga",
+    "tax-discounts": "Mengatur pajak, promo, dan diskon",
   };
 
   const handleToggleMenuAccess = async (
@@ -475,112 +476,124 @@ export default function OwnerEmployeesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Karyawan</h1>
-          <p className="text-sm text-neutral-400 mt-1">
+          <h1 className="font-display text-display-title text-on-surface">Karyawan</h1>
+          <p className="text-sm text-on-surface-variant mt-1">
             Kelola akun karyawan dan hak aksesnya.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={openRoleModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-neutral-200 text-neutral-700 text-sm font-semibold rounded-xl hover:bg-neutral-50 transition-all"
-          >
-            <Shield size={16} />
-            Kelola Role
-          </button>
-          <button
-            onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
-          >
-            <Plus size={16} />
-            Tambah Karyawan
-          </button>
+          {activeTab === "karyawan" ? (
+            <button
+              onClick={openCreateForm}
+              className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+            >
+              <Plus size={16} />
+              Tambah Karyawan
+            </button>
+          ) : (
+            <button
+              onClick={() => { setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(true); }}
+              className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+            >
+              <Plus size={16} />
+              Tambah Role
+            </button>
+          )}
         </div>
       </div>
 
+      <Tabs
+        active={activeTab}
+        onChange={handleTabChange}
+        tabs={[
+          { key: "karyawan", label: "Karyawan", count: employees.length },
+          { key: "role", label: "Role & Akses", count: roles.length },
+        ]}
+      />
+
       {/* List */}
-      {isLoading ? (
+      {activeTab === "karyawan" && (isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-24 bg-white rounded-2xl border border-neutral-200 animate-pulse"
+              className="h-24 bg-surface-container-lowest rounded-2xl border border-surface-container animate-pulse"
             />
           ))}
         </div>
       ) : employees.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
-          <div className="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Users size={32} className="text-neutral-400" />
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">
+          <div className="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Users size={32} className="text-on-surface-variant" />
           </div>
-          <h3 className="font-bold text-neutral-900 mb-1">
+          <h3 className="font-bold text-on-surface mb-1">
             Belum ada karyawan
           </h3>
-          <p className="text-sm text-neutral-400 mb-4">
+          <p className="text-sm text-on-surface-variant mb-4">
             Tambahkan karyawan pertama untuk mulai berjualan di POS.
           </p>
           <button
             onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
           >
             <Plus size={16} />
             Tambah Karyawan
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden">
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-neutral-50 border-b border-neutral-200">
+              <thead className="bg-surface-container-low border-b border-surface-container">
                 <tr>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">
                     Nama
                   </th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">
                     Role
                   </th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">
                     Outlet
                   </th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">
+                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">
                     Status
                   </th>
-                  <th className="text-right text-xs font-semibold text-neutral-400 uppercase tracking-wider px-6 py-3">
+                  <th className="text-right text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">
                     Aksi
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-surface-container">
                 {employees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-neutral-50">
+                  <tr key={emp.id} className="hover:bg-surface-container-low">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-forest/10 rounded-full flex items-center justify-center text-forest font-bold text-sm">
+                        <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-sm">
                           {emp.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-neutral-900">
+                          <p className="text-sm font-semibold text-on-surface">
                             {emp.name}
                           </p>
-                          <p className="text-xs text-neutral-400">
+                          <p className="text-xs text-on-surface-variant">
                             @{emp.username}
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-neutral-600">
+                      <span className="text-sm text-on-surface-variant">
                         {emp.role_name}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {emp.all_outlets ? (
-                        <span className="text-xs font-semibold px-2 py-1 bg-forest/10 text-forest rounded-full">
+                        <span className="text-xs font-semibold px-2 py-1 bg-primary/10 text-primary rounded-full">
                           Semua Outlet
                         </span>
                       ) : (
-                        <span className="text-sm text-neutral-600">
+                        <span className="text-sm text-on-surface-variant">
                           {emp.outlets.map((o) => o.name).join(", ") || "-"}
                         </span>
                       )}
@@ -590,7 +603,7 @@ export default function OwnerEmployeesPage() {
                         className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                           emp.status === "active"
                             ? "bg-success/10 text-success"
-                            : "bg-neutral-200 text-neutral-400"
+                            : "bg-surface-container-high text-on-surface-variant"
                         }`}
                       >
                         {emp.status === "active" ? "Aktif" : "Nonaktif"}
@@ -600,21 +613,21 @@ export default function OwnerEmployeesPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditForm(emp)}
-                          className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg transition-all"
                           title="Edit"
                         >
                           <Pencil size={16} />
                         </button>
                         <button
                           onClick={() => setResetTarget(emp)}
-                          className="p-2 text-neutral-400 hover:text-warning hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-warning hover:bg-surface-container rounded-lg transition-all"
                           title="Reset PIN"
                         >
                           <Key size={16} />
                         </button>
                         <button
                           onClick={() => handleToggleStatus(emp)}
-                          className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg transition-all"
                           title={
                             emp.status === "active"
                               ? "Nonaktifkan"
@@ -629,7 +642,7 @@ export default function OwnerEmployeesPage() {
                         </button>
                         <button
                           onClick={() => setDeleteTarget(emp)}
-                          className="p-2 text-neutral-400 hover:text-danger hover:bg-neutral-100 rounded-lg transition-all"
+                          className="p-2 text-on-surface-variant hover:text-error hover:bg-surface-container rounded-lg transition-all"
                           title="Hapus"
                         >
                           <Trash2 size={16} />
@@ -643,19 +656,19 @@ export default function OwnerEmployeesPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="md:hidden divide-y divide-neutral-100">
+          <div className="md:hidden divide-y divide-surface-container">
             {employees.map((emp) => (
               <div key={emp.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-forest/10 rounded-full flex items-center justify-center text-forest font-bold text-sm">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-sm">
                       {emp.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900">
+                      <p className="text-sm font-semibold text-on-surface">
                         {emp.name}
                       </p>
-                      <p className="text-xs text-neutral-400">
+                      <p className="text-xs text-on-surface-variant">
                         @{emp.username}
                       </p>
                     </div>
@@ -664,22 +677,22 @@ export default function OwnerEmployeesPage() {
                     className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       emp.status === "active"
                         ? "bg-success/10 text-success"
-                        : "bg-neutral-200 text-neutral-400"
+                        : "bg-surface-container-high text-on-surface-variant"
                     }`}
                   >
                     {emp.status === "active" ? "Aktif" : "Nonaktif"}
                   </span>
                 </div>
                 <div className="space-y-1 mb-3">
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-on-surface-variant">
                     Role:{" "}
-                    <span className="text-neutral-600 font-semibold">
+                    <span className="text-on-surface-variant font-semibold">
                       {emp.role_name}
                     </span>
                   </p>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-on-surface-variant">
                     Outlet:{" "}
-                    <span className="text-neutral-600">
+                    <span className="text-on-surface-variant">
                       {emp.all_outlets
                         ? "Semua Outlet"
                         : emp.outlets.map((o) => o.name).join(", ") || "-"}
@@ -689,19 +702,19 @@ export default function OwnerEmployeesPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => openEditForm(emp)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-50 text-neutral-600 text-xs font-semibold rounded-lg"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-low text-on-surface-variant text-xs font-semibold rounded-lg"
                   >
                     <Pencil size={14} /> Edit
                   </button>
                   <button
                     onClick={() => setResetTarget(emp)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-50 text-warning text-xs font-semibold rounded-lg"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-low text-warning text-xs font-semibold rounded-lg"
                   >
                     <Key size={14} /> PIN
                   </button>
                   <button
                     onClick={() => setDeleteTarget(emp)}
-                    className="px-3 py-2 bg-neutral-50 text-danger text-xs font-semibold rounded-lg"
+                    className="px-3 py-2 bg-surface-container-low text-error text-xs font-semibold rounded-lg"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -710,19 +723,19 @@ export default function OwnerEmployeesPage() {
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* Form Modal */}
       {showForm && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
-              <h2 className="font-bold text-lg text-neutral-900">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
+            <div className="flex items-center justify-between p-6 border-b border-surface-container bg-surface-container-lowest">
+              <h2 className="font-bold text-lg text-on-surface">
                 {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
-                className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-lg"
+                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg"
               >
                 <X size={20} />
               </button>
@@ -732,7 +745,7 @@ export default function OwnerEmployeesPage() {
               className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]"
             >
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Nama Karyawan
                 </label>
                 <input
@@ -741,12 +754,12 @@ export default function OwnerEmployeesPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Budi Santoso"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Username
                 </label>
                 <input
@@ -757,16 +770,16 @@ export default function OwnerEmployeesPage() {
                   }
                   placeholder="budi"
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all lowercase"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all lowercase"
                 />
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-on-surface-variant">
                   Dipakai untuk login kasir di step &quot;pilih akun&quot;.
                 </p>
               </div>
 
               {!editingEmployee && (
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                  <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                     PIN (6 digit)
                   </label>
                   <input
@@ -779,23 +792,23 @@ export default function OwnerEmployeesPage() {
                     }
                     placeholder="123456"
                     required
-                    className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
+                    className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono tracking-widest"
                   />
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-on-surface-variant">
                     Beritahu PIN ini ke karyawan secara manual.
                   </p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Role
                 </label>
                 <select
                   value={formRoleId}
                   onChange={(e) => setFormRoleId(e.target.value)}
                   required
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 >
                   {roles.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -806,38 +819,38 @@ export default function OwnerEmployeesPage() {
               </div>
 
               <div className="space-y-3">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Akses Outlet
                 </label>
-                <label className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl cursor-pointer hover:bg-neutral-100">
+                <label className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl cursor-pointer hover:bg-surface-container">
                   <input
                     type="checkbox"
                     checked={formAllOutlets}
                     onChange={(e) => setFormAllOutlets(e.target.checked)}
-                    className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest"
+                    className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
                   />
                   <div className="flex items-center gap-2">
-                    <Store size={16} className="text-neutral-400" />
-                    <span className="text-sm font-medium text-neutral-700">
+                    <Store size={16} className="text-on-surface-variant" />
+                    <span className="text-sm font-medium text-on-surface">
                       Semua Outlet (akses penuh)
                     </span>
                   </div>
                 </label>
 
                 {!formAllOutlets && (
-                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 border border-neutral-200 rounded-xl">
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 border border-surface-container rounded-xl">
                     {outlets.map((o) => (
                       <label
                         key={o.id}
-                        className="flex items-center gap-3 p-2 hover:bg-neutral-50 rounded-lg cursor-pointer"
+                        className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg cursor-pointer"
                       >
                         <input
                           type="checkbox"
                           checked={formOutletIds.includes(o.id)}
                           onChange={() => toggleOutlet(o.id)}
-                          className="w-4 h-4 rounded border-neutral-300 text-forest focus:ring-forest"
+                          className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
                         />
-                        <span className="text-sm text-neutral-700">
+                        <span className="text-sm text-on-surface">
                           {o.name}
                         </span>
                       </label>
@@ -846,18 +859,18 @@ export default function OwnerEmployeesPage() {
                 )}
               </div>
 
-              <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
+              <div className="flex gap-3 pt-2 sticky bottom-0 bg-surface-container-lowest">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -877,22 +890,22 @@ export default function OwnerEmployeesPage() {
       {/* Reset PIN Modal */}
       {resetTarget && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-warning/10 rounded-xl flex items-center justify-center text-warning">
                 <Key size={24} />
               </div>
               <div>
-                <h2 className="font-bold text-lg text-neutral-900">
+                <h2 className="font-bold text-lg text-on-surface">
                   Reset PIN
                 </h2>
-                <p className="text-sm text-neutral-400">
+                <p className="text-sm text-on-surface-variant">
                   Untuk karyawan: {resetTarget.name}
                 </p>
               </div>
             </div>
             <div className="space-y-2 mb-6">
-              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                 PIN Baru (6 digit)
               </label>
               <input
@@ -902,7 +915,7 @@ export default function OwnerEmployeesPage() {
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
                 placeholder="123456"
-                className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all font-mono tracking-widest"
+                className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono tracking-widest"
               />
             </div>
             <div className="flex gap-3">
@@ -911,14 +924,14 @@ export default function OwnerEmployeesPage() {
                   setResetTarget(null);
                   setNewPin("");
                 }}
-                className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
               >
                 Batal
               </button>
               <button
                 onClick={handleResetPin}
                 disabled={isResetting}
-                className="flex-1 px-5 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                className="flex-1 px-5 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {isResetting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -935,21 +948,21 @@ export default function OwnerEmployeesPage() {
       {/* Delete Confirmation */}
       {deleteTarget && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
+              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-error">
                 <AlertCircle size={24} />
               </div>
               <div>
-                <h2 className="font-bold text-lg text-neutral-900">
+                <h2 className="font-bold text-lg text-on-surface">
                   Hapus Karyawan?
                 </h2>
-                <p className="text-sm text-neutral-400">
+                <p className="text-sm text-on-surface-variant">
                   Tindakan ini tidak bisa dibatalkan.
                 </p>
               </div>
             </div>
-            <p className="text-sm text-neutral-600 mb-6">
+            <p className="text-sm text-on-surface-variant mb-6">
               Anda akan menghapus karyawan{" "}
               <span className="font-bold">{deleteTarget.name}</span> (@
               {deleteTarget.username}).
@@ -957,7 +970,7 @@ export default function OwnerEmployeesPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
               >
                 Batal
               </button>
@@ -973,85 +986,56 @@ export default function OwnerEmployeesPage() {
         document.body
       )}
 
-      {/* Kelola Role Modal */}
-      {showRoleModal && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
-                  <Shield size={20} />
-                </div>
-                <div>
-                  <h2 className="font-bold text-lg text-neutral-900">Kelola Role</h2>
-                  <p className="text-xs text-neutral-400">Buat, ubah, atau hapus role karyawan.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setShowRoleModal(false); setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(false); }}
-                className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+      {/* Role & Akses Tab */}
+      {activeTab === "role" && (
+        <div className="space-y-5">
+          {rolesWithAccess.length === 0 ? (
+            <div className="text-center py-12 px-4 bg-surface-container-lowest rounded-xl">
+              <Shield size={32} className="text-on-surface-variant/50 mx-auto mb-3" />
+              <p className="text-sm text-on-surface-variant">Belum ada role. Klik &quot;Tambah Role&quot; untuk membuat role pertama.</p>
             </div>
-
-            <div className="p-6 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)] space-y-6">
-              <div className="flex justify-end">
-                <button
-                  onClick={() => { setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(true); }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-forest text-white text-sm font-semibold rounded-xl hover:bg-forest-dark transition-all"
-                >
-                  <Plus size={16} />
-                  Tambah Role
-                </button>
-              </div>
-
-              {rolesWithAccess.length === 0 ? (
-                <div className="text-center py-12 px-4 bg-neutral-50 rounded-xl">
-                  <Shield size={32} className="text-neutral-300 mx-auto mb-3" />
-                  <p className="text-sm text-neutral-400">Belum ada role. Klik &quot;Tambah Role&quot; untuk membuat role pertama.</p>
-                </div>
-              ) : (
-                <div className="overflow-hidden border border-neutral-200 rounded-xl">
+          ) : (
+            <>
+                <div className="overflow-hidden bg-surface-container-lowest rounded-xl">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-neutral-50 border-b border-neutral-200">
-                        <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Nama Role</th>
-                        <th className="text-left text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Hak Akses</th>
-                        <th className="text-right text-xs font-semibold text-neutral-400 uppercase tracking-wider px-4 py-3">Aksi</th>
+                      <tr className="bg-surface-container-low border-b border-surface-container">
+                        <th className="text-left text-label-caps uppercase text-on-surface-variant px-4 py-3">Nama Role</th>
+                        <th className="text-left text-label-caps uppercase text-on-surface-variant px-4 py-3">Hak Akses</th>
+                        <th className="text-right text-label-caps uppercase text-on-surface-variant px-4 py-3">Aksi</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-100">
+                    <tbody className="divide-y divide-surface-container">
                       {rolesWithAccess.map((role) => (
                         <tr
                           key={role.id}
-                          className={`hover:bg-neutral-50 cursor-pointer ${selectedRoleId === role.id ? "bg-forest/5" : ""}`}
+                          className={`hover:bg-surface-container-low/50 cursor-pointer transition-colors ${selectedRoleId === role.id ? "bg-primary/5" : ""}`}
                           onClick={() => setSelectedRoleId(role.id)}
                         >
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
-                              <Shield size={16} className="text-neutral-400 shrink-0" />
-                              <span className="text-sm font-medium text-neutral-900">{role.name}</span>
+                              <Shield size={16} className="text-on-surface-variant shrink-0" />
+                              <span className="text-sm font-semibold text-on-surface">{role.name}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className="text-sm text-neutral-500">{role.menu_access.length} menu</span>
+                            <span className="text-sm text-on-surface-variant">{role.menu_access.length} menu</span>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => { setEditingRoleId(role.id); setRoleFormName(role.name); setShowRoleForm(true); }}
-                                className="p-2 text-neutral-400 hover:text-forest hover:bg-neutral-100 rounded-lg transition-all"
+                                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-all"
                                 title="Edit role"
                               >
-                                <Pencil size={15} />
+                                <Pencil size={16} />
                               </button>
                               <button
                                 onClick={() => setDeletingRole(role)}
-                                className="p-2 text-neutral-400 hover:text-danger hover:bg-neutral-100 rounded-lg transition-all"
+                                className="p-2 text-error hover:bg-error-container/20 rounded-full transition-all"
                                 title="Hapus role"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={16} />
                               </button>
                             </div>
                           </td>
@@ -1060,16 +1044,15 @@ export default function OwnerEmployeesPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
 
               {selectedRoleId && (
-                <div className="border border-neutral-200 rounded-xl p-4">
+                <div className="bg-surface-container-lowest rounded-xl p-4 md:p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-neutral-900">Atur Akses Menu</h3>
-                    <span className="text-xs text-neutral-400">Centang menu yang bisa diakses role ini</span>
+                    <h3 className="text-sm font-bold text-on-surface">Atur Akses Menu</h3>
+                    <span className="text-xs text-on-surface-variant">Centang menu yang bisa diakses role ini</span>
                   </div>
                   {menusList.length > 0 && (
-                    <label className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer hover:bg-neutral-200 transition-all mb-2">
+                    <label className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl cursor-pointer hover:bg-surface-container transition-all mb-2">
                       <input
                         type="checkbox"
                         checked={menusList.every((m) => {
@@ -1077,9 +1060,9 @@ export default function OwnerEmployeesPage() {
                           return role?.menu_access.includes(m.id) ?? false;
                         })}
                         onChange={(e) => handleSelectAll(selectedRoleId, e.target.checked)}
-                        className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest"
+                        className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
                       />
-                      <span className="text-sm font-semibold text-neutral-700">Pilih Semua</span>
+                      <span className="text-sm font-semibold text-on-surface">Pilih Semua</span>
                     </label>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1090,74 +1073,64 @@ export default function OwnerEmployeesPage() {
                       return (
                         <label
                           key={menu.id}
-                          className="flex items-start gap-3 p-3 bg-neutral-50 hover:bg-neutral-100 rounded-xl cursor-pointer transition-all"
+                          className="flex items-start gap-3 p-3 bg-surface-container-low hover:bg-surface-container rounded-xl cursor-pointer transition-all"
                         >
                           <input
                             type="checkbox"
                             checked={checked}
                             disabled={isToggling}
                             onChange={() => handleToggleMenuAccess(selectedRoleId, menu.id, !checked)}
-                            className="w-5 h-5 rounded border-neutral-300 text-forest focus:ring-forest mt-0.5"
+                            className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary mt-0.5"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-neutral-700">{menu.name}</p>
-                            <p className="text-xs text-neutral-400 leading-relaxed">
+                            <p className="text-sm font-medium text-on-surface">{menu.name}</p>
+                            <p className="text-xs text-on-surface-variant leading-relaxed">
                               {menuDescriptions[menu.slug] || `Akses menu ${menu.path}`}
                             </p>
                           </div>
                           {isToggling && (
-                            <div className="w-4 h-4 border-2 border-forest/30 border-t-forest rounded-full animate-spin mt-1 shrink-0" />
+                            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mt-1 shrink-0" />
                           )}
                         </label>
                       );
                     })}
                   </div>
                   {menusList.length === 0 && (
-                    <p className="text-sm text-neutral-400 text-center py-8">Tidak ada menu terdaftar.</p>
+                    <p className="text-sm text-on-surface-variant text-center py-8">Tidak ada menu terdaftar.</p>
                   )}
                 </div>
               )}
 
               {!selectedRoleId && rolesWithAccess.length > 0 && (
-                <div className="text-center py-6 bg-neutral-50 rounded-xl">
-                  <p className="text-sm text-neutral-400">Klik salah satu role di tabel untuk mengatur akses menunya.</p>
+                <div className="text-center py-6 bg-surface-container-lowest rounded-xl">
+                  <p className="text-sm text-on-surface-variant">Klik salah satu role di tabel untuk mengatur akses menunya.</p>
                 </div>
               )}
-            </div>
-
-            <div className="p-4 border-t border-neutral-200 sticky bottom-0 bg-white rounded-b-2xl pb-[env(safe-area-inset-bottom,0px)]">
-              <button
-                onClick={() => { setShowRoleModal(false); setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(false); }}
-                className="w-full py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
-              >
-                Selesai
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+            </>
+          )}
+        </div>
       )}
 
       {/* Add/Edit Role Form Modal */}
       {showRoleForm && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-6 animate-slide-up pb-4 md:animate-bounce-in">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-forest/10 rounded-xl flex items-center justify-center text-forest">
+              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                 <Shield size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-neutral-900">
+                <h3 className="font-bold text-lg text-on-surface">
                   {editingRoleId ? "Ubah Role" : "Tambah Role"}
                 </h3>
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-on-surface-variant">
                   {editingRoleId ? "Ubah nama role karyawan." : "Buat role baru untuk karyawan."}
                 </p>
               </div>
             </div>
             <form onSubmit={handleRoleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Nama Role
                 </label>
                 <input
@@ -1165,7 +1138,7 @@ export default function OwnerEmployeesPage() {
                   value={roleFormName}
                   onChange={(e) => setRoleFormName(e.target.value)}
                   placeholder="contoh: Kasir, Koki, Admin"
-                  className="w-full px-4 py-3 bg-neutral-50 border border-transparent rounded-xl text-base text-neutral-900 placeholder-neutral-400 outline-none focus:bg-white focus:border-forest focus:ring-1 focus:ring-forest transition-all"
+                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   autoFocus
                 />
               </div>
@@ -1173,14 +1146,14 @@ export default function OwnerEmployeesPage() {
                 <button
                   type="button"
                   onClick={() => { setShowRoleForm(false); setEditingRoleId(null); setRoleFormName(""); }}
-                  className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                  className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isRoleSubmitting}
-                  className="flex-1 py-3 bg-forest hover:bg-forest-dark text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isRoleSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1200,21 +1173,21 @@ export default function OwnerEmployeesPage() {
       {/* Delete Role Confirmation */}
       {deletingRole && mounted && createPortal(
         <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
+          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
+              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-error">
                 <AlertCircle size={24} />
               </div>
               <div>
-                <h2 className="font-bold text-lg text-neutral-900">
+                <h2 className="font-bold text-lg text-on-surface">
                   Hapus Role?
                 </h2>
-                <p className="text-sm text-neutral-400">
+                <p className="text-sm text-on-surface-variant">
                   Tindakan ini tidak bisa dibatalkan.
                 </p>
               </div>
             </div>
-            <p className="text-sm text-neutral-600 mb-6">
+            <p className="text-sm text-on-surface-variant mb-6">
               Anda akan menghapus role{" "}
               <span className="font-bold">{deletingRole.name}</span>. Role yang
               masih dipakai karyawan tidak bisa dihapus.
@@ -1222,7 +1195,7 @@ export default function OwnerEmployeesPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeletingRole(null)}
-                className="flex-1 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-sm font-semibold rounded-xl transition-all"
+                className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
               >
                 Batal
               </button>

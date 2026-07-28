@@ -150,15 +150,37 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
 
   const handlePrint = useCallback(() => {
     const html = buildReceiptHtml(props);
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "-9999px";
+    iframe.style.bottom = "-9999px";
+    iframe.style.width = "58mm";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) {
       alert("Izinkan pop-up untuk mencetak invoice");
+      document.body.removeChild(iframe);
       return;
     }
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+
+    const cleanup = () => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    };
+    if (iframe.contentWindow) {
+      iframe.contentWindow.onafterprint = cleanup;
+    }
+    setTimeout(cleanup, 1000);
   }, [props]);
 
   const paymentLabel =
