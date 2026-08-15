@@ -15,6 +15,7 @@ import {
 } from "@rakku/ui";
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
+import { useNavMode } from "@/hooks/useNavMode";
 import {
   ArrowLeft,
   Check,
@@ -120,6 +121,9 @@ export default function OwnerProductForm({
   const [saving, setSaving] = useState(false);
   const [showCatManager, setShowCatManager] = useState(false);
   const [showTierManager, setShowTierManager] = useState(false);
+
+  const navMode = useNavMode();
+  const isMobileBottom = navMode === "bottom";
 
   const listUrl = `/products?outlet=${encodeURIComponent(outletId)}`;
 
@@ -425,40 +429,58 @@ export default function OwnerProductForm({
     }
   };
 
+  const saveButton = (extra = "") => (
+    <button
+      type="button"
+      onClick={handleSave}
+      disabled={saving}
+      className={`px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60 ${extra}`}
+    >
+      <Check size={18} />
+      {saving ? "Menyimpan..." : "Simpan Produk"}
+    </button>
+  );
+
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      <PageHeader
-        backAs={
-          <Link
-            href={listUrl}
-            aria-label="Kembali"
-            className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant"
-          >
-            <ArrowLeft size={20} />
-          </Link>
+    <div
+      className={`p-4 pb-24 md:p-6 max-w-6xl mx-auto ${
+        isMobileBottom ? "pt-[calc(var(--safe-top)+4.5rem)]" : ""
+      }`}
+    >
+      <div
+        className={
+          isMobileBottom
+            ? "fixed top-4 left-0 right-0 z-[55] px-4 pt-safe pb-2 bg-background"
+            : ""
         }
-        title={mode === "edit" ? "Edit Produk" : "Tambah Produk"}
-        subtitle={`Outlet: ${outletName}`}
-        actions={
-          <>
+      >
+        <PageHeader
+          backAs={
             <Link
               href={listUrl}
-              className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all"
+              aria-label="Kembali"
+              className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant"
             >
-              Batal
+              <ArrowLeft size={20} />
             </Link>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-60"
-            >
-              <Check size={18} />
-              {saving ? "Menyimpan..." : "Simpan Produk"}
-            </button>
-          </>
-        }
-      />
+          }
+          title={mode === "edit" ? "Edit Produk" : "Tambah Produk"}
+          subtitle={`Outlet: ${outletName}`}
+          actions={
+            isMobileBottom ? null : (
+              <>
+                <Link
+                  href={listUrl}
+                  className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all"
+                >
+                  Batal
+                </Link>
+                {saveButton()}
+              </>
+            )
+          }
+        />
+      </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Left Column: Media & Info */}
@@ -882,6 +904,23 @@ export default function OwnerProductForm({
           </div>
         </div>
       </div>
+
+      {isMobileBottom && (
+        <div
+          className="fixed left-0 right-0 z-[55]"
+          style={{ bottom: "var(--nav-bottom-safe)" }}
+        >
+          <div className="bg-surface-container-lowest/95 backdrop-blur-xl border-t border-surface-container px-4 py-3 flex gap-2">
+            <Link
+              href={listUrl}
+              className="flex-1 flex items-center justify-center px-4 py-3 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant active:scale-[0.98] transition-all"
+            >
+              Batal
+            </Link>
+            {saveButton("flex-1 py-3 shadow-none")}
+          </div>
+        </div>
+      )}
 
       <CategoryManagerSlideOver
         open={showCatManager}

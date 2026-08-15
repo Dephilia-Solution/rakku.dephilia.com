@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
-import { useCartStore } from "@/lib/store/cartStore";
+import { useDraftCount } from "@/hooks/useDraftCount";
 import type { Menu } from "@rakku/shared-types";
 
 interface SideRailProps {
@@ -23,7 +23,7 @@ function getIcon(iconName: string | null) {
 
 export default function SideRail({ menus }: SideRailProps) {
   const pathname = usePathname();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const draftCount = useDraftCount();
 
   return (
     <aside
@@ -47,9 +47,9 @@ export default function SideRail({ menus }: SideRailProps) {
               }`}
             >
               {Icon ? <Icon size={20} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
-              {item.path === "/register" && itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-danger text-[8px] font-bold text-white flex items-center justify-center">
-                  {itemCount > 9 ? "9+" : itemCount}
+              {item.path === "/register" && draftCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-forest text-[8px] font-bold text-white flex items-center justify-center">
+                  {draftCount > 9 ? "9+" : draftCount}
                 </span>
               )}
             </Link>

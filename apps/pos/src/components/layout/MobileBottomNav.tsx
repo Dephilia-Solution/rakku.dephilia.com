@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { useCartStore } from "@/lib/store/cartStore";
+import { useDraftCount } from "@/hooks/useDraftCount";
 import type { Menu } from "@rakku/shared-types";
 
 interface MobileBottomNavProps {
@@ -23,7 +23,7 @@ function getIcon(iconName: string | null) {
 
 export default function MobileBottomNav({ menus }: MobileBottomNavProps) {
   const pathname = usePathname();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const draftCount = useDraftCount();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-neutral-200/60 flex items-stretch z-50 safe-bottom lg:hidden">
@@ -46,9 +46,9 @@ export default function MobileBottomNav({ menus }: MobileBottomNavProps) {
             )}
             <div className="relative">
               {Icon ? <Icon size={22} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
-              {item.path === "/register" && itemCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-danger text-[9px] font-bold text-white flex items-center justify-center">
-                  {itemCount > 9 ? "9+" : itemCount}
+              {item.path === "/register" && draftCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
+                  {draftCount > 9 ? "9+" : draftCount}
                 </span>
               )}
             </div>

@@ -23,6 +23,7 @@ import {
   deleteModifier,
 } from "@/lib/supabase/queries.client";
 import { uploadProductImage } from "@/lib/supabase/storage";
+import { useNavMode } from "@/hooks/useNavMode";
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
 import {
@@ -125,6 +126,9 @@ export default function ProductForm({
   const [saving, setSaving] = useState(false);
   const [showCatManager, setShowCatManager] = useState(false);
   const [showTierManager, setShowTierManager] = useState(false);
+
+  const navMode = useNavMode();
+  const isMobileBottom = navMode === "bottom";
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -396,12 +400,12 @@ export default function ProductForm({
     }
   };
 
-  const saveButton = (
+  const saveButton = (extra = "") => (
     <button
       type="button"
       onClick={handleSave}
       disabled={saving}
-      className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-60"
+      className={`px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60 ${extra}`}
     >
       <Check size={18} />
       {saving ? "Menyimpan..." : "Simpan Produk"}
@@ -409,8 +413,19 @@ export default function ProductForm({
   );
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      <PageHeader
+    <div
+      className={`p-4 pb-24 md:p-6 max-w-6xl mx-auto ${
+        isMobileBottom ? "pt-[calc(var(--safe-top)+6.5rem)]" : ""
+      }`}
+    >
+      <div
+        className={
+          isMobileBottom
+            ? "fixed top-0 pt-4 left-0 right-0 z-[55] px-4  pb-2 bg-background"
+            : ""
+        }
+      >
+        <PageHeader
         backAs={
           <Link
             href="/products"
@@ -427,17 +442,20 @@ export default function ProductForm({
             : "Konfigurasi produk baru untuk sistem inventory dan POS Anda."
         }
         actions={
-          <>
-            <Link
-              href="/products"
-              className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all"
-            >
-              Batal
-            </Link>
-            {saveButton}
-          </>
+          isMobileBottom ? null : (
+            <>
+              <Link
+                href="/products"
+                className="px-5 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all"
+              >
+                Batal
+              </Link>
+              {saveButton()}
+            </>
+          )
         }
       />
+      </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Left Column: Media & Info */}
@@ -867,6 +885,23 @@ export default function ProductForm({
           </div>
         </div>
       </div>
+
+      {isMobileBottom && (
+        <div
+          className="fixed left-0 right-0 z-[55]"
+          style={{ bottom: "var(--nav-bottom-safe)" }}
+        >
+          <div className="bg-surface-container-lowest/95 backdrop-blur-xl border-t border-surface-container px-4 py-3 flex gap-2">
+            <Link
+              href="/products"
+              className="flex-1 flex items-center justify-center px-4 py-3 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant active:scale-[0.98] transition-all"
+            >
+              Batal
+            </Link>
+            {saveButton("flex-1 py-3 shadow-none")}
+          </div>
+        </div>
+      )}
 
       <CategoryManagerSlideOver
         open={showCatManager}

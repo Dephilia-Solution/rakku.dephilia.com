@@ -24,6 +24,7 @@
 13. [PWA (Progressive Web App)](#13-pwa-progressive-web-app)
 14. [V3.0 — Self-Service Owner & Dashboard](#14-v30--self-service-owner--dashboard)
 15. [V4.0 — Monorepo 3-App](#15-v40--monorepo-3-app)
+16. [Alur Lengkap (End-to-End)](#16-alur-lengkap-end-to-end)
 
 ---
 
@@ -40,9 +41,9 @@
 | **RBAC Dinamis** | Role & menu access matrix yang dikonfigurasi per perusahaan |
 | **Pricing Tiers** | Harga berbeda per tier (Dine In, Take Away, Gojek, dll) |
 | **Manajemen Produk** | CRUD produk per outlet dengan gambar, modifier, tier pricing |
-| **Manajemen Order** | Order completed, draft/pay-later, split bill |
-| **Pajak & Diskon** | Pajak multi-tipe (persentase/fixed), diskon produk & order |
-| **Laporan** | Summary penjualan dengan grafik, kirim via email |
+| **Manajemen Order** | Order completed, draft/pay-later (24 jam, badge count), split bill |
+| **Pajak & Diskon** | Tab konsolidasi: pajak multi-tipe (persentase/fixed), diskon produk & order berperiode |
+| **Laporan** | Ringkasan penjualan (total transaksi, pendapatan, item terlaris) dengan filter waktu & outlet, kirim via email |
 | **Invoice & Print** | Receipt setelah pembayaran, halaman dedicated invoice |
 | **Owner Self-Service** | Owner daftar mandiri (email+password), verifikasi email, onboarding company+outlet |
 | **Owner Dashboard** | Owner kelola sendiri: outlet, karyawan + role & akses menu, pesanan, laporan, pricing tiers, pajak, diskon, pengaturan |
@@ -156,7 +157,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │   ├── layout/               # AppSidebar (240px labeled), BottomNav, MoreMenuSheet, ResponsiveNav, SideRail, Sidebar
 │   │   │   ├── reports/EmailReportModal.tsx
 │   │   │   └── ui/ConfirmDialog.tsx
-│   │   ├── src/hooks/                # useMediaQuery, useModalHistory, useNavMode, useSwipe
+│   │   ├── src/hooks/                # useMediaQuery, useModalHistory, useNavMode, useSwipe, useDraftCount
 │   │   ├── src/lib/
 │   │   │   ├── auth/                 # tenant-session, pending-login, pin, company, menus
 │   │   │   ├── store/cartStore.ts    # Zustand
@@ -196,7 +197,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   ├── shared-types/                  # TypeScript interfaces: common.ts, tenant.ts, owner.ts
 │   ├── supabase-clients/             # createAdminClient, createClient (browser), createClient (server)
 │   ├── auth-utils/                   # jwt.ts (signJwt/verifyJwt), pin.ts (hashPin/verifyPin), audit-log.ts
-│   ├── ui/                           # Badge, EmptyState, QtyControl, Toast + tailwind.preset.ts
+│   ├── ui/                           # Badge, EmptyState, QtyControl, Toast, PageHeader, SlideOver, Tabs, FormField, Toggle + tailwind.preset.ts
 │   └── pricing/                      # DEFAULT_TIERS, seedDefaultTiers, syncProductTierPrices
 │
 ├── supabase/
@@ -310,6 +311,17 @@ const nextConfig = {
 
 Hanya mengizinkan gambar dari Supabase Storage.
 
+**Redirect route lama (owner & pos)** — setelah UI revamp (migration 015), rute lama di-redirect ke halaman baru agar link lama tidak patah:
+
+| Sumber | Tujuan |
+|--------|--------|
+| `/categories` (pos) | `/products` |
+| `/pricing-tiers` | `/products` |
+| `/taxes` | `/tax-discounts?tab=pajak` |
+| `/discounts` | `/tax-discounts?tab=produk` |
+
+**Khusus `apps/pos`:** `next.config.mjs` dibungkus `withSerwist` (lihat Bagian 13.4) + webpack plugin "DownlevelSerwistSW" yang menurunkan sintaks JS bundle ke **ES2017** agar service worker tetap jalan di Android WebView lama (Android 8+ / Chrome 62+ — sesuai `browserslist` di `package.json`).
+
 ### 4.3 `tailwind.config.ts`
 
 **Custom Colors:**
@@ -351,8 +363,11 @@ Di v4.0, setiap app punya `middleware.ts` sendiri. Tidak ada lagi satu middlewar
 - Proteksi: semua route `/dashboard/*` (register, orders, reports, products, dll.) → redirect ke `/login` jika session invalid
 
 **`apps/owner/middleware.ts`** — proteksi owner session:
-- Publik: `/_next`, `/api/auth`, `/favicon`, `/login`, `/register`, `/check-email`
-- Proteksi: `/dashboard/*`, `/onboarding` → redirect ke `/login` jika belum auth
+- Publik: `/_next`, `/api`, `/favicon`, `/`; `/login` & `/register` (di-redirect ke `/dashboard` atau `/onboarding` jika sudah login)
+- `/onboarding` → wajib login; di-redirect ke `/dashboard` jika company sudah ada
+- Proteksi: `/dashboard`, `/outlets`, `/employees`, `/settings`, `/reports`, `/orders` (dan sub-path) → redirect ke `/login` jika belum auth, ke `/onboarding` jika belum punya company
+
+> **Catatan:** `ownerDashboardPaths` di middleware masih memuat path usang (`/pricing-tiers`, `/taxes`, `/discounts`) dan belum mencantumkan `/products` & `/tax-discounts`. Hal ini tidak berdampak karena guard utama semua halaman `(dashboard)` ada di **`(dashboard)/layout.tsx`** (Server Component) yang me-redirect ke `/login` jika session tidak ada dan ke `/onboarding` jika owner belum punya company.
 
 **`apps/superadmin/middleware.ts`** — proteksi superadmin session:
 - Publik: `/_next`, `/api`, `/favicon`, `/login`
@@ -379,9 +394,9 @@ Di v4.0, setiap app punya `middleware.ts` sendiri. Tidak ada lagi satu middlewar
 
 - **Superadmin**: Kelola semua company, outlet, menu, role, user
 - **Role**: Didefinisikan per company (Owner, Kepala Cabang, Admin, Kasir)
-- **Menu**: Modul sistem (register, orders, reports, products, taxes, discounts)
+- **Menu**: Modul sistem (register, orders, reports, products, tax-discounts) — dikonsolidasi di migration 015
 - **Access Matrix**: Tabel `role_menu_access` — role × menu dengan toggle `can_view`
-- **Sidebar**: 100% dinamis — query `getAllowedMenus(roleId)` → render menu
+- **Sidebar (POS)**: 100% dinamis — query `getAllowedMenus(roleId)` → render menu
 
 ### 5.3 Pola Server vs Client
 
@@ -805,6 +820,90 @@ idx_users_company, idx_roles_company
 | `/tax-discounts` | `app/(dashboard)/tax-discounts/page.tsx` | Pajak & Diskon dengan tab (pajak, diskon produk, diskon order) |
 | `/settings` | `app/(dashboard)/settings/page.tsx` | Edit profil company + ganti password |
 
+#### Fitur per Halaman (Owner)
+
+**`/login` — Login Owner**  
+Form email + password. Field dilindungi dari input kosong; saat sukses set cookie `owner_session` (24 jam) lalu redirect pintar: ke `/onboarding` jika owner belum punya company, atau `/dashboard` jika sudah.
+
+**`/register` — Daftar Owner**  
+Form Nama Lengkap, Email, Password (min. 8 karakter). Submit → `POST /api/auth/owner/register` → buat akun di tabel `owners` + kirim **email verifikasi** (nodemailer SMTP) → redirect ke `/check-email`. UI dua kolom di desktop (form + gambar), mobile satu kolom.
+
+**`/check-email` — Verifikasi Email**  
+Prompt "cek email Anda" + form "kirim ulang link verifikasi" (`/api/auth/owner/resend-verification`). Token verifikasi berlaku 1 jam; setelah klik link di email, owner diarahkan ke `/login`.
+
+**`/onboarding` — Wizard Buat Perusahaan (2 langkah)**  
+Perlu login, owner yang belum punya company.
+- **Step 1 — Data Bisnis:** nama perusahaan, kode company (auto-suggest dari nama via `/api/onboarding/company?name=...`, debounce 400 ms, bisa diubah), password company (min. 6 karakter) + show/hide.
+- **Step 2 — Outlet Pertama:** nama outlet (wajib), alamat (opsional).
+- Submit → `POST /api/onboarding/company` → buat company + outlet + **seed default pricing tiers** (Dine In, Take Away) → update `owner_session` → toast sukses → redirect `/dashboard`.
+- UI: brand header, progress indicator 2 langkah (lingkaran + garis), kartu form dengan animasi.
+
+**`/dashboard` — Overview Bisnis** (Server Component, Server-rendered)
+- Sapaan "Halo, {nama}" + ringkasan harian.
+- **3 kartu statistik yang bisa diklik** (link ke halaman terkait):
+  1. *Total Outlet* (+ jumlah aktif) → `/outlets`
+  2. *Total Karyawan* (+ jumlah aktif) → `/employees`
+  3. *Total Penjualan* (Rp) (+ jumlah transaksi completed) → ringkasan dari table `orders` (total_price + status; status filter)
+- 2 panel "pin-list": **Outlet Terbaru** (max 3, berisi nama + jumlah karyawan + badge aktif/nonaktif) dan **Karyawan Terbaru** (max 3, avatar inisial + nama + role + status), masing-masing dengan link "Kelola..." → halaman terkait.
+
+**`/outlets` — Kelola Outlet** (Client)
+- **Desktop (sm+):** tablenya — kolom Nama, Alamat, Karyawan (jumlah), Status (Aktif/Nonaktif), Aksi.
+- **Mobile:** kartu per outlet (nama, jumlah karyawan, alamat ikon map, badge status) + tombol Edit / Nonaktifkan-Aktifkan / Hapus (ikon).
+- **Aksi:** tambah (modal "Tambah Outlet"), edit (modal "Ubah Outlet" — nama + alamat), toggle status (ikon ✕/✓ atau tombol), hapus (modal konfirmasi "Hapus Outlet?" dengan peringatan data terkait ikut terhapus). **Tidak bisa menghapus outlet terakhir** — API menolak (agar selalu ada minimal 1 outlet aktif).
+- Modal ditampilkan **via `createPortal` ke document.body**, sebagai bottom-sheet di mobile (rounded top, slide-up) dan centered modal di desktop; body scroll di-lock saat modal terbuka; loading state skeleton.
+
+**`/employees` — Kelola Karyawan + Role & Akses** (2 tab via `Tabs` dari @rakku/ui)
+- **Tab 1 "Karyawan"** (badge count = jumlah karyawan):
+  - Tabel (desktop) / kartu (mobile): Nama (@username), Role, Outlet ("Semua Outlet" badge atau daftar outlet), Status, Aksi.
+  - **Tambah/Edit Karyawan** (modal): Nama, Username (auto-lowercase, dipakai step "pilih akun" di POS), PIN 6 digit (diisi saat tambah; pada edit PIN diganti lewat reset terpisah), pilih Role (dropdown), **Akses Outlet** (checkbox "Semua Outlet" atau pilih per outlet).
+  - Aksi: **Reset PIN** (modal input PIN baru 6 digit), toggle aktif/nonaktif, hapus (konfirmasi).
+  - Jika belum ada role, tombol "Tambah Karyawan" memunculkan toast info dan **otomatis pindah ke tab Role**.
+- **Tab 2 "Role & Akses"** (count = jumlah role):
+  - Tabel role: Nama Role, jumlah menu (n menu), aksi Edit/Hapus (hapus gagal jika role masih dipakai karyawan).
+  - Klik satu row → panel **"Atur Akses Menu"**: checkbox "Pilih Semua" (toggle semua sekaligus) + grid per menu (Kasir/register, Pesanan/orders, Laporan/reports, Produk, Pajak & Diskon) dengan deskripsi singkat; perubahan **optimistic** → `POST /api/owner/roles/{id}/access`.
+  - tombol "Tambah Role" di header saat tab role aktif.
+
+**`/orders` — Daftar Pesanan** (client, `OrdersClient.tsx`)
+- Header: judul + dropdown pilih **Outlet (Semua / per outlet)** + filter pill **Semua / Hari ini / 7 Hari**.
+- **3 kartu statistik:** Total Transaksi, Total Pendapatan, Rata-rata (berdasarkan filter aktif & hasil pencarian).
+- **Cari** nomor order di input (filter `#<nomor>`).
+- Tabel desktop (Order #, Waktu, Outlet, Tipe, Items, Kasir, Pembayaran, Total, aksi) / kartu mobile; **baris bisa di-expand** untuk melihat detail item (produk + modifier label + catatan xqty + subtotal, jalur dengan border kiri).
+- Tombol **Printer** tiap baris → `/orders/{id}/invoice`.
+- **Pagination**: pilih "Show" (10/20/50/100) + tombol halaman (page range dengan elipsis "…" untuk menyembunyikan halaman jauh dari page aktif).
+- Jenis pembayaran ditampilkan sebagai label (Tunai/QRIS/Kartu).
+
+**`/orders/[id]/invoice` — Invoice Print**  
+Halaman invoice lengkap (kepala toko/company dari session, nomor, waktu, daftar item, subtotal, pajak, diskon, total, nama kasir, nama customer) + tombol **Print** (window.print) / cetak.
+
+**`/reports` — Laporan Penjualan** (ReportsClient.tsx)
+- Filter **rentang waktu**: Hari ini / Kemarin / 7 Hari / Semua + dropdown **Outlet** (Semua / spesifik).
+- **3 kartu**: Total Transaksi, Total Pendapatan (format Rupiah), Item Terlaris (nama + jumlah).
+- **Kirim Email** → modal `EmailReportModal` → `POST /api/owner/reports/send-email` (merangkum laporan rentang dipilih, kirim via nodemailer ke alamat tujuan).
+
+**`/products` — List Produk** (OwnerProductsClient.tsx, outlet-scoped)
+- **Pilih Outlet** di header (URL query `?outlet=` — state di URL, `router.replace`).
+- Aksi header: tombol **Kategori** (buka `CategoryManagerSlideOver`), **Tier** (buka `TierManagerSlideOver`), **Tambah Produk** → `/products/add?outlet=...`.
+- **Cari** name (case-insensitive) + filter dropdown **kategori**.
+- Kolom harga menampilkan rentang dari tier prices: jika semua tier sama → satu harga, jika beda → `Rp min - Rp max`; "-" jika belum ada tier price.
+- Tabel (desktop): Produk (gambar + nama), Kategori, Harga, Status, Aksi (toggle aktif ✕/✓, edit, hapus dengan ConfirmDialog). Mobile: kartu.
+- Empty state bila belum ada produk / outlet.
+
+**`/products/add` & `/products/[id]/edit` — Form Produk** (ProductForm.tsx)
+- Layout grid 12: kolom kiri Media & Info (gambar upload via `/api/owner/products/upload` + sharp, nama, kategori, deskripsi, status aktif) — kolom kanan **Harga per Tier** (input tier pricing), **Modifier** (daftar & tambah modifier/kelompok), dsb.
+- Aksi header ("Batal" + "Simpan Produk"); di mode mobile/bottom-nav tombol pindah ke **bottom action bar fixed**.
+
+**`/tax-discounts` — Pajak & Diskon** (TaxDiscountsClient.tsx, 3 tab)
+- Dropdown **Outlet** + 3 tab (`pajak`, `produk`, `order`):
+  1. **Pajak**: list pajak (nama, tipe % / fixed, nilai, sort), toggle aktif (`Toggle`), edit/hapus → `TaxFormSlideOver`.
+  2. **Diskon Produk**: diskon per produk (nama, tipe, nilai, periode start-end, aktif) → `DiscountFormSlideOver`; menampilkan nama produk terkait.
+  3. **Diskon Order**: diskon tingkat order (nama, tipe, nilai, periode, aktif).
+- Toggle status langsung di baris (optimistic), edit/delete dengan form slide-over + `ConfirmDialog`.
+
+**`/settings` — Pengaturan** (SettingsClient)
+- **Profil Perusahaan**: edit nama company (`PUT /api/owner/settings`), tampilan kode company (tidak bisa diubah), status company (dot hijau + badge status).
+- **Password Perusahaan**: ganti password company (minimal 6 karakter, show/hide) — password ini dipakai kasir di langkah 1 login POS.
+- **Info**, footer: perusahaan terdaftar sejak tanggal, slug.
+
 #### API — `apps/owner/src/app/api/`
 
 | Endpoint | Method | Fungsi |
@@ -865,6 +964,40 @@ idx_users_company, idx_roles_company
 
 > Setiap halaman `(dashboard)/` punya `loading.tsx` (skeleton) + `error.tsx` boundary.
 
+#### Fitur per Halaman (POS)
+
+**Login 4-Step (route group `(auth)/login/`)**
+- **Step 1 `/login`** — input **Kode Perusahaan** (auto-uppercase) + **Password** → `POST /api/auth/tenant/company` (rate limit: 10x gagal → lock 15 menit, sisa percobaan ditampilkan di pesan error) → set cookie `pending_login` (10 menit).
+- **Step 2 `/login/select-outlet`** — daftar outlet aktif untuk company (`GET /api/auth/tenant/outlet`), pilih → simpan ke `pending_login`.
+- **Step 3 `/login/select-user`** — daftar akun karyawan untuk outlet terpilih (`GET /api/auth/tenant/accounts?outlet_id=`); hanya user `active` yang (a) `all_outlets = true`, atau (b) ter-assign ke outlet via `user_outlets`.
+- **Step 4 `/login/enter-pin`** — input **PIN 6 digit** (numeric, masked) → `POST /api/auth/tenant/verify-pin` (bcrypt verify; 5x gagal → lock 15 menit; pesan sisa percobaan). Berhasil → set cookie `session` (12 jam, berisi user_id/company_id/outlet_id/role_id/nama) → hapus `pending_login` → log audit `pin_verify` + `shift_start` → **redirect ke menu pertama yang diizinkan role** (dari `role_menu_access`).
+
+> **⚠️ Known issue:** redirect ini memetakan slug `products` ke path lama `/admin/products` (tidak ada route `admin/products` lagi di v4 UI revamp — rute aktual `/products`). Kasir dengan menu pertama "Produk" bisa mendarat di 404 setelah login; sebaiknya path dipetakan ke `/products`.
+
+**`/register` — POS Register (Kasir)** (RegisterView.tsx — halaman terbesar POS)
+- **Kiri:** search produk (nama / nama kategori) + **tab kategori** horizontal scrollable + **grid produk** (gambar, nama, harga — harga mengikuti tier aktif).
+- **Klik produk** → jika punya modifier, buka **modifier modal** (pilih add-on per group — satu pilihan per group, + tombol "custom modifier" tambahan nama & harga bebas, + catatan item) lalu add ke cart; tanpa modifier → langsung add.
+- **Kanan / drawer mobile (`OrderSidebar`):** *Current Order* — daftar item **dikelompokkan per kategori & per produk** (variant modifier digabung), qty control (+/−), input "Nama Customer (wajib)", catatan order, tombol **Simpan Draft** (→ draft order / pay-later, `reserved_until` 24 jam), tombol **Buka Draft** (badge jumlah draft), **clear cart**, tombol **Bayar**.
+- **Mobile:** floating **cart bar** hijau di bawah (total + jumlah item + tombol Detail) → membuka cart sebagai drawer.
+- **Pilih tier harga** (Dine In / Take Away / dll.) → semua harga item & modifier di-recalc otomatis (via cart store + tier price maps).
+- **PaymentModal:** pilih metode **Tunai / QRIS / Kartu**; saran nominal cepat (uang pas + pembulatan pecahan 10k–500k + denominasi relevan, max 6 saran); input nominal tunai dengan perhitungan **kembalian** otomatis (tombol bayar aktif hanya jika nominal cukup); opsi **Split Bill** (buka SplitBillPanel: tambah pembayaran per orang, pilih metode, alokasi item per orang); wajib nama customer; setelah sukses → **InvoiceReceipt** (receipt + tombol print), cart di-reset, draft terkait ditandai selesai jika checkout dari draft.
+- **DraftOrdersPanel:** daftar draft order tersimpan (customer, total, waktu, items), tombol **Restore** (isi ulang cart, keep pricing tier) & **Hapus**.
+- Item di cart bisa di-edit ulang modifier/note-nya (`ItemDetailModal` / modal modifier mode edit).
+
+**`/orders` — Daftar Pesanan** (mirip Owner: filter outlet & waktu, search nomor order, expand detail item, pagination, tombol print invoice) — data diambil dari server components via `getOrders()`.
+
+**`/orders/[id]/invoice`** — halaman invoice + print (sama seperti Owner).
+
+**`/reports` — Laporan Penjualan** — filter rentang (Hari ini/Kemarin/7 Hari/Semua), kartu Total Transaksi / Total Pendapatan / Item Terlaris, daftar detail transaksi, **Kirim Email** (`/api/reports/send-email` via Resend).
+
+**`/products` — List Produk** (AdminProductsClient.tsx — data awal via Server Component `getActiveProducts()` dll.)
+- Aksi header: **Kategori** (`CategoryManagerSlideOver`), **Tier** (`TierManagerSlideOver`), **Tambah Produk**.
+- Search nama, filter kategori, kolom harga rentang tier, toggle aktif, hapus (ConfirmDialog), **pagination** (10/20/50/100).
+
+**`/products/add` & `/products/[id]/edit` — Form Produk** — sama dengan Owner (grid 12, upload gambar, tier pricing, modifier, kategori; bottom action bar di mobile).
+
+**`/tax-discounts` — Pajak & Diskon** — 3 tab (Pajak / Diskon Produk / Diskon Order), dropdown outlet, toggle aktif langsung, form slide-over, hapus dengan konfirmasi. Endpoint `/api/admin/taxes` & `/api/admin/discounts` (+ `/active` untuk yang aktif — dipakai register page).
+
 #### API — `apps/pos/src/app/api/`
 
 **Auth Tenant — `/api/auth/tenant/`**
@@ -920,6 +1053,19 @@ idx_users_company, idx_roles_company
 | `/users` | `(protected)/users/page.tsx` | CRUD user per company |
 | `/audit-logs` | `(protected)/audit-logs/page.tsx` | Log autentikasi |
 
+#### Fitur per Halaman (Superadmin)
+
+Semua halaman di bawah di-render sebagai client component dengan data dari `/api/superadmin/*`, dilindungi `(protected)/layout.tsx` (guard `supabase.auth.getUser()` → redirect `/login`). Sidebar statis kiri 224px (logo Rakku Admin, nav 7 menu, link "Ke POS" → `NEXT_PUBLIC_OWNER_URL`, tombol Logout POST `/api/superadmin/auth/logout`).
+
+- **`/login`** — Login via **Supabase Auth** (email/password); setelah login redirect ke `/companies`.
+- **`/companies`** — CRUD perusahaan: search, form modal tambah/edit (kode, nama, password), toggle status, delete (konfirmasi). Row dropdown company sebagai context filter untuk halaman turunan.
+- **`/outlets`** — CRUD outlet per company (filter dropdown company): nama, alamat, status.
+- **`/menus`** — CRUD menu sistem (slug, nama, icon, path, sort_order) — menu akhir: Kasir, Pesanan, Laporan, Produk, Pajak & Diskon.
+- **`/roles`** — CRUD role per company (nama role; kode di-scope company).
+- **`/access-matrix`** — Matrix **role × menu**: grid checkbox per (role, menu) → `POST /api/superadmin/access-matrix` (toggle `can_view`).
+- **`/users`** — CRUD user per company (nama, username, role, PIN, status, all_outlets).
+- **`/audit-logs`** — Tabel log autentikasi (event_type, success, IP, user agent, failure reason, timestamp) — read-only.
+
 #### API — `apps/superadmin/src/app/api/superadmin/`
 
 | Endpoint | Method | Fungsi |
@@ -937,7 +1083,7 @@ idx_users_company, idx_roles_company
 
 ## 9. Komponen Utama
 
-> Di v4.0, komponen **tidak lagi shared di root `components/`**. Setiap app punya `src/components/` sendiri. Komponen UI generik (Badge, Toast, EmptyState, QtyControl) ada di package `@rakku/ui`.
+> Di v4.0, komponen **tidak lagi shared di root `components/`**. Setiap app punya `src/components/` sendiri. Komponen UI generik (Badge, Toast, EmptyState, QtyControl, Tabs, dll.) ada di package `@rakku/ui`.
 
 ### 9.1 Shared UI Package (`packages/ui/src/`)
 
@@ -947,6 +1093,11 @@ idx_users_company, idx_roles_company
 | **EmptyState** | `EmptyState.tsx` | Placeholder konten kosong |
 | **QtyControl** | `QtyControl.tsx` | Increment/decrement quantity |
 | **Toast** | `Toast.tsx` | Notifikasi toast (success/error/info) + `ToastContainer` |
+| **Tabs** | `Tabs.tsx` | Tab bar (`Tabs`, `active`, `onChange`). Opsional label dengan **count badge pill hijau** (dipakai di halaman Karyawan & Pajak/Diskon) |
+| **PageHeader** | `PageHeader.tsx` | Header halaman konsisten (title, subtitle, tombol back `backAs`, `actions`) |
+| **SlideOver** | `SlideOver.tsx` | Panel slide-over kanan (dipakai form kategori/tier/pajak/diskon) |
+| **FormField** | `FormField.tsx` | Wrapper field form + `fieldInputClass` / `fieldSelectClass` |
+| **Toggle** | `Toggle.tsx` | Switch aktif/nonaktif |
 | **rakkuPreset** | `tailwind.preset.ts` | Tailwind preset dibagikan ke semua app |
 
 ### 9.2 Layout (per app)
@@ -955,9 +1106,9 @@ idx_users_company, idx_roles_company
 
 | Komponen | Deskripsi |
 |----------|-----------|
-| **AppSidebar** | Rail icon 64px — menu dinamis dari role_menu_access, badge cart, switch-user, logout |
+| **AppSidebar** | Rail icon 64px — menu dinamis dari role_menu_access, badge **jumlah draft order** (warna forest), switch-user, logout |
 | **ResponsiveNav** | Wrapper responsive — AppSidebar (desktop) + BottomNav/MobileBottomNav (mobile) + MoreMenuSheet |
-| **BottomNav / MobileBottomNav** | Bottom navigation mobile dengan badge cart |
+| **BottomNav / MobileBottomNav** | Bottom navigation mobile dengan badge draft order |
 | **MoreMenuSheet** | Sheet "More" untuk menu tambahan di mobile |
 | **SideRail / Sidebar** | Variant navigasi (legacy/alternatif) |
 
@@ -999,6 +1150,8 @@ Komponen slide-over untuk manajemen data kecil:
 - **TierManagerSlideOver** — Buat/edit pricing tiers
 - **ProductForm** — Form utama tambah/edit produk (layout grid 12, upload gambar, modifier, tier pricing)
 
+**Mode mobile (bottom-nav):** `ProductForm` (owner & pos) mendeteksi mode navigasi via `useNavMode()`. Saat mode `bottom`, header form dibuat **fixed/sticky di atas** dan tombol aksi (Batal + Simpan) dipindah ke **bottom action bar fixed** di atas bottom nav (`--nav-bottom-safe`) — tombol full-width agar mudah dipencet di HP.
+
 #### apps/pos — `src/components/charges/` & `src/components/products/`
 
 Sama seperti Owner, dengan endpoint `/api/admin/*`.
@@ -1008,6 +1161,8 @@ Sama seperti Owner, dengan endpoint `/api/admin/*`.
 Sidebar statis (bukan dari DB) untuk dashboard Owner. Menu (dari `nav-config.ts`):
 Dashboard, Laporan, Pesanan, Outlet, Karyawan, Produk, Pajak & Diskon, Pengaturan, + link eksternal "Login Kasir" ke `NEXT_PUBLIC_POS_URL`.
 
+Di mobile, menu dibagi: 4 menu utama (Dashboard, Laporan, Pesanan, Produk) di **bottom nav**, sisanya + link "Login Kasir" di sheet **Lainnya** (`ownerOverflowItems`).
+
 ### 9.6 Hooks (per app — identik di owner & pos)
 
 | Hook | File | Deskripsi |
@@ -1016,6 +1171,7 @@ Dashboard, Laporan, Pesanan, Outlet, Karyawan, Produk, Pajak & Diskon, Pengatura
 | **useSwipe** | `src/hooks/useSwipe.ts` | Deteksi gesture swipe touch |
 | **useNavMode** | `src/hooks/useNavMode.ts` | Mode navigasi aktif (rail/bottom/more) |
 | **useModalHistory** | `src/hooks/useModalHistory.ts` | Back-button trap untuk modal/sheet |
+| **useDraftCount** (pos) | `apps/pos/src/hooks/useDraftCount.ts` | Fetch jumlah draft order dari `/api/admin/orders/draft` (awal mount + polling tiap 30 detik). Dipakai untuk badge draft di AppSidebar / BottomNav / MobileBottomNav / SideRail — menggantikan badge jumlah item cart |
 
 ---
 
@@ -1296,7 +1452,7 @@ pnpm dev
 
 ### 12.4 Migrasi
 
-13 file migrasi di `supabase/migrations/` (tidak ada 005). Dijalankan berurutan via Supabase SQL Editor atau runner `scripts/run-migration.ts`:
+14 file migrasi di `supabase/migrations/` (tidak ada 005). Dijalankan berurutan via Supabase SQL Editor atau runner `scripts/run-migration.ts`:
 
 ```
 001_init.sql              → Schema awal (tabel core)
@@ -1312,6 +1468,9 @@ pnpm dev
 012_pricing_per_tier.sql    → Modifier tier prices
 013_tax_discount.sql        → Pajak & diskon dinamis
 014_owner_self_service.sql  → V3 — tabel owners + alter companies (owner_id, slug)
+015_menu_consolidation.sql  → V4 UI — gabung menu taxes+discounts → "Pajak & Diskon"
+                              (/tax-discounts), hapus pricing-tiers, rename nama menu
+                              ke Bahasa Indonesia
 ```
 
 ### 12.5 Akun Default untuk Testing
@@ -1748,5 +1907,101 @@ PWA (Serwist) hanya aktif di `apps/pos`. File terkait:
 - **Tidak ada shared cookie domain** — Tiap app punya cookie sendiri di domain masing-masing.
 - **Supabase tetap satu project** — Ketiga app berbagi satu project Supabase, migrations tetap di root.
 - **RLS masih mati** — Migrasi v4.0 murni soal kerapian struktur, bukan hardening keamanan.
-- **Skema database tidak berubah** — Semua migrations 001-014 tetap utuh.
+- **Skema database tidak berubah** — Semua migrations 001-015 tetap utuh.
 - **Akun testing existing tetap valid** — `budi@rakku.test`/`budi12345`, `ali@rakku.test`/`ali12345`, company RAKKU/TOKOKO.
+
+---
+
+## 16. Alur Lengkap (End-to-End)
+
+> Ringkasan alur utama sistem per pengguna. Detail endpoint/komponen dirujuk ke Bagian 8 & 9.
+
+### 16.1 Alur Kasir (apps/pos) — dari login sampai invoice
+
+```
+Login (4-step)                    # /login → /login/select-outlet → /login/select-user → /login/enter-pin
+ 1. Kode company + password       # POST /api/auth/tenant/company (rate limit 10x, audit log)
+ 2. Pilih outlet                  # GET/POST /api/auth/tenant/outlet (hanya outlet aktif)
+ 3. Pilih akun karyawan           # GET /api/auth/tenant/accounts?outlet_id=... (all_outlets atau user_outlets)
+ 4. PIN 6 digit                   # POST /api/auth/tenant/verify-pin (5x gagal → lock 15 menit)
+ 5. Sukses                        # set cookie `session` (12 jam) → redirect ke menu pertama role
+
+POS Register (/register)
+ 1. Pilih tier harga (Dine In / Take Away / ...)  → semua harga item & modifier ikut tier
+ 2. Cari / pilih produk di grid  → jika ada modifier: pilih add-on per group (+custom modifier, note)
+ 3. Item masuk cart (dikelompokkan per kategori; qty bisa diubah/edited modifiers)
+ 4. Isi nama customer (wajib)
+ 5. [Opsional] Simpan Draft (pay-later, expire 24 jam) — ditandai badge di nav
+ 6. Bayar → pilih metode Tunai / QRIS / Kartu (+ saran nominal & kembalian otomatis)
+ 7. [Opsional] Split Bill → konfigurasi pembayaran per orang (metode + alokasi item)
+ 8. Submit → POST /api/admin/orders → insert orders + order_items + split_payments
+ 9. Tampil InvoiceReceipt → print / selesai → cart di-reset (draft terkait jadi selesai)
+```
+
+**Alur draft (pay-later):**
+```
+Cart → "Simpan Draft" (POST /api/admin/orders/draft, status=draft, reserved_until=+24 jam)
+  → draft muncul di DraftOrdersPanel (badge jumlah draft di nav — useDraftCount, polling 30 dtk)
+  → "Restore" → cart diisi ulang (keep pricing tier) → lanjut bayar → order jadi completed
+  → "Hapus" (DELETE /api/admin/orders/draft?id=...) bila tidak jadi
+```
+
+### 16.2 Alur Owner (apps/owner) — daftar mandiri sampai kelola bisnis
+
+```
+Daftar (/register)                        # name, email, password (min 8) → POST /api/auth/owner/register
+  → kirim email verifikasi → /check-email (bisa "kirim ulang link", token 1 jam)
+  → klik link email → verify-email → set email_verified_at → /login
+Login (/login)                            # email+password (harus sudah verifikasi) → cookie owner_session (24 jam)
+  → /onboarding (belum punya company) atau /dashboard (sudah punya)
+Onboarding (/onboarding) 2 step           # Step 1: company (nama, kode auto-suggest, password)
+                                          # Step 2: outlet pertama (nama, alamat)
+  → POST /api/onboarding/company → buat company + outlet + seed default tier (Dine In, Take Away)
+  → /dashboard
+Kelola bisnis
+  1. Outlet        → /outlets      (tambah/edit/toggle/hapus; tidak bisa hapus outlet terakhir)
+  2. Karyawan      → /employees    (tambah user + PIN + role + akses outlet; reset PIN; toggle; hapus)
+  3. Role & Akses  → /employees (tab Role & Akses) — buat role, atur menu per role (register/orders/reports/products/tax-discounts)
+  4. Produk        → /products     (list per outlet; kelola kategori & tier via slide-over; form add/edit: gambar, harga per tier, modifier)
+  5. Pajak & Diskon→ /tax-discounts(3 tab: pajak / diskon produk / diskon order — tipe % atau fixed, periode, toggle aktif)
+  6. Pesanan       → /orders       (filter outlet & waktu, cari nomor, expand item, print invoice)
+  7. Laporan       → /reports      (rentang hari ini/kemarin/7 hari/semua + kirim email)
+  8. Pengaturan    → /settings     (nama company + password company untuk kasir)
+```
+
+### 16.3 Alur Superadmin (apps/superadmin)
+
+```
+Login (/login)            # Supabase Auth (email/password) — terpisah dari tenant
+Guard layout (protected)  # getUser() → redirect /login bila tidak ada
+Kelola platform
+  1. Companies  → CRUD tenant (kode, nama, password, status)
+  2. Outlets    → CRUD outlet per company
+  3. Menus      → CRUD menu sistem (5 menu: Kasir, Pesanan, Laporan, Produk, Pajak & Diskon)
+  4. Roles      → CRUD role per company
+  5. Access     → matrix role × menu (toggle can_view)
+  6. Users      → CRUD user per company (nama, username, role, PIN, status)
+  7. Audit Logs → lihat semua percobaan login (event, IP, user agent, alasan gagal)
+```
+
+### 16.4 Alur Data Order (backend)
+
+```
+RegisterView (client)
+  → addProduct() / restoreDraftItem()  → cartStore (Zustand): kalkulasi subtotal, diskon, pajak, total
+  → PaymentModal → createOrder()       → POST /api/admin/orders
+  → (split) splitPayments[]            → POST /api/admin/orders/split (atau bagian dari payload)
+  → Supabase: insert orders + order_items + split_payments (service role, bypass RLS)
+  → clear() cart
+```
+
+### 16.5 Ringkasan Siklus Auth & Session
+
+| Entitas | Cookie | Umur | Flow |
+|---------|--------|------|------|
+| Kasir (POS) | `pending_login` | 10 menit | step 1–3 login (company → outlet → akun) |
+| Kasir (POS) | `session` | 12 jam | step 4 berhasil (verify-pin); switch-user / logout menghapus |
+| Owner | `owner_session` | 24 jam | login owner; onboarding update isi (company_id) |
+| Superadmin | Supabase Auth session | sesuai Supabase | login di apps/superadmin |
+
+Semua percobaan login (kasir & owner) dicatat di `auth_audit_logs` via `logAuthEvent()` dengan IP + user agent + failure reason.

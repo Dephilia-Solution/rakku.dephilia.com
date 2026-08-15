@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body tidak valid" }, { status: 400 });
   }
 
-  const { email, password } = body;
+  const { email, password, remember } = body;
+  const rememberMe = remember === true;
 
   if (!email || !password) {
     return NextResponse.json(
@@ -46,7 +47,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email atau password salah" }, { status: 401 });
   }
 
-  // Update last_login_at
   const supabase = createAdminClient();
   await supabase
     .from("owners")
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     company_slug: owner.company_slug,
   };
 
-  const token = await signOwnerSession(session);
+  const token = await signOwnerSession(session, rememberMe);
 
   return NextResponse.json(
     {
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       redirect: owner.company_id ? "/" : "/onboarding",
     },
     {
-      headers: { "Set-Cookie": setOwnerSessionCookie(token) },
+      headers: { "Set-Cookie": setOwnerSessionCookie(token, rememberMe) },
     }
   );
 }

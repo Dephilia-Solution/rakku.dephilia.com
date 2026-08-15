@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MoreHorizontal, ShoppingCart, ClipboardList, BarChart3, Package } from "lucide-react";
-import { useCartStore } from "@/lib/store/cartStore";
+import { useDraftCount } from "@/hooks/useDraftCount";
 import MoreMenuSheet from "./MoreMenuSheet";
 import type { Menu } from "@rakku/shared-types";
 
@@ -34,7 +34,7 @@ function getIcon(iconName: string | null) {
 
 export default function BottomNav({ menus, primaryCount = 4 }: BottomNavProps) {
   const pathname = usePathname();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const draftCount = useDraftCount();
   const [showMore, setShowMore] = useState(false);
 
   const primaryItems = menus.slice(0, primaryCount);
@@ -63,9 +63,9 @@ export default function BottomNav({ menus, primaryCount = 4 }: BottomNavProps) {
               )}
               <div className="relative">
                 {Icon ? <Icon size={22} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
-                {item.path === "/register" && itemCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-danger text-[9px] font-bold text-white flex items-center justify-center">
-                    {itemCount > 9 ? "9+" : itemCount}
+                {item.path === "/register" && draftCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
+                    {draftCount > 9 ? "9+" : draftCount}
                   </span>
                 )}
               </div>

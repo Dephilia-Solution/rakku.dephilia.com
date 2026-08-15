@@ -34,11 +34,7 @@ export default function Tabs({ tabs, active, onChange, className = "" }: TabsPro
           >
             {tab.label}
             {typeof tab.count === "number" && (
-              <span
-                className={`ml-1.5 text-xs font-bold ${
-                  isActive ? "text-primary" : "text-on-surface-variant"
-                }`}
-              >
+              <span className="ml-1.5 text-xs font-bold bg-forest text-white px-1.5 py-0.5 rounded-full min-w-[20px] text-center inline-block">
                 {tab.count}
               </span>
             )}

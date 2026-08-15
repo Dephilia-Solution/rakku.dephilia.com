@@ -33,6 +33,71 @@ export function generateCompanyCode(name: string): string {
 }
 
 // ============================================================
+// PASSWORD RESET — token hash & lookup
+// ============================================================
+export async function setOwnerResetToken(
+  ownerId: string,
+  tokenHash: string,
+  expiresAt: Date
+): Promise<{ error: string | null }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("owners")
+    .update({
+      reset_token_hash: tokenHash,
+      reset_token_expires_at: expiresAt.toISOString(),
+    })
+    .eq("id", ownerId);
+  if (error) return { error: "Gagal membuat token reset" };
+  return { error: null };
+}
+
+export async function getOwnerByValidResetToken(
+  tokenHash: string
+): Promise<{ owner: { id: string; email: string; name: string } | null; error: string | null }> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("owners")
+    .select("id, email, name, reset_token_expires_at")
+    .eq("reset_token_hash", tokenHash)
+    .maybeSingle();
+  if (error || !data) return { owner: null, error: null };
+  if (!data.reset_token_expires_at || new Date(data.reset_token_expires_at) < new Date()) {
+    return { owner: null, error: "Token kadaluarsa" };
+  }
+  return {
+    owner: { id: data.id as string, email: data.email as string, name: data.name as string },
+    error: null,
+  };
+}
+
+export async function clearOwnerResetToken(
+  ownerId: string
+): Promise<{ error: string | null }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("owners")
+    .update({ reset_token_hash: null, reset_token_expires_at: null })
+    .eq("id", ownerId);
+  if (error) return { error: "Gagal membersihkan token" };
+  return { error: null };
+}
+
+export async function updateOwnerPassword(
+  ownerId: string,
+  newPassword: string
+): Promise<{ error: string | null }> {
+  const supabase = createAdminClient();
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  const { error } = await supabase
+    .from("owners")
+    .update({ password_hash: passwordHash })
+    .eq("id", ownerId);
+  if (error) return { error: "Gagal memperbarui kata sandi" };
+  return { error: null };
+}
+
+// ============================================================
 // Helper: generate unique slug (append -2, -3, dst jika taken)
 // ============================================================
 async function ensureUniqueSlug(baseSlug: string): Promise<string> {

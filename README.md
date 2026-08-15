@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rakku — POS Multi-Tenant untuk Bisnis F&B
 
-## Getting Started
+**Rakku** adalah sistem **Point of Sale (POS)** multi-tenant untuk bisnis F&B yang dibangun dengan **Next.js 14 (App Router)** dan **Supabase** (PostgreSQL + Storage). Sistem ini mendukung banyak perusahaan (tenant) yang terisolasi penuh, masing-masing dengan outlet, produk, karyawan, dan role-based access control (RBAC) sendiri.
 
-First, run the development server:
+> Dokumentasi lengkap (arsitektur, database, API, fitur per halaman, dan alur end-to-end) ada di **[DOCS.md](./DOCS.md)**.
+
+---
+
+## Arsitektur: Monorepo 3 App
+
+Proyek ini adalah monorepo pnpm workspace + Turborepo yang berisi **3 aplikasi Next.js independen**, masing-masing deploy ke domain sendiri:
+
+| App | Domain | Port Dev | Fungsi |
+|-----|--------|----------|--------|
+| `apps/owner` | `rakku.com` | 3000 | Dashboard Owner (daftar, login, onboarding, kelola outlet/karyawan/produk/laporan) |
+| `apps/pos` | `pos.rakku.com` | 3001 | POS Kasir (login 4-step, register, pesanan, laporan) + **PWA** |
+| `apps/superadmin` | `superadmin.rakku.com` | 3002 | Panel Superadmin (kelola semua tenant, RBAC, audit log) |
+
+### Package bersama (`packages/`)
+
+| Package | Isi |
+|---------|-----|
+| `@rakku/shared-types` | Seluruh TypeScript interfaces (common, tenant, owner) |
+| `@rakku/supabase-clients` | Factory Supabase client (admin / browser / server) |
+| `@rakku/auth-utils` | JWT wrapper, hash/verify PIN, audit log |
+| `@rakku/ui` | Komponen UI (Badge, Tabs, Toast, PageHeader, dll) + Tailwind preset |
+| `@rakku/pricing` | Seed default pricing tiers & sinkronisasi harga |
+
+---
+
+## Memulai
+
+**Persyaratan:** Node.js 18+, pnpm 11+ (`corepack enable`), project Supabase (free tier).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# 1. Install dependency (otomatis link packages/*)
+pnpm install
+
+# 2. Buat .env.local di setiap app (lihat DOCS.md Bagian 4)
+#    apps/owner/.env.local
+#    apps/pos/.env.local
+#    apps/superadmin/.env.local
+
+# 3. Jalankan migrasi Supabase 001 → 015 (tanpa 005) + seed
+pnpm seed            # company RAKKU (code: RAKKU / password: rakku123)
+pnpm seed:full       # company TOKOKO + Outlet Cabang
+pnpm backfill:owners # buat akun owner untuk company existing
+
+# 4. Jalankan semua app paralel (Turborepo)
 pnpm dev
-# or
-bun dev
+# Owner → http://localhost:3000 | POS → http://localhost:3001 | Superadmin → http://localhost:3002
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Akun Testing
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Owner** (`apps/owner`): `budi@rakku.test` / `budi12345` (RAKKU) · `ali@rakku.test` / `ali12345` (TOKOKO)
+**Kasir** (`apps/pos`, login 4-step): company `RAKKU` / `rakku123`, username `budi` / `siti` / `ahmad`, PIN `123456`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Scripts Utama
 
-To learn more about Next.js, take a look at the following resources:
+| Script | Fungsi |
+|--------|--------|
+| `pnpm dev` | Jalankan semua app paralel |
+| `pnpm dev:owner` / `dev:pos` / `dev:superadmin` | Jalankan satu app |
+| `pnpm build` | Build semua app |
+| `pnpm lint` | ESLint semua app |
+| `pnpm seed` / `seed:full` | Seed data testing |
+| `pnpm backfill:owners` | Backfill akun owner untuk company existing |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Infrastruktur
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Database**: satu project Supabase (PostgreSQL), migrasi di `supabase/migrations/` (001–015, tanpa 005), RLS dinonaktifkan (isolasi via app-level filtering).
+- **Auth**: custom JWT + bcrypt untuk owner & kasir; Supabase Auth untuk superadmin.
+- **Email**: nodemailer (verifikasi owner), Resend (laporan via email).
+- **PWA**: Serwist — hanya aktif di `apps/pos` (mode production).

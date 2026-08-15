@@ -128,3 +128,9 @@ textarea {
 .pt-safe {
   padding-top: var(--safe-top);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-block-on {
+    animation: none !important;
+  }
+}
