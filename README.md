@@ -2,8 +2,6 @@
 
 **Rakku** adalah sistem **Point of Sale (POS)** multi-tenant untuk bisnis F&B yang dibangun dengan **Next.js 14 (App Router)** dan **Supabase** (PostgreSQL + Storage). Sistem ini mendukung banyak perusahaan (tenant) yang terisolasi penuh, masing-masing dengan outlet, produk, karyawan, dan role-based access control (RBAC) sendiri.
 
-> Dokumentasi lengkap (arsitektur, database, API, fitur per halaman, dan alur end-to-end) ada di **[DOCS.md](./DOCS.md)**.
-
 ---
 
 ## Arsitektur: Monorepo 3 App
@@ -36,12 +34,18 @@ Proyek ini adalah monorepo pnpm workspace + Turborepo yang berisi **3 aplikasi N
 # 1. Install dependency (otomatis link packages/*)
 pnpm install
 
-# 2. Buat .env.local di setiap app (lihat DOCS.md Bagian 4)
+# 2. Buat .env.local di setiap app dengan env var berikut
+#    NEXT_PUBLIC_SUPABASE_URL
+#    NEXT_PUBLIC_SUPABASE_ANON_KEY
+#    SMTP_HOST
+#    SMTP_PORT
+#    EMAIL
+#    APP_PASSWORD
 #    apps/owner/.env.local
 #    apps/pos/.env.local
 #    apps/superadmin/.env.local
 
-# 3. Jalankan migrasi Supabase 001 → 015 (tanpa 005) + seed
+# 3. Jalankan migrasi Supabase 001 → 021 + seed
 pnpm seed            # company RAKKU (code: RAKKU / password: rakku123)
 pnpm seed:full       # company TOKOKO + Outlet Cabang
 pnpm backfill:owners # buat akun owner untuk company existing
@@ -73,7 +77,7 @@ pnpm dev
 
 ## Infrastruktur
 
-- **Database**: satu project Supabase (PostgreSQL), migrasi di `supabase/migrations/` (001–015, tanpa 005), RLS dinonaktifkan (isolasi via app-level filtering).
+- **Database**: satu project Supabase (PostgreSQL), migrasi di `supabase/migrations/` (001–021), RLS dinonaktifkan (isolasi via app-level filtering).
 - **Auth**: custom JWT + bcrypt untuk owner & kasir; Supabase Auth untuk superadmin.
 - **Email**: nodemailer (verifikasi owner), Resend (laporan via email).
 - **PWA**: Serwist — hanya aktif di `apps/pos` (mode production).
