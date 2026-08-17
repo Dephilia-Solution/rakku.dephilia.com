@@ -5,8 +5,9 @@ import { useCartStore, useCartTotals, useCartGroupedByProduct } from "@/lib/stor
 import { formatCurrency } from "@/lib/dummy-data";
 import { showToast, EmptyState } from "@rakku/ui";
 import ItemDetailModal from "@/components/register/ItemDetailModal";
-import { Product, CartItem } from "@rakku/shared-types";
-import { Trash2, ShoppingBag, X, Clock, Send, Pencil, ChevronRight, Minus, Plus } from "lucide-react";
+import { Product, CartItem, DiningTable } from "@rakku/shared-types";
+import { getTables } from "@/lib/supabase/queries.client";
+import { Trash2, ShoppingBag, X, Clock, Send, Pencil, ChevronRight, Minus, Plus, Grid3X3 } from "lucide-react";
 
 interface OrderSidebarProps {
   onCheckout: () => void;
@@ -32,6 +33,8 @@ export default function OrderSidebar({
   const items = useCartStore((s) => s.items);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
+  const tableId = useCartStore((s) => s.tableId);
+  const setTableId = useCartStore((s) => s.setTableId);
   const incrementQty = useCartStore((s) => s.incrementQty);
   const decrementQty = useCartStore((s) => s.decrementQty);
   const removeItem = useCartStore((s) => s.removeItem);
@@ -43,6 +46,8 @@ export default function OrderSidebar({
   const [detailItem, setDetailItem] = useState<{ product: Product; variants: CartItem[] } | null>(null);
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyVal, setEditingQtyVal] = useState<string>("");
+  const [tables, setTables] = useState<DiningTable[]>([]);
+  const [tablesLoaded, setTablesLoaded] = useState(false);
 
   const savingDraft = useCartStore((s) => s.savingDraft);
   const saveAsDraft = useCartStore((s) => s.saveAsDraft);
@@ -75,6 +80,17 @@ export default function OrderSidebar({
     fetchDraftCount();
     const interval = setInterval(fetchDraftCount, 30000);
     return () => clearInterval(interval);
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        const data = await getTables();
+        setTables(data);
+      } catch {}
+      setTablesLoaded(true);
+    };
+    fetchTables();
   }, [refreshKey]);
 
   const content = (
@@ -130,6 +146,24 @@ export default function OrderSidebar({
             className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
           />
         </div>
+        {tablesLoaded && tables.length > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <Grid3X3 size={16} className="text-neutral-400 flex-shrink-0" />
+            <select
+              value={tableId ?? ""}
+              onChange={(e) => setTableId(e.target.value || null)}
+              className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+            >
+              <option value="">Tanpa meja</option>
+              {tables.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.status === "occupied" ? " (Terisi)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">

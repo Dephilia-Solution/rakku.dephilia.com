@@ -9,8 +9,12 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  QrCode,
+  Copy,
+  Check,
 } from "lucide-react";
 import { showToast } from "@rakku/ui";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function OwnerSettingsPage() {
   const [company, setCompany] = useState<{
@@ -33,6 +37,39 @@ export default function OwnerSettingsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
+  // Menu QR
+  const [qrOutlets, setQrOutlets] = useState<
+    { id: string; name: string; qr_menu_slug: string; menu_url: string }[]
+  >([]);
+  const [isQrLoading, setIsQrLoading] = useState(true);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  const fetchMenuQr = async () => {
+    setIsQrLoading(true);
+    try {
+      const res = await fetch("/api/owner/menu-qr");
+      const data = await res.json();
+      if (res.ok) {
+        setQrOutlets(data.outlets ?? []);
+      }
+    } catch {
+      showToast("error", "Gagal memuat QR menu");
+    } finally {
+      setIsQrLoading(false);
+    }
+  };
+
+  const handleCopy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      showToast("success", "URL menu disalin");
+      setTimeout(() => setCopiedUrl(null), 1500);
+    } catch {
+      showToast("error", "Gagal menyalin URL");
+    }
+  };
+
   const fetchCompany = async () => {
     setIsLoading(true);
     try {
@@ -51,6 +88,7 @@ export default function OwnerSettingsPage() {
 
   useEffect(() => {
     fetchCompany();
+    fetchMenuQr();
   }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -211,6 +249,69 @@ export default function OwnerSettingsPage() {
             )}
           </button>
         </form>
+      </div>
+
+      {/* Menu QR Section */}
+      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+            <QrCode size={20} />
+          </div>
+          <div>
+            <h2 className="font-bold text-on-surface">Menu QR</h2>
+            <p className="text-xs text-on-surface-variant">
+              Scan untuk buka menu digital tanpa login. Cetak & tempel di meja.
+            </p>
+          </div>
+        </div>
+
+        {isQrLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-20 bg-surface-container rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        ) : qrOutlets.length === 0 ? (
+          <p className="text-sm text-on-surface-variant">
+            Belum ada outlet aktif untuk menu QR.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {qrOutlets.map((outlet) => (
+              <div
+                key={outlet.id}
+                className="flex items-center gap-4 bg-surface-container rounded-xl p-4"
+              >
+                <div className="bg-white rounded-lg p-2 flex-shrink-0">
+                  <QRCodeSVG value={outlet.menu_url} size={96} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-on-surface truncate">
+                    {outlet.name}
+                  </p>
+                  <p className="text-xs text-on-surface-variant mt-0.5 break-all font-mono">
+                    {outlet.menu_url}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(outlet.menu_url)}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+                  >
+                    {copiedUrl === outlet.menu_url ? (
+                      <Check size={14} />
+                    ) : (
+                      <Copy size={14} />
+                    )}
+                    {copiedUrl === outlet.menu_url ? "Tersalin" : "Salin URL"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Password Section */}

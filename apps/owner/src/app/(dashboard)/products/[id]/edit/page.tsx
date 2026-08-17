@@ -7,6 +7,7 @@ import {
   getCompanyProductById,
   getProductModifiers,
   getProductTierPricesByProduct,
+  getProductRecipes,
 } from "@/lib/supabase/queries.data";
 import OwnerProductForm from "@/components/products/ProductForm";
 import type { PricingTier } from "@rakku/shared-types";
@@ -33,13 +34,14 @@ export default async function OwnerEditProductPage({
     redirect("/outlets");
   }
 
-  const [categories, pricingTiers, product, modifiers, productTierPrices] =
+  const [categories, pricingTiers, product, modifiers, productTierPrices, recipes] =
     await Promise.all([
       getCompanyCategories(session.company_id, selected.id),
       getCompanyPricingTiersSimple(session.company_id, selected.id),
       getCompanyProductById(session.company_id, id),
       getProductModifiers(session.company_id, id),
       getProductTierPricesByProduct(id),
+      getProductRecipes(session.company_id, id),
     ]);
 
   if (!product) notFound();
@@ -66,6 +68,13 @@ export default async function OwnerEditProductPage({
       }}
       initialTierPrices={initialTierPrices}
       initialModifiers={modifiers}
+      initialRecipes={recipes.map((r) => ({
+        id: r.id,
+        ingredient_id: r.ingredient_id,
+        ingredient_name: r.ingredient_name,
+        ingredient_unit: r.ingredient_unit,
+        quantity_used: r.quantity_used,
+      }))}
     />
   );
 }

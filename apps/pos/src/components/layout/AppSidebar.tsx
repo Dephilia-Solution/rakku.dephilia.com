@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 import { useDraftCount } from "@/hooks/useDraftCount";
+import { useLowStockCount } from "@/hooks/useLowStockCount";
 import type { Menu } from "@rakku/shared-types";
 
 interface AppSidebarProps {
@@ -30,6 +31,7 @@ function isActive(href: string, pathname: string): boolean {
 export default function AppSidebar({ menus }: AppSidebarProps) {
   const pathname = usePathname();
   const draftCount = useDraftCount();
+  const lowStockCount = useLowStockCount();
 
   return (
     <aside
@@ -78,6 +80,11 @@ export default function AppSidebar({ menus }: AppSidebarProps) {
                 {item.path === "/register" && draftCount > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
                     {draftCount > 9 ? "9+" : draftCount}
+                  </span>
+                )}
+                {item.path === "/ingredients" && lowStockCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
+                    {lowStockCount > 9 ? "9+" : lowStockCount}
                   </span>
                 )}
               </span>

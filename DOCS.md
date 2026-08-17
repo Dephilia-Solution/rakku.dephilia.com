@@ -2005,3 +2005,321 @@ RegisterView (client)
 | Superadmin | Supabase Auth session | sesuai Supabase | login di apps/superadmin |
 
 Semua percobaan login (kasir & owner) dicatat di `auth_audit_logs` via `logAuthEvent()` dengan IP + user agent + failure reason.
+
+---
+
+## 17. V5.0 — Inventory & Operasional Kedai/Cafe
+
+> **STATUS: MILESTONE 1 & 2 SELESAI** (Ingredients + Recipe CRUD + Potong Stok Otomatis)
+>
+> v5.0 menutup gap terbesar produk: namanya "POS/inventory" tapi belum ada modul inventory sama sekali. Scope sengaja dipersempit ke kedai kecil & cafe (bukan resto skala penuh). Requirement lengkap: `PRD_V5_CAFE.md`. Instruksi eksekusi: `PROMPT_RAKKU_V5_CAFE_INVENTORY.md` — satu milestone per sesi.
+
+### 17.1 Ikhtisar Milestone
+
+| Milestone | Fitur | Status |
+|---|---|---|
+| M1 | F1+F2 — Ingredients + Recipe (CRUD) | ✅ Selesai |
+| M2 | F3 — Potong stok otomatis + stock_movements | ✅ Selesai |
+| M3 | F5 — Pengeluaran operasional | ✅ Selesai |
+| M4 | F6 — Laporan laba rugi | ✅ Selesai |
+| M5 | F7+F8+F9 — Opname, pembelian/restock, alert stok | ✅ Selesai |
+| M6 | F11+F13 — Menu QR view-only + manajemen meja | ✅ Selesai |
+
+> **Catatan penomoran migration:** PRD v5 menyebut migration pertama sebagai `016`, tapi `016_owner_password_reset.sql` sudah ada di repo. Sesuai aturan (tidak mengubah migration lama), semua nomor migration v5 **digeser +1**: `017_ingredients_and_recipes`, `018_stock_movements`, `019_ingredient_purchases`; `020_expenses`, `021_qr_menu_and_tables` tetap cocok dengan nomor PRD (renumber setelah `021_customers_loyalty` dihapus).
+
+### 17.2 Skema Baru (Migration 017)
+
+- `ingredients` — bahan baku per outlet: nama, unit (gram/ml/pcs/kg/liter), `stock_quantity`, `min_stock_alert`, `cost_per_unit` (metode *last cost*), `is_active`. Scoped `company_id` + `outlet_id`.
+- `product_recipes` — BOM: `product_id` × `ingredient_id` (UNIQUE), `quantity_used` per 1 porsi. **Tanpa** kolom tenant — scoping diverifikasi lewat tabel `products`/`ingredients`.
+- RLS: `ENABLE ROW LEVEL SECURITY` + `GRANT ALL ... TO authenticated` (pola migration 013). App-level auth tetap jadi batas keamanan nyata.
+- Menu baru `ingredients` ("Bahan Baku", icon `Boxes`, `/ingredients`, sort_order 5) didaftarkan ke `menus` **tanpa** seed `role_menu_access` — Owner mengatur sendiri via "Kelola Role" (DOCS.md §14.10).
+
+### 17.3 Shared Types
+
+`packages/shared-types/src/inventory.ts` (re-export via `index.ts`): `IngredientUnit`, `Ingredient`, `ProductRecipe`, `ProductRecipeWithIngredient` (dengan `ingredient_name`/`ingredient_unit`). Konvensi: snake_case persis kolom DB, numeric → `number`, nullable → `string | null`.
+
+### 17.4 API Baru (apps/pos)
+
+Pola session-scoped (`getTenantSessionFromCookies` + `.eq("company_id"...)`), sama seperti `taxes/route.ts`. PATCH: id di body. DELETE: id di query param.
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/api/admin/ingredients` | GET/POST/PATCH/DELETE | CRUD bahan baku |
+| `/api/admin/recipes` | GET (`?product_id=`)/POST/DELETE | Resep per produk; POST & DELETE memverifikasi tenant produk/bahan dulu |
+
+### 17.5 Halaman & Komponen Baru (apps/pos)
+
+- `/ingredients` (list: desktop table + mobile cards, search, pagination, badge "Menipis", toggle aktif, delete via `ConfirmDialog`) — server `page.tsx` + client `IngredientsClient.tsx`.
+- `/ingredients/add` & `/ingredients/[id]/edit` — dedicated route + `components/inventory/IngredientForm.tsx` (pola `ProductForm`: PageHeader `backAs`, card, bottom action bar `useNavMode`).
+- `components/products/RecipeManagerSlideOver.tsx` — kelola resep di dalam `ProductForm` (pola `TierManagerSlideOver`):
+  - **Mode edit** (`productId` ada): self-fetch resep saat open, add/delete langsung ke API, sinkron via `onRowsChange`.
+  - **Mode tambah** (produk belum punya id): baris resep ditampung sebagai antrian lokal (`RecipeRow` tanpa `id`, badge "Baru"), lalu di-*flush* di `handleSave` setelah `createProduct` — persis pola `queuedModifiers` yang sudah ada.
+- **Resep juga tersedia di owner app** (`apps/owner`): `ProductForm` owner punya card "Resep / Bahan Baku" + `RecipeManagerSlideOver` versi owner (endpoint `/api/owner/*`, scoped via `outletId`), API `/api/owner/ingredients` (GET per outlet) & `/api/owner/recipes` (GET/POST/DELETE, verifikasi tenant lewat join `products.company_id`), serta query `getCompanyIngredients`/`getProductRecipes` di `queries.data.ts`.
+- Query server: `getAllIngredients()`, `getProductRecipes(productId)` di `apps/pos/src/lib/supabase/queries.server.ts`.
+- Helper client: `createIngredient`, `updateIngredient`, `deleteIngredient` di `apps/pos/src/lib/supabase/queries.client.ts`.
+
+### 17.6 Keputusan Desain M1
+
+- **cost_per_unit dikirim ke semua role yang punya akses menu ingredients** — akses menu itu sendiri adalah "akses eksplisit" yang dimaksud prompt; filter role-by-role untuk HPP/laba baru benar-benar diterapkan di M4 (endpoint laba rugi khusus Owner).
+- Produk tanpa resep tetap bisa dijual normal — sekadar tidak memotong stok (sesuai PRD).
+- `product_recipes` UNIQUE(`product_id`, `ingredient_id`) — duplikat ditolak di API (kode 23505 → pesan ramah), UI memfilter bahan yang sudah dipakai dari dropdown.
+- Ingredient nonaktif tidak muncul di picker resep.
+
+### 17.7 Test Manual (milestone ini)
+
+1. Apply migration `017_ingredients_and_recipes.sql` ke project Supabase.
+2. Login POS (`RAKKU`/`rakku123`, PIN `123456`) → menu "Bahan Baku" **belum muncul** sampai Owner grant akses: login `apps/owner` → Karyawan → tab Role & Akses → beri `can_view` menu "Bahan Baku" ke role yang diinginkan.
+3. CRUD bahan baku (list/search, add, edit, toggle, delete) → cek data di tabel `ingredients`.
+4. Buka `/products/add` (POS atau owner) → section "Resep / Bahan Baku" → "Kelola Resep" → tambah beberapa bahan + qty → simpan produk → cek baris `product_recipes` ter-buat.
+5. Edit produk (POS atau owner) → ubah/hapus resep → cek `product_recipes` sinkron.
+
+### 17.8 Catatan Penting
+
+- Migration v5 **tidak** mengubah file migration lama (001–016) dan **tidak** mengaktifkan potong stok otomatis — itu Milestone 2 (di bagian `POST /api/admin/orders`).
+- `cost_per_unit` saat ini baru tersimpan, belum berpengaruh ke perhitungan apa pun (HPP/laba masuk Milestone 4).
+- RLS tetap permissive (app-level auth), konsisten dengan keputusan v1–v4.
+
+---
+
+## 18. V5.0 — Milestone 2: Potong Stok Otomatis (F3)
+
+> **STATUS: MILESTONE 2 SELESAI** (Potong Stok Otomatis + `stock_movements`)
+
+### 18.1 Keputusan Desain
+
+- **Strategi eksekusi: best-effort helper** (bukan RPC/Postgres function). Supabase JS admin client tidak mendukung multi-statement transaction native; membuat RPC berarti memperkenalkan pola baru yang belum ada di codebase. Konsekuensi: potong stok dijalankan **setelah** order + `order_items` tersimpan, dan kegagalan deduksi **tidak** menggagalkan order — error di-`console.error` saja (konsisten dengan PRD §F3 "best-effort dengan retry/log"; opsi dokumentasi: cukup log, tanpa retry otomatis).
+- **Idempotency guard**: sebelum deduksi, helper mengecek `stock_movements` di mana `reference_id = order_id` & `type = 'sale_deduction'`. Sudah ada → skip. Ini mencegah double-deduct saat `PATCH /api/admin/orders/draft` di-retry atau dipanggil dua kali untuk order yang sama.
+- **Stok boleh minus** — update `stock_quantity` tidak dibatasi ≥ 0 (sesuai PRD: jangan blokir checkout karena stok kurang).
+- **Produk tanpa resep** = di-skip otomatis (tidak ada `product_recipes` → tidak ada deduksi).
+- Trigger potong stok hanya untuk order `status=completed`: `POST /api/admin/orders` (order baru) dan `PATCH /api/admin/orders/draft` (draft dibayar → `completed`). `orders/split` tidak menyentuh stok (itu hanya split bayar).
+- PATCH draft menjalankan deduksi **setelah** `order_items` di-replace (delete + insert ulang), sehingga memakai item terbaru.
+- Badge "stok akan berkurang" di `ItemDetailModal` register **ditunda** (nice-to-have, bukan bagian DoD M2).
+
+### 18.2 Skema Baru (Migration 018)
+
+- `stock_movements` — audit trail perubahsan stok: `ingredient_id`, `type` (`purchase` / `sale_deduction` / `adjustment` / `waste`), `quantity_change` (+/−), `reference_id` (order_id/purchase_id, nullable), `note`, `created_by`, `created_at`. Scoped `company_id` + `outlet_id`.
+- RLS: `ENABLE ROW LEVEL SECURITY` + `GRANT ALL ... TO authenticated` (pola migration 013/017).
+
+### 18.3 Shared Types
+
+`packages/shared-types/src/inventory.ts`: `StockMovementType` + `StockMovement` (re-export via `index.ts`).
+
+### 18.4 Helper Baru
+
+`apps/pos/src/lib/inventory/stock.ts` — `deductStockForOrder(orderId, companyId, outletId)`:
+
+1. Cek idempotency (`stock_movements` sale_deduction untuk order tsb → sudah ada? skip).
+2. Fetch `order_items` order tsb → kumpulkan `product_id` + `quantity`.
+3. Fetch `product_recipes` (join `ingredients`) untuk product ids tsb — hanya bahan yang scoped ke company+outlet order yang dipakai.
+4. Agregasi per ingredient: `Σ quantity_used × item.quantity`.
+5. Update `ingredients.stock_quantity -= total` (scoped company+outlet).
+6. Insert 1 baris `stock_movements` per ingredient (`quantity_change` negatif, `reference_id=order_id`).
+7. Seluruh langkah dalam try/catch — error di-log, order tetap sukses.
+
+### 18.5 Integrasi Route (apps/pos)
+
+| Route | Perubahan |
+|---|---|
+| `POST /api/admin/orders` | Setelah `order_items` sukses & `status === "completed"` → `await deductStockForOrder(order.id, companyId, outletId)` |
+| `PATCH /api/admin/orders/draft` | Setelah order di-update & `order_items` ter-replace; jika `status === "completed"` → `await deductStockForOrder(id, data.company_id, data.outlet_id)` |
+
+### 18.6 Test Manual (Definition of done M2)
+
+1. Buat produk dengan resep (mis. Kopi Susu: kopi 20g + susu 150ml), set stok awal bahan (mis. kopi 1000g, susu 1000ml).
+2. Jual 2x Kopi Susu → cek `ingredients`: kopi −40g, susu −300ml; muncul 2 baris `stock_movements` type `sale_deduction`, `reference_id` = order id.
+3. Jual produk tanpa resep → normal, stok & `stock_movements` tidak berubah.
+4. Buat draft → restore di register → bayar → potong stok terjadi tepat 1× (test retry PATCH → deduksi tetap sekali).
+5. (Opsional) Simulasi error helper → order tetap tersimpan, error ter-log di server.
+
+## 19. V5.0 — Milestone 3: Pengeluaran Operasional (F5)
+
+> **STATUS: MILESTONE 3 SELESAI** (Pencatatan Pengeluaran Operasional)
+
+### 19.1 Keputusan Desain
+
+- **Kategori** = dropdown preset (Listrik, Air, Galon, Plastik / Kemasan, Gaji, Sewa, Bahan Lain, Lainnya) **+ opsi custom bebas** (sesuai PRD "dropdown + custom"). Tidak ada tabel kategori terpisah — kategori disimpan sebagai teks di kolom `category` (setia pada skema PRD §8).
+- **CRUD single-page** (modal) di `/expenses` — expense itemnya ringkas, tidak perlu halaman add/edit terpisah seperti `/ingredients`. Mobile-first: bottom-sheet modal + card list, pola existing.
+- **Akses** = menu `expenses` ("Pengeluaran", icon `Wallet`, `/expenses`, sort_order 7) didaftarkan ke `menus` **tanpa** seed `role_menu_access` — Owner mengatur sendiri via "Kelola Role" (pola M1 `ingredients`). Kasir & Owner dapat akses default setelah di-grant.
+- **M4 (laba rugi)** akan mengonsumsi tabel `expenses` ini pada milestone berikutnya — M3 murni POS-side.
+
+### 19.2 Skema Baru (Migration 020)
+
+- `expenses` — pengeluaran operasional per outlet: `category` (text), `amount` (numeric), `description` (nullable), `expense_date` (timestamptz), `created_by`. Scoped `company_id` + `outlet_id`.
+- Index: `idx_expenses_company_outlet` + `idx_expenses_date`.
+- RLS: `ENABLE ROW LEVEL SECURITY` + `GRANT ALL ... TO authenticated` (pola migration 013/017/018).
+
+### 19.3 Shared Types
+
+`packages/shared-types/src/inventory.ts` (re-export via `index.ts`): interface `Expense` — snake_case persis kolom DB, `amount` → `number`, nullable (`description`/`created_by`) → `string | null`.
+
+### 19.4 API Baru (apps/pos)
+
+Pola session-scoped (`getTenantSessionFromCookies` + `.eq("company_id"/"outlet_id")`), sama seperti `ingredients/route.ts`. PATCH: id di body. DELETE: id di query param. Validasi: `category` wajib, `amount` wajib & `> 0`.
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/api/admin/expenses` | GET/POST/PATCH/DELETE | CRUD pengeluaran (GET: order `expense_date` desc) |
+
+### 19.5 Halaman & Komponen Baru (apps/pos)
+
+- `/expenses` (list: desktop table + mobile cards, search kategori/deskripsi, kartu ringkasan Total Pengeluaran, modal add/edit dengan dropdown+custom kategori, nominal Rp, deskripsi, tanggal; delete via `ConfirmDialog`) — server `page.tsx` + client `ExpensesClient.tsx` + `loading.tsx`.
+
+### 19.6 Test Manual (Definition of done M3)
+
+1. Apply migration `020_expenses.sql` ke project Supabase (sudah di-push).
+2. Login POS → menu "Pengeluaran" **belum muncul** sampai Owner grant akses (owner → Karyawan → Role & Akses → `can_view` menu "Pengeluaran").
+3. Tambah pengeluaran (dropdown preset & custom) → cek tersimpan di tabel `expenses` dengan scope company/outlet benar.
+4. Edit & hapus pengeluaran → riwayat tampil terurut tanggal, total nominal sesuai.
+
+## 20. V5.0 — Milestone 4: Laporan Laba Rugi (F6)
+
+> **STATUS: MILESTONE 4 SELESAI** (Laporan Laba Rugi di apps/owner)
+
+### 20.1 Keputusan Desain
+
+- **Formula:** `Laba Kotor = Omzet − HPP`, `Laba Bersih = Laba Kotor − Total Pengeluaran` (sesuai PRD F6). HPP = Σ `ingredients.cost_per_unit × product_recipes.quantity_used` per unit produk, dikali `order_items.quantity` untuk tiap item terjual.
+- **Omzet** dihitung dari order `status = 'completed'` saja (draft/cancelled tidak masuk). Konsisten dengan laporan penjualan existing yang memakai filter status default completed.
+- **Role-gated:** tab "Laba Rugi" hanya ada di `apps/owner` (apps yang memang khusus Owner). `apps/pos/reports` (Kasir) tidak diubah sama sekali — margin tidak terekspos ke Kasir.
+- **Filter periode & outlet** dihitung **server-side** di endpoint (`date_range` + `outlet_id`), dengan logika tanggal identik laporan existing (today/yesterday/week/all).
+- **Pola embed PostgREST many-to-one**: `product_recipes → ingredients(cost_per_unit)` dikembalikan sebagai **object** (bukan array) — diakses `(r.ingredients as JsonLike)?.cost_per_unit` (pola yang sama dengan fix bug M2).
+
+### 20.2 API Baru (apps/owner)
+
+Pola `requireOwner()` (session-scoped company), sama seperti `orders/route.ts`. `date_range` valid: `today | yesterday | week | all` (default `all`). `outlet_id` opsional.
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/api/owner/reports/profit-loss` | GET | Hitung omzet, HPP, laba kotor, pengeluaran, laba bersih, total transaksi (scoped company + outlet opsional) |
+
+Response:
+```json
+{
+  "totalRevenue": 0, "totalHpp": 0, "grossProfit": 0,
+  "totalExpenses": 0, "netProfit": 0, "totalTransactions": 0
+}
+```
+
+### 20.3 Halaman & Komponen Baru (apps/owner)
+
+- `components/reports/ProfitLossClient.tsx` — klien laporan laba rugi: filter outlet + periode (Hari ini/Kemarin/7 Hari/Semua), 5 kartu (Omzet, HPP, Laba Kotor, Pengeluaran, Laba Bersih), plus panel Ringkasan detail (transaksi selesai, omzet, HPP, pengeluaran, laba bersih).
+- `(dashboard)/reports/ReportsClient.tsx` — ditambah tab "Penjualan" / "Laba Rugi" (`@rakku/ui` `Tabs`). Tab "Laba Rugi" hanya muncul di apps/owner.
+
+### 20.4 Test Manual (Definition of done M4)
+
+1. Login apps/owner → `/reports` → tab "Laba Rugi".
+2. Cek angka masuk akal: `Laba Bersih = Omzet − HPP − Pengeluaran` (verifikasi dengan data di DB: 38 order completed, Omzet 2.790.644, HPP 3.296.000, Pengeluaran 0 → Laba Bersih −505.356 — negatif karena data dev).
+3. Ganti filter periode & outlet → angka berubah sesuai scope.
+4. Login apps/pos → `/reports` → **tidak ada** tab "Laba Rugi" (Kasir tidak melihat margin).
+
+## 21. V5.0 — Milestone 5: Opname, Pembelian, Alert Stok (F7+F8+F9)
+
+> **STATUS: MILESTONE 5 SELESAI** (Stock Opname Manual + Pencatatan Pembelian/Restock + Alert Stok Menipis)
+
+### 21.1 Keputusan Desain
+
+- **Pembelian = sumber update stok & cost** (sesuai PRD F8): `POST /api/admin/purchases` menerima header + list item `{ingredient_id, quantity, unit_cost}`. Server: (1) insert `ingredient_purchases`, (2) insert `ingredient_purchase_items`, (3) tambah `stock_quantity` tiap bahan + set `cost_per_unit = unit_cost` (metode **last cost**), (4) insert `stock_movements` type `purchase` (`reference_id` = purchase id). Kegagalan update stok/cost di-`console.error` tapi pembelian tetap tercatat (konsisten pola best-effort M2).
+- **Opname manual (F7)** = `POST /api/admin/ingredients/[id]/adjust` dengan `{ stock_quantity, note }`. Server menghitung `quantity_change = stock_baru − stock_sistem`, update stok, lalu insert `stock_movements` type `adjustment` (`reference_id` null). Stok hasil opname boleh 0 tapi tidak negatif.
+- **Migration digeser ke `019`** (bukan `018` seperti di PROMPT) karena `018_stock_movements` sudah dipakai (DOCS.md §17.1).
+- **Badge alert stok menipis (F9)** = hook `useLowStockCount()` (pola `useDraftCount`): fetch `/api/admin/ingredients` tiap 30 detik, hitung ingredient aktif dengan `min_stock_alert > 0` dan `stock_quantity <= min_stock_alert`. Badge `bg-warning` ditampilkan di menu "Bahan Baku" pada keempat nav (`AppSidebar`, `SideRail`, `BottomNav`, `MobileBottomNav`).
+- **Menu** `purchases` ("Pembelian", icon `ShoppingBag`, `/purchases`, sort_order 8) didaftarkan ke `menus` **tanpa** seed `role_menu_access` — Owner mengatur via "Kelola Role" (pola M1/M3).
+- **Stok boleh minus** tetap berlaku (PRD F3) — pembelian & opname tidak dibatasi ≥ 0 selain opname yang divalidasi tidak negatif.
+
+### 21.2 Skema Baru (Migration 019)
+
+- `ingredient_purchases` — header pembelian per outlet: `supplier_name` (nullable), `total_amount` (numeric), `purchase_date` (timestamptz), `note` (nullable), `created_by`. Scoped `company_id` + `outlet_id`. Index: `idx_ingredient_purchases_company_outlet` + `idx_ingredient_purchases_date`.
+- `ingredient_purchase_items` — detail per bahan: `purchase_id` (FK cascade), `ingredient_id`, `quantity`, `unit_cost`, `subtotal`. Index: `idx_ingredient_purchase_items_purchase`.
+- RLS: `ENABLE ROW LEVEL SECURITY` + `GRANT ALL ... TO authenticated` (pola migration 013/017/018/020).
+
+### 21.3 Shared Types
+
+`packages/shared-types/src/inventory.ts` (re-export via `index.ts`): `IngredientPurchase` + `IngredientPurchaseItem` — snake_case persis kolom DB, `total_amount`/`quantity`/`unit_cost`/`subtotal` → `number`.
+
+### 21.4 API Baru (apps/pos)
+
+Pola session-scoped (`getTenantSessionFromCookies` + `.eq("company_id"/"outlet_id")`), sama seperti `expenses/route.ts`.
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/api/admin/purchases` | GET | List pembelian + items (join nama & unit ingredient), order `purchase_date` desc |
+| `/api/admin/purchases` | POST | Simpan pembelian + items + tambah stok & update `cost_per_unit` (last cost) + insert `stock_movements` type `purchase` |
+| `/api/admin/ingredients/[id]/adjust` | POST | Opname manual: set `stock_quantity`, hitung selisih, insert `stock_movements` type `adjustment` |
+
+Validasi POST purchases: minimal 1 item, `ingredient_id` wajib, `quantity > 0`, `unit_cost >= 0`. Response `{ success, id, total_amount }`. Validasi adjust: `stock_quantity` angka & `>= 0`, bahan wajib ada & scoped.
+
+### 21.5 Halaman & Komponen Baru (apps/pos)
+
+- `/purchases` (list) — server `page.tsx` + client `PurchasesClient.tsx`: kartu ringkasan Total Pembelian, search supplier/bahan/catatan, tabel desktop (Tanggal/Supplier/Bahan chips/Total/Catatan) + card mobile.
+- `/purchases/add` — server `page.tsx` + client `AddPurchaseForm.tsx`: supplier, tanggal, catatan, item dinamis (pilih bahan → jumlah → harga beli, harga terisi otomatis dari `cost_per_unit` saat bahan dipilih), total real-time, simpan → `createPurchase`.
+- `/ingredients` — tombol **Stock Opname** (`ClipboardCheck`) per baris/card → modal: tampil stok sistem saat ini, input stok hasil hitungan fisik, catatan opsional; selisih dicatat sebagai `adjustment`. Handler `adjustIngredientStock` di `queries.client.ts`.
+- Hooks: `useLowStockCount()` (`apps/pos/src/hooks/useLowStockCount.ts`).
+- Client queries: `adjustIngredientStock(id, stockQuantity, note?)`, `createPurchase(data)` (`queries.client.ts`). Server query: `getAllPurchases()` (`queries.server.ts`, embed `ingredient_purchase_items(ingredients(name, unit))`).
+
+### 21.6 Test Manual (Definition of done M5)
+
+1. Apply migration `019_ingredient_purchases.sql` (sudah di-push via `supabase db push --include-all`).
+2. Login POS → menu "Pembelian" **belum muncul** sampai Owner grant akses (owner → Karyawan → Role & Akses → `can_view` menu "Pembelian").
+3. Tambah pembelian (2 bahan beda harga) → cek `ingredient_purchases` + `ingredient_purchase_items` tersimpan, `stock_quantity` bertambah, `cost_per_unit` berubah ke harga beli terakhir (last cost), muncul `stock_movements` type `purchase` dengan `reference_id` = purchase id.
+4. Opname salah satu bahan (ubah ke angka berbeda) → `stock_quantity` sesuai input, muncul `stock_movements` type `adjustment` dengan selisih benar.
+5. Set `min_stock_alert` suatu bahan di atas stoknya → badge `bg-warning` muncul di menu "Bahan Baku" (keempat nav) dalam ≤ 30 detik.
+6. Verifikasi otomatis ter-replicate ke DB real: PURCHASE/ADJUST/MOVEMENTS/ROLLBACK semua PASS, data dikembalikan bersih.
+
+## 22. V5.0 — Milestone 6: Menu QR + Manajemen Meja (F11+F13)
+
+> **STATUS: MILESTONE 6 SELESAI** (Menu Digital QR view-only + Manajemen Meja sederhana)
+
+> **Catatan scope:** Fitur F10 (Pelanggan/Loyalty) **dihapus** dari roadmap atas permintaan user — tidak ada tabel `customers`, tidak ada kolom `orders.customer_id`. `orders.customer_name` tetap teks bebas seperti sebelumnya. Nomor migration PRD digeser menyesuaikan (DOCS.md §17.1).
+
+### 22.1 Keputusan Desain
+
+- **Menu QR (F11) view-only** (sesuai PRD): halaman publik `(public)/menu/[slug]` tanpa auth, hanya baca outlet aktif → produk `is_active` + kategori. Response hanya `name, price, description, image_url` — **tanpa** cost/stok/resep. `qr_menu_slug` unik per outlet (partial unique index, NULL aman). Endpoint publik `GET /api/public/menu/[slug]` berbagi helper `getPublicMenuBySlug()` yang sama dengan halaman (DRY).
+- **QR code digenerate client-side** pakai `qrcode.react` (`QRCodeSVG`, SVG murni) di owner `/settings` — tidak butuh server render & offline-friendly. URL QR = `NEXT_PUBLIC_POS_URL/menu/{slug}` (env sudah ada, default `http://localhost:3001`).
+- **Slug otomatis** dibuat di `GET /api/owner/menu-qr`: `generateSlug(outlet.name) + "-" + suffix` saat outlet belum punya `qr_menu_slug`. Endpoint idempotent — QR tidak berubah setelah slug pertama terbentuk.
+- **Manajemen meja (F13)**: `dining_tables` CRUD + toggle status (`available`/`occupied`). Generate massal `POST /api/admin/tables/generate` `{count}` membuat "Meja N" melanjutkan nomor terbesar existing (regex `^Meja (\d+)$`).
+- **Pilih meja saat checkout**: `cartStore.tableId` (nullable) → selector meja di `OrderSidebar` → diteruskan `PaymentModal` → `createOrder` → `orders.table_id`. Saat order `completed` dengan `table_id`, meja di-set `occupied` secara **best-effort** (gagal tidak menggagalkan order; kasir toggle manual kembali ke `available`). `customerName` teks bebas tetap wajib & apa adanya.
+- **`orders.source`** kolom ditambahkan default `'pos'` (cadangan untuk alur self-order di luar scope v5.0) — belum dipakai di alur kasir.
+- **Menu** `tables` ("Meja", icon `Grid3X3`, `/tables`, sort_order 6) didaftarkan ke `menus` **tanpa** seed `role_menu_access` — Owner mengatur via "Kelola Role" (pola M1/M3/M5).
+
+### 22.2 Skema Baru (Migration 021)
+
+- `outlets` + kolom `qr_menu_slug text` + partial UNIQUE index `idx_outlets_qr_menu_slug`.
+- `orders` + kolom `source text NOT NULL DEFAULT 'pos'` + `table_id uuid` (FK `fk_orders_table` → `dining_tables(id)`).
+- `dining_tables` — meja per outlet: `name` (mis. "Meja 1"), `status` (`available`/`occupied`). Scoped `company_id` + `outlet_id`. Index: `idx_dining_tables_company_outlet` + `idx_orders_table_id`.
+- RLS: `ENABLE ROW LEVEL SECURITY` + `GRANT ALL ... TO authenticated` (pola migration 018/020).
+
+### 22.3 Shared Types
+
+`packages/shared-types/src/inventory.ts` (re-export via `index.ts`): `DiningTableStatus`, `DiningTable`, `PublicMenuProduct`, `PublicMenuCategory`, `PublicMenu`. `packages/shared-types/src/owner.ts`: `OwnerDashboardOutlet` + field `qr_menu_slug`.
+
+### 22.4 API Baru
+
+**apps/pos — `/api/admin/`** (session-scoped, pola `expenses/route.ts`):
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/tables` | GET/POST/PATCH/DELETE | CRUD meja + toggle status. PATCH: id di body; DELETE: id di query param |
+| `/tables/generate` | POST | Buat N meja "Meja {next}" sekaligus (`count` 1–100) |
+| `/public/menu/[slug]` | GET | **Publik tanpa auth** — outlet by `qr_menu_slug` → kategori + produk aktif (tanpa data sensitif) |
+
+**apps/owner — `/api/owner/`** (requireOwner):
+
+| Route | Method | Fungsi |
+|---|---|---|
+| `/menu-qr` | GET | Pastikan `qr_menu_slug` per outlet (generate kalau null), return `{ posBaseUrl, outlets: [{id, name, qr_menu_slug, menu_url}] }` |
+
+### 22.5 Halaman & Komponen Baru
+
+- `/tables` (pos, `(dashboard)`) — server `page.tsx` + client `TablesClient.tsx`: ringkasan Total/Tersedia/Terisi, search, tabel desktop + card mobile, toggle status inline, modal tambah/edit, tombol **Generate**, confirm hapus.
+- `(public)/menu/[slug]` (pos) — route group `(public)` tanpa layout dashboard (root layout saja), server component mobile-first: header outlet, kategori → produk (gambar/harga/deskripsi). `notFound()` kalau slug tidak ada.
+- `OrderSidebar` (pos) — selector meja (dropdown) di bawah input nama customer; hanya muncul kalau ada meja.
+- Owner `/settings` — section **Menu QR**: per outlet `QRCodeSVG` + URL + tombol "Salin URL".
+- Client queries: `getTables/createTable/updateTable/deleteTable/generateTables` (`queries.client.ts`); server query: `getAllTables` + `getPublicMenuBySlug` (`queries.server.ts`).
+
+### 22.6 Test Manual (Definition of done M6)
+
+1. Apply migration `021_qr_menu_and_tables.sql` (sudah di-push via `supabase db push --include-all`).
+2. Owner → `/settings` → section Menu QR muncul QR per outlet; scan pakai HP → buka `http://localhost:3001/menu/{slug}` tanpa login → lihat nama outlet, kategori & produk aktif + harga (mobile-first).
+3. Owner grant akses menu "Meja" (owner → Karyawan → Role & Akses → `can_view` menu "Meja") → POS `/tables` muncul.
+4. `/tables` → tombol Generate (mis. 5) → muncul "Meja 1..N" status Tersedia; tambah/edit/hapus + toggle status berfungsi.
+5. Register → pilih meja di OrderSidebar → checkout → order tersimpan dengan `table_id` & meja jadi "Terisi". Toggle kembali "Tersedia".
+6. Halaman publik `(public)/menu/[slug]` tidak mengekspos harga beli/cost (cek response endpoint `/api/public/menu/[slug]`).
+7. Verifikasi otomatis ter-replicate ke DB real: GENERATE/ORDER/TABLE_OCCUPIED/SLUG/ROLLBACK semua PASS, data dikembalikan bersih.

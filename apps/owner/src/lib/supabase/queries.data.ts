@@ -16,6 +16,7 @@ import {
   ModifierTierPrice,
   ProductTierPrice,
   Product,
+  Ingredient,
 } from "@rakku/shared-types";
 
 type JsonLike = Record<string, unknown>;
@@ -856,5 +857,71 @@ export async function getProductTierPricesByProduct(
     product_id: p.product_id as string,
     tier_id: p.tier_id as string,
     price: Number(p.price),
+  })) ?? [];
+}
+
+// ============================================================
+// INGREDIENTS — for a company+outlet
+// ============================================================
+export async function getCompanyIngredients(
+  companyId: string,
+  outletId: string
+): Promise<Ingredient[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("ingredients")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("outlet_id", outletId)
+    .order("name", { ascending: true });
+
+  return (data as JsonLike[])?.map((i) => ({
+    id: i.id as string,
+    company_id: i.company_id as string,
+    outlet_id: i.outlet_id as string,
+    name: i.name as string,
+    unit: i.unit as Ingredient["unit"],
+    stock_quantity: Number(i.stock_quantity),
+    min_stock_alert: Number(i.min_stock_alert),
+    cost_per_unit: Number(i.cost_per_unit),
+    is_active: i.is_active as boolean,
+    created_at: i.created_at as string,
+    updated_at: i.updated_at as string,
+  })) ?? [];
+}
+
+// ============================================================
+// RECIPES — for a product (scoped by company via products join)
+// ============================================================
+export async function getProductRecipes(
+  companyId: string,
+  productId: string
+): Promise<
+  {
+    id: string;
+    product_id: string;
+    ingredient_id: string;
+    quantity_used: number;
+    created_at: string;
+    ingredient_name: string;
+    ingredient_unit: Ingredient["unit"];
+  }[]
+> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("product_recipes")
+    .select("*, ingredients(name, unit), products!inner(company_id)")
+    .eq("product_id", productId)
+    .eq("products.company_id", companyId);
+
+  return (data as JsonLike[])?.map((r) => ({
+    id: r.id as string,
+    product_id: r.product_id as string,
+    ingredient_id: r.ingredient_id as string,
+    quantity_used: Number(r.quantity_used),
+    created_at: r.created_at as string,
+    ingredient_name: ((r.ingredients as JsonLike)?.name as string) ?? "",
+    ingredient_unit:
+      (((r.ingredients as JsonLike)?.unit as Ingredient["unit"]) ?? "pcs"),
   })) ?? [];
 }

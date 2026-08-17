@@ -1,6 +1,6 @@
 import { createAdminClient } from "@rakku/supabase-clients";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { OrderType, PaymentMethod, OrderStatus, PaymentStatus, AppliedTax, AppliedDiscount } from "@rakku/shared-types";
+import { OrderType, PaymentMethod, OrderStatus, PaymentStatus, AppliedTax, AppliedDiscount, PublicMenu } from "@rakku/shared-types";
 
 type JsonLike = Record<string, unknown>;
 
@@ -435,4 +435,180 @@ export async function getDraftOrderCount() {
     .eq("outlet_id", outlet_id)
     .eq("status", "draft");
   return count ?? 0;
+}
+
+export async function getAllIngredients() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("ingredients")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("name", { ascending: true });
+  return (
+    (data as JsonLike[])?.map((i) => ({
+      id: i.id as string,
+      company_id: i.company_id as string,
+      outlet_id: i.outlet_id as string,
+      name: i.name as string,
+      unit: i.unit as "gram" | "ml" | "pcs" | "kg" | "liter",
+      stock_quantity: Number(i.stock_quantity),
+      min_stock_alert: Number(i.min_stock_alert),
+      cost_per_unit: Number(i.cost_per_unit),
+      is_active: i.is_active as boolean,
+      created_at: i.created_at as string,
+      updated_at: i.updated_at as string,
+    })) ?? []
+  );
+}
+
+export async function getProductRecipes(productId: string) {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("product_recipes")
+    .select("*, ingredients(name, unit)")
+    .eq("product_id", productId);
+  return (
+    (data as JsonLike[])?.map((r) => ({
+      id: r.id as string,
+      product_id: r.product_id as string,
+      ingredient_id: r.ingredient_id as string,
+      quantity_used: Number(r.quantity_used),
+      created_at: r.created_at as string,
+      ingredient_name: ((r.ingredients as JsonLike)?.name as string) ?? "",
+      ingredient_unit: ((r.ingredients as JsonLike)?.unit as "gram" | "ml" | "pcs" | "kg" | "liter") ?? "pcs",
+    })) ?? []
+  );
+}
+
+export async function getAllExpenses() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("expenses")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("expense_date", { ascending: false });
+  return (
+    (data as JsonLike[])?.map((e) => ({
+      id: e.id as string,
+      company_id: e.company_id as string,
+      outlet_id: e.outlet_id as string,
+      category: e.category as string,
+      amount: Number(e.amount),
+      description: (e.description as string | null) ?? null,
+      expense_date: e.expense_date as string,
+      created_by: (e.created_by as string | null) ?? null,
+      created_at: e.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getAllTables() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("dining_tables")
+    .select("*")
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("name");
+  return (
+    (data as JsonLike[])?.map((t) => ({
+      id: t.id as string,
+      company_id: t.company_id as string,
+      outlet_id: t.outlet_id as string,
+      name: t.name as string,
+      status: t.status as "available" | "occupied",
+      created_at: t.created_at as string,
+    })) ?? []
+  );
+}
+
+export async function getAllPurchases() {
+  const supabase = createAdminClient();
+  const { company_id, outlet_id } = await getSessionScope();
+  const { data } = await supabase
+    .from("ingredient_purchases")
+    .select(
+      "*, ingredient_purchase_items(ingredient_id, quantity, unit_cost, subtotal, ingredients(name, unit))"
+    )
+    .eq("company_id", company_id)
+    .eq("outlet_id", outlet_id)
+    .order("purchase_date", { ascending: false });
+  return (
+    (data as JsonLike[])?.map((p) => ({
+      id: p.id as string,
+      company_id: p.company_id as string,
+      outlet_id: p.outlet_id as string,
+      supplier_name: (p.supplier_name as string | null) ?? null,
+      total_amount: Number(p.total_amount),
+      purchase_date: p.purchase_date as string,
+      note: (p.note as string | null) ?? null,
+      created_by: (p.created_by as string | null) ?? null,
+      created_at: p.created_at as string,
+      items: ((p.ingredient_purchase_items as JsonLike[]) ?? []).map((i) => ({
+        ingredient_id: i.ingredient_id as string,
+        quantity: Number(i.quantity),
+        unit_cost: Number(i.unit_cost),
+        subtotal: Number(i.subtotal),
+        ingredient_name:
+          ((i.ingredients as JsonLike)?.name as string) ?? "Bahan",
+        ingredient_unit:
+          ((i.ingredients as JsonLike)?.unit as string) ?? "",
+      })),
+    })) ?? []
+  );
+}
+
+export async function getPublicMenuBySlug(slug: string): Promise<PublicMenu | null> {
+  const supabase = createAdminClient();
+
+  const { data: outlet } = await supabase
+    .from("outlets")
+    .select("id, name")
+    .eq("qr_menu_slug", slug)
+    .single();
+
+  if (!outlet) {
+    return null;
+  }
+
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("id, name, sort_order")
+    .eq("outlet_id", outlet.id)
+    .order("sort_order");
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, price, description, image_url, category_id")
+    .eq("outlet_id", outlet.id)
+    .eq("is_active", true)
+    .order("name");
+
+  const productMap = new Map<string, PublicMenu["categories"][number]["products"]>();
+  for (const p of (products as JsonLike[]) ?? []) {
+    const categoryId = p.category_id as string;
+    const list = productMap.get(categoryId) ?? [];
+    list.push({
+      id: p.id as string,
+      name: p.name as string,
+      price: Number(p.price),
+      description: (p.description as string | null) ?? null,
+      image_url: (p.image_url as string | null) ?? null,
+    });
+    productMap.set(categoryId, list);
+  }
+
+  return {
+    outletName: outlet.name as string,
+    categories: ((categories as JsonLike[]) ?? []).map((c) => ({
+      id: c.id as string,
+      name: c.name as string,
+      products: productMap.get(c.id as string) ?? [],
+    })),
+  };
 }

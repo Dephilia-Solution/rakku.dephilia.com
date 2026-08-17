@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { deductStockForOrder } from "@/lib/inventory/stock";
 
 export async function GET() {
   const session = await getTenantSessionFromCookies();
@@ -179,6 +180,17 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: itemsError.message }, { status: 500 });
       }
     }
+  }
+
+  // Draft dibayar (status -> completed): potong stok otomatis (best-effort),
+  // dijalankan SETELAH items ter-replace agar deduksi memakai item terbaru.
+  // Idempotency guard di helper mencegah double-deduct jika PATCH di-retry.
+  if (status === "completed") {
+    await deductStockForOrder(
+      id,
+      (data?.company_id as string | null) ?? null,
+      (data?.outlet_id as string | null) ?? null
+    );
   }
 
   return NextResponse.json(data);

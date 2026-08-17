@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { CartItem, SplitPayment, AppliedDiscount } from "@rakku/shared-types";
+import { deductStockForOrder } from "@/lib/inventory/stock";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     orderType, paymentMethod, items, subtotal, total,
-    customerName, note, status, paymentStatus, companyId, outletId, cashierId,
+    customerName, tableId, note, status, paymentStatus, companyId, outletId, cashierId,
     pricingTierId, splitPayments, taxes, discounts,
   } = body;
 
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       discount_amount: discountAmount,
       total_price: total,
       customer_name: customerName.trim(),
+      table_id: tableId || null,
       note: note || null,
       status: status || "completed",
       payment_status: paymentStatus || "paid",
@@ -94,6 +96,24 @@ export async function POST(request: NextRequest) {
     if (splitError) {
       // Log error but don't fail the order
       console.error("Failed to insert split payments:", splitError);
+    }
+  }
+
+  // Potong stok otomatis (best-effort) — hanya untuk order selesai.
+  // Gagal di sini tidak menggagalkan order; error di-log (keputusan M2).
+  if ((status || "completed") === "completed") {
+    await deductStockForOrder(order.id, companyId, outletId);
+  }
+
+  // Tandai meja occupied (best-effort) — hanya untuk order selesai ber-meja.
+  // Kasir bisa toggle manual kembali ke available (keputusan M6).
+  if ((status || "completed") === "completed" && tableId) {
+    const { error: tableError } = await supabase
+      .from("dining_tables")
+      .update({ status: "occupied" })
+      .eq("id", tableId);
+    if (tableError) {
+      console.error("Failed to mark table occupied:", tableError);
     }
   }
 

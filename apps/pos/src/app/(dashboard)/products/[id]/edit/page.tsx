@@ -5,6 +5,7 @@ import {
   getAllPricingTiers,
   getAllModifiers,
   getProductTierPrices,
+  getProductRecipes,
 } from "@/lib/supabase/queries.server";
 import ProductForm from "@/components/products/ProductForm";
 
@@ -15,13 +16,14 @@ interface EditProductPageProps {
 export default async function EditProductPage({ params }: EditProductPageProps) {
   const { id } = await params;
 
-  const [products, categories, pricingTiers, allModifiers, allTierPrices] =
+  const [products, categories, pricingTiers, allModifiers, allTierPrices, recipes] =
     await Promise.all([
       getAllProducts(),
       getCategories(),
       getAllPricingTiers(),
       getAllModifiers(),
       getProductTierPrices(),
+      getProductRecipes(id),
     ]);
 
   const product = products.find((p) => p.id === id);
@@ -51,6 +53,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       pricingTiers={pricingTiers}
       initialTierPrices={initialTierPrices}
       initialModifiers={modifiers}
+      initialRecipes={recipes}
     />
   );
 }

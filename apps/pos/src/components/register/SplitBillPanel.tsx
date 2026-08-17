@@ -9,13 +9,21 @@ interface SplitBillPanelProps {
   items: CartItem[];
   total: number;
   onSplitChange: (payments: SplitPayment[]) => void;
-  onCancel: () => void;
 }
 
-const paymentMethods: { value: PaymentMethod; label: string }[] = [
-  { value: "cash", label: "T" },
-  { value: "qris", label: "Q" },
-  { value: "card", label: "K" },
+const paymentMethods: { value: PaymentMethod; label: string; title: string }[] = [
+  { value: "cash", label: "T", title: "Tunai" },
+  { value: "qris", label: "Q", title: "QRIS" },
+  { value: "card", label: "K", title: "Kartu" },
+];
+
+const personAccents = [
+  "bg-primary-50 text-forest border-primary-100",
+  "bg-blue-50 text-blue-600 border-blue-100",
+  "bg-amber-50 text-amber-600 border-amber-100",
+  "bg-purple-50 text-purple-600 border-purple-100",
+  "bg-rose-50 text-rose-500 border-rose-100",
+  "bg-cyan-50 text-cyan-600 border-cyan-100",
 ];
 
 interface PersonItem {
@@ -34,7 +42,7 @@ function generateId() {
   return `split-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export default function SplitBillPanel({ items, total, onSplitChange, onCancel }: SplitBillPanelProps) {
+export default function SplitBillPanel({ items, total, onSplitChange }: SplitBillPanelProps) {
   const [persons, setPersons] = useState<SplitPerson[]>(() => [
     { id: generateId(), name: "", method: "cash", items: [] },
     { id: generateId(), name: "", method: "cash", items: [] },
@@ -160,18 +168,8 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
   };
 
   return (
-    <div className="space-y-3 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-neutral-900">Split Bill per Item</h4>
-        <button
-          onClick={onCancel}
-          className="text-xs text-neutral-400 hover:text-neutral-600 px-3 py-2 rounded-lg hover:bg-neutral-100"
-        >
-          Batal
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg p-2.5 border border-neutral-200">
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl p-3 border border-neutral-200">
         <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
           Daftar Pesanan
         </p>
@@ -197,51 +195,69 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
         </div>
       </div>
 
-      <div className="space-y-2 max-h-64 overflow-y-auto">
+      <div className="grid gap-2 sm:grid-cols-2">
         {persons.map((person, idx) => {
           const personTotal = getPersonTotal(person);
+          const accent = personAccents[idx % personAccents.length];
+          const initial = person.name?.trim()
+            ? person.name.trim().charAt(0).toUpperCase()
+            : String(idx + 1);
           return (
             <div
               key={person.id}
-              className="bg-white rounded-xl p-2.5 border border-neutral-200"
+              className="bg-white rounded-xl p-3 border border-neutral-200 space-y-2"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold text-neutral-400 w-5 text-center">
-                  {idx + 1}
-                </span>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border flex-shrink-0 ${accent}`}
+                >
+                  {initial}
+                </div>
                 <input
                   type="text"
                   value={person.name}
                   onChange={(e) => updatePerson(person.id, { name: e.target.value })}
                   placeholder="Nama (opsional)"
-                  className="flex-1 bg-transparent border-b border-neutral-200 px-1 py-0.5 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest"
+                  className="flex-1 min-w-0 bg-transparent border-b border-neutral-200 px-1 py-1 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest"
                 />
-                <div className="flex gap-1">
-                  {paymentMethods.map((pm) => (
-                    <button
-                      key={pm.value}
-                      onClick={() => updatePerson(person.id, { method: pm.value })}
-                      className={`w-10 h-10 rounded-lg text-xs font-bold transition-colors ${
-                        person.method === pm.value
-                          ? "bg-forest text-white"
-                          : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
-                      }`}
-                    >
-                      {pm.label}
-                    </button>
-                  ))}
-                </div>
                 {persons.length > 2 && (
                   <button
                     onClick={() => removePerson(person.id)}
-                    className="w-9 h-9 rounded-lg text-neutral-300 hover:text-danger hover:bg-red-50 flex items-center justify-center"
+                    aria-label={`Hapus orang ${idx + 1}`}
+                    className="w-10 h-10 rounded-lg text-neutral-300 hover:text-danger hover:bg-red-50 active:scale-95 flex items-center justify-center flex-shrink-0 transition-all"
                   >
                     <X size={16} />
                   </button>
                 )}
               </div>
 
-              <div className="space-y-1 ml-7">
+              <div className="flex gap-1">
+                {paymentMethods.map((pm) => (
+                  <button
+                    key={pm.value}
+                    onClick={() => updatePerson(person.id, { method: pm.value })}
+                    aria-label={pm.title}
+                    title={pm.title}
+                    aria-pressed={person.method === pm.value}
+                    className={`w-10 h-10 rounded-lg text-xs font-bold transition-colors ${
+                      person.method === pm.value
+                        ? "bg-forest text-white"
+                        : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200 active:bg-neutral-300"
+                    }`}
+                  >
+                    {pm.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-neutral-100">
+                <span className="text-xs text-neutral-400">Total</span>
+                <span className="font-mono text-sm font-semibold text-neutral-900">
+                  {formatCurrency(personTotal)}
+                </span>
+              </div>
+
+              <div className="space-y-1">
                 {person.items.filter((pi) => pi.quantity > 0).map((pi) => {
                   const cartItem = items.find((i) => i.id === pi.cartItemId);
                   if (!cartItem) return null;
@@ -249,9 +265,10 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                   return (
                     <div key={pi.cartItemId} className="flex items-center justify-between text-xs">
                       <span className="text-neutral-600 truncate flex-1">{label}</span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <button
                           onClick={() => removeItemFromPerson(person.id, pi.cartItemId)}
+                          aria-label={`Kurangi ${label}`}
                           className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center active:scale-90 transition-colors"
                         >
                           <Minus size={14} />
@@ -259,6 +276,7 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                         <span className="w-7 text-center font-mono text-sm">{pi.quantity}</span>
                         <button
                           onClick={() => addItemToPerson(person.id, pi.cartItemId)}
+                          aria-label={`Tambah ${label}`}
                           className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center active:scale-90 transition-colors"
                           disabled={getRemainingQty(pi.cartItemId) <= 0}
                         >
@@ -290,12 +308,6 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
                     </div>
                   )}
                 </div>
-
-                <div className="flex justify-end pt-1 border-t border-neutral-100">
-                  <span className="text-xs font-semibold font-mono text-neutral-900">
-                    {formatCurrency(personTotal)}
-                  </span>
-                </div>
               </div>
             </div>
           );
@@ -304,14 +316,14 @@ export default function SplitBillPanel({ items, total, onSplitChange, onCancel }
 
       <button
         onClick={addPerson}
-        className="w-full flex items-center justify-center gap-1.5 text-sm text-forest font-medium py-3 border border-dashed border-neutral-300 rounded-xl hover:bg-white transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 text-sm text-forest font-medium py-3 border border-dashed border-neutral-300 rounded-xl hover:bg-neutral-50 active:scale-[0.98] transition-all cursor-pointer"
       >
         <Plus size={16} />
         Tambah Orang
       </button>
 
       {!allAssigned && (
-        <p className="text-xs text-amber-600 text-center">
+        <p role="status" className="text-xs text-amber-600 text-center">
           Semua item harus terbagi ke orang
         </p>
       )}

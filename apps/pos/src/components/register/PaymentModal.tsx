@@ -9,7 +9,7 @@ import InvoiceReceipt from "@/components/register/InvoiceReceipt";
 import { PaymentMethod, SplitPayment } from "@rakku/shared-types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useModalHistory } from "@/hooks/useModalHistory";
-import SplitBillPanel from "@/components/register/SplitBillPanel";
+import SplitBillSheet from "@/components/register/SplitBillSheet";
 import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
 
 interface PaymentModalProps {
@@ -33,6 +33,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const [cashAmount, setCashAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showSplit, setShowSplit] = useState(false);
   const [splitBillMode, setSplitBillMode] = useState(false);
   const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([]);
   const [cashierName, setCashierName] = useState<string | null>(null);
@@ -46,6 +47,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const orderType = useCartStore((s) => s.orderType);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
+  const tableId = useCartStore((s) => s.tableId);
   const pricingTierId = useCartStore((s) => s.pricingTierId);
   const draftOrderId = useCartStore((s) => s.draftOrderId);
   const setCartSplitPayments = useCartStore((s) => s.setSplitPayments);
@@ -65,6 +67,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       setCashAmount("");
       setSplitBillMode(false);
       setSplitPayments([]);
+      setShowSplit(false);
       setCashierName(null);
     }
   }, [isOpen]);
@@ -79,6 +82,20 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
         .catch(() => {});
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !showSplit) onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose, showSplit]);
 
   const change = cashAmount ? Number(cashAmount) - total : 0;
   const isCashEnough = change >= 0;
@@ -107,8 +124,16 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     return Array.from(new Set(suggestions)).sort((a, b) => a - b).slice(0, 6);
   })();
 
+  const splitTotal = splitPayments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+
   const handleCancel = () => {
     onClose();
+  };
+
+  const cancelSplit = () => {
+    setSplitBillMode(false);
+    setSplitPayments([]);
+    setShowSplit(false);
   };
 
   const handleSuccessClose = () => {
@@ -118,6 +143,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     setCashAmount("");
     setSplitBillMode(false);
     setSplitPayments([]);
+    setShowSplit(false);
     setCashierName(null);
     clear();
     onClose();
@@ -199,6 +225,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           taxes: appliedTaxes.map(t => ({ name: t.name, type: t.type, value: t.value, amount: t.amount })),
           discounts: appliedDiscounts.map(d => ({ name: d.name, type: d.type, value: d.value, amount: d.amount })),
           customerName: customerName.trim(),
+          tableId,
           status: "completed",
           paymentStatus,
           companyId,
@@ -237,44 +264,47 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const content = (
     <>
       {isSuccess && invoiceData ? (
-        <InvoiceReceipt
-          orderNumber={invoiceData.orderNumber}
-          customerName={customerName}
-          cashierName={cashierName}
-          items={items.map((i) => ({
-            product_name: i.product.name,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            subtotal: i.subtotal,
-            modifier_label: i.modifier_label,
-            note: i.note,
-          }))}
-          subtotal={subtotal}
-          appliedTaxes={appliedTaxes}
-          appliedDiscounts={appliedDiscounts}
-          total={total}
-          paymentMethod={method ?? "cash"}
-          orderType={orderType}
-          createdAt={invoiceData.createdAt}
-          onClose={handleSuccessClose}
-          cashAmount={method === "cash" ? (Number(cashAmount) || undefined) : undefined}
-          change={method === "cash" ? (change >= 0 ? change : undefined) : undefined}
-        />
+        <div className="flex flex-col flex-1 min-h-0">
+          <InvoiceReceipt
+            orderNumber={invoiceData.orderNumber}
+            customerName={customerName}
+            cashierName={cashierName}
+            items={items.map((i) => ({
+              product_name: i.product.name,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              subtotal: i.subtotal,
+              modifier_label: i.modifier_label,
+              note: i.note,
+            }))}
+            subtotal={subtotal}
+            appliedTaxes={appliedTaxes}
+            appliedDiscounts={appliedDiscounts}
+            total={total}
+            paymentMethod={method ?? "cash"}
+            orderType={orderType}
+            createdAt={invoiceData.createdAt}
+            onClose={handleSuccessClose}
+            cashAmount={method === "cash" ? (Number(cashAmount) || undefined) : undefined}
+            change={method === "cash" ? (change >= 0 ? change : undefined) : undefined}
+          />
+        </div>
       ) : (
-        <>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200">
             <h3 className="font-display font-semibold text-base text-neutral-900">
               Pembayaran
             </h3>
             <button
               onClick={handleCancel}
-              className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
+              aria-label="Tutup"
+              className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600 active:scale-95 transition-all flex-shrink-0"
             >
               <X size={18} />
             </button>
           </div>
 
-          <div className="px-6 py-4 space-y-5 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 py-4 space-y-5">
             <div className="text-center">
               <p className="text-sm text-neutral-400 mb-1">Total Pembayaran</p>
               <p className="font-mono text-3xl font-bold text-neutral-900">
@@ -284,10 +314,14 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
 
             {/* Customer Name */}
             <div>
-              <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">
+              <label
+                htmlFor="payment-customer-name"
+                className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block"
+              >
                 Nama Customer <span className="text-danger">*</span>
               </label>
               <input
+                id="payment-customer-name"
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
@@ -335,10 +369,11 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                         setMethod(pm.value);
                         if (pm.value !== "cash") setCashAmount("");
                       }}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      aria-pressed={selected}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         selected
                           ? "border-forest bg-primary-50"
-                          : "border-neutral-200 hover:border-neutral-300"
+                          : "border-neutral-200 hover:border-neutral-300 active:border-neutral-400"
                       }`}
                     >
                       <Icon
@@ -361,11 +396,16 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             {method === "cash" && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1 block">
+                  <label
+                    htmlFor="payment-cash-amount"
+                    className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1 block"
+                  >
                     Nominal Pembayaran
                   </label>
                   <input
+                    id="payment-cash-amount"
                     type="number"
+                    inputMode="numeric"
                     value={cashAmount}
                     onChange={(e) => setCashAmount(e.target.value)}
                     placeholder="0"
@@ -378,7 +418,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                     <button
                       key={amt}
                       onClick={() => setCashAmount(amt.toString())}
-                      className={`flex-1 min-w-[80px] text-xs font-medium rounded-lg py-3 transition-colors ${
+                      className={`flex-1 min-w-[80px] text-xs font-medium rounded-lg py-3 transition-colors cursor-pointer ${
                         cashAmount === amt.toString()
                           ? "bg-forest text-white"
                           : "bg-neutral-100 hover:bg-neutral-200 text-neutral-600"
@@ -393,42 +433,64 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                   <div className="flex justify-between text-sm bg-neutral-50 rounded-xl px-4 py-3">
                     <span className="text-neutral-600">Kembalian</span>
                     <span
-                      className={`font-mono font-semibold ${
+                      className={`font-mono font-semibold flex items-center gap-1 ${
                         isCashEnough ? "text-success" : "text-danger"
                       }`}
                     >
                       {isCashEnough
                         ? formatCurrency(change)
                         : `-${formatCurrency(Math.abs(change))}`}
+                      {!isCashEnough && (
+                        <span className="text-[10px] text-danger">kurang</span>
+                      )}
                     </span>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Split Bill Toggle */}
-            {!splitBillMode && (
+            {/* Split Bill */}
+            {splitBillMode ? (
+              <div className="flex items-center justify-between gap-2 bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Users size={16} className="text-forest flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-neutral-700">Split Bill aktif</p>
+                    <p className="text-xs text-neutral-400 truncate">
+                      {splitPayments.length} pembayaran · {formatCurrency(splitTotal)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => setShowSplit(true)}
+                    className="text-xs font-medium text-forest hover:bg-primary-50 rounded-lg px-3 py-2 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={cancelSplit}
+                    className="text-xs font-medium text-danger hover:bg-red-50 rounded-lg px-3 py-2 transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            ) : (
               <button
-                onClick={() => setSplitBillMode(true)}
-                className="w-full flex items-center justify-center gap-2 text-sm font-medium text-neutral-500 bg-neutral-50 rounded-xl px-4 py-3 hover:bg-neutral-100 transition-colors border border-dashed border-neutral-300"
+                onClick={() => {
+                  setSplitBillMode(true);
+                  setShowSplit(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-sm font-medium text-neutral-600 bg-neutral-50 rounded-xl px-4 py-3.5 hover:bg-neutral-100 active:scale-[0.98] transition-all border border-dashed border-neutral-300 cursor-pointer"
               >
                 <Users size={16} />
                 Split Bill
               </button>
             )}
+          </div>
 
-            {splitBillMode && (
-              <SplitBillPanel
-                items={items}
-                total={total}
-                onSplitChange={setSplitPayments}
-                onCancel={() => {
-                  setSplitBillMode(false);
-                  setSplitPayments([]);
-                }}
-              />
-            )}
-
+          <div className="px-4 sm:px-6 py-4 border-t border-neutral-200 bg-white">
             <button
               onClick={handleSubmit}
               disabled={
@@ -444,32 +506,54 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
               )}
             </button>
           </div>
-        </>
+        </div>
       )}
     </>
   );
 
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-[90] flex flex-col justify-end">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCloseAndPop} />
-        <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90dvh] animate-slide-up pb-safe">
-          <div className="flex justify-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full bg-neutral-300" />
-          </div>
-          <div className="overflow-y-auto">{content}</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto" onClick={handleCloseAndPop}>
-      <div className="min-h-full flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-md w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-          {content}
+    <>
+      {isMobile ? (
+        <div className="fixed inset-0 z-[90] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={handleCloseAndPop} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pembayaran"
+            className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[90dvh] animate-slide-up pb-safe"
+          >
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-neutral-300" />
+            </div>
+            <div className="flex flex-col flex-1 min-h-0">{content}</div>
+          </div>
         </div>
-      </div>
-    </div>
+      ) : (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto" onClick={handleCloseAndPop}>
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Pembayaran"
+              className="bg-white rounded-2xl shadow-md w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {content}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSplit && (
+        <SplitBillSheet
+          items={items}
+          total={total}
+          splitPayments={splitPayments}
+          onSplitChange={setSplitPayments}
+          onCancel={cancelSplit}
+          onContinue={() => setShowSplit(false)}
+        />
+      )}
+    </>
   );
 }

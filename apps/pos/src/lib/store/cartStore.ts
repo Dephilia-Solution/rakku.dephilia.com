@@ -53,6 +53,7 @@ interface CartState {
   items: CartItem[];
   orderType: OrderType;
   customerName: string;
+  tableId: string | null;
   note: string;
   draftOrderId: string | null;
   pricingTierId: string | null;
@@ -73,6 +74,7 @@ interface CartState {
   updateItemModifiers: (itemId: string, modifiers?: Modifier[], note?: string | null) => void;
   setOrderType: (type: OrderType) => void;
   setCustomerName: (name: string) => void;
+  setTableId: (id: string | null) => void;
   setNote: (note: string) => void;
   setDraftOrderId: (id: string | null) => void;
   setPricingTier: (tierId: string | null) => void;
@@ -91,6 +93,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   orderType: "dine_in",
   customerName: "",
+  tableId: null,
   note: "",
   draftOrderId: null,
   pricingTierId: null,
@@ -420,12 +423,14 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   setCustomerName: (customerName) => set({ customerName }),
+  setTableId: (tableId) => set({ tableId }),
   setNote: (note) => set({ note }),
   setDraftOrderId: (draftOrderId) => set({ draftOrderId }),
   clear: () =>
     set({
       items: [],
       customerName: "",
+      tableId: null,
       note: "",
       draftOrderId: null,
       pricingTierId: null,

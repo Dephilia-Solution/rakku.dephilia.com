@@ -32,6 +32,7 @@ export interface OwnerDashboardOutlet {
   address: string | null;
   status: "active" | "inactive";
   created_at: string;
+  qr_menu_slug: string | null;
   employee_count: number;
 }
 

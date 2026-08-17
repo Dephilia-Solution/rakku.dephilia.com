@@ -26,12 +26,14 @@ import { uploadProductImage } from "@/lib/supabase/storage";
 import { useNavMode } from "@/hooks/useNavMode";
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
+import RecipeManagerSlideOver, { RecipeRow } from "./RecipeManagerSlideOver";
 import {
   ArrowLeft,
   Check,
   ImagePlus,
   Banknote,
   Puzzle,
+  CookingPot,
   Plus,
   Trash2,
   Pencil,
@@ -56,6 +58,7 @@ interface ProductFormProps {
   pricingTiers: PricingTier[];
   initialTierPrices?: Record<string, number>;
   initialModifiers?: ModifierWithTierPrices[];
+  initialRecipes?: RecipeRow[];
 }
 
 function tierCode(name: string) {
@@ -70,6 +73,7 @@ export default function ProductForm({
   pricingTiers,
   initialTierPrices = {},
   initialModifiers = [],
+  initialRecipes = [],
 }: ProductFormProps) {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -126,6 +130,8 @@ export default function ProductForm({
   const [saving, setSaving] = useState(false);
   const [showCatManager, setShowCatManager] = useState(false);
   const [showTierManager, setShowTierManager] = useState(false);
+  const [showRecipeManager, setShowRecipeManager] = useState(false);
+  const [recipeRows, setRecipeRows] = useState<RecipeRow[]>(initialRecipes);
 
   const navMode = useNavMode();
   const isMobileBottom = navMode === "bottom";
@@ -383,6 +389,22 @@ export default function ProductForm({
                 name: mod.name,
                 group_name: mod.group_name || null,
                 prices,
+              }),
+            });
+          } catch {}
+        }
+
+        // Flush antrian resep (mode tambah: produk belum punya id saat resep diatur)
+        for (const recipe of recipeRows) {
+          if (recipe.id) continue;
+          try {
+            await fetch("/api/admin/recipes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                product_id: data.id,
+                ingredient_id: recipe.ingredient_id,
+                quantity_used: recipe.quantity_used,
               }),
             });
           } catch {}
@@ -883,6 +905,58 @@ export default function ProductForm({
               </p>
             </div>
           </div>
+
+          {/* Resep / Bahan Baku */}
+          <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
+            <div className="p-6 pb-4 flex items-center justify-between">
+              <h3 className="text-headline-sm text-on-surface flex items-center gap-2">
+                <CookingPot size={22} className="text-primary" />
+                Resep / Bahan Baku
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowRecipeManager(true)}
+                className="text-primary text-[10px] font-bold uppercase tracking-wider hover:underline"
+              >
+                Kelola Resep
+              </button>
+            </div>
+
+            {recipeRows.length === 0 ? (
+              <p className="px-6 pb-6 text-sm text-on-surface-variant">
+                Belum ada resep — produk ini dijual tanpa memotong stok bahan.
+              </p>
+            ) : (
+              <div className="border-t border-surface-container divide-y divide-surface-container">
+                {recipeRows.map((r) => (
+                  <div
+                    key={r.id ?? r.ingredient_id}
+                    className="px-6 py-3.5 flex items-center justify-between gap-3"
+                  >
+                    <p className="text-sm font-semibold text-on-surface truncate">
+                      {r.ingredient_name}
+                      {!r.id && (
+                        <span className="ml-2 text-[10px] font-bold uppercase text-warning">
+                          Baru
+                        </span>
+                      )}
+                    </p>
+                    <span className="text-xs font-mono text-on-surface-variant flex-shrink-0">
+                      {r.quantity_used.toLocaleString("id-ID", { maximumFractionDigits: 2 })}{" "}
+                      {r.ingredient_unit} / porsi
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="p-4 px-6 bg-surface-container-low/30 border-t border-surface-container">
+              <p className="text-xs text-on-surface-variant flex items-center gap-2">
+                <Info size={14} className="flex-shrink-0" />
+                Stok bahan otomatis berkurang sesuai resep setiap produk terjual.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -913,6 +987,13 @@ export default function ProductForm({
         open={showTierManager}
         onClose={() => setShowTierManager(false)}
         onTiersChange={handleTiersChange}
+      />
+      <RecipeManagerSlideOver
+        open={showRecipeManager}
+        onClose={() => setShowRecipeManager(false)}
+        productId={mode === "edit" ? productId : undefined}
+        rows={recipeRows}
+        onRowsChange={setRecipeRows}
       />
     </div>
   );

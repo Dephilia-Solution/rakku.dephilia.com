@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useDraftCount } from "@/hooks/useDraftCount";
+import { useLowStockCount } from "@/hooks/useLowStockCount";
 import type { Menu } from "@rakku/shared-types";
 
 interface MobileBottomNavProps {
@@ -24,6 +25,7 @@ function getIcon(iconName: string | null) {
 export default function MobileBottomNav({ menus }: MobileBottomNavProps) {
   const pathname = usePathname();
   const draftCount = useDraftCount();
+  const lowStockCount = useLowStockCount();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-neutral-200/60 flex items-stretch z-50 safe-bottom lg:hidden">
@@ -49,6 +51,11 @@ export default function MobileBottomNav({ menus }: MobileBottomNavProps) {
               {item.path === "/register" && draftCount > 0 && (
                 <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
                   {draftCount > 9 ? "9+" : draftCount}
+                </span>
+              )}
+              {item.path === "/ingredients" && lowStockCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
+                  {lowStockCount > 9 ? "9+" : lowStockCount}
                 </span>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { CartItem, OrderType, PaymentMethod, SplitPayment, AppliedTax, AppliedDiscount } from "@rakku/shared-types";
+import { CartItem, OrderType, PaymentMethod, SplitPayment, AppliedTax, AppliedDiscount, IngredientUnit } from "@rakku/shared-types";
 
 async function api(url: string, options?: RequestInit) {
   const res = await fetch(url, {
@@ -20,6 +20,7 @@ export async function createOrder(data: {
   taxes: AppliedTax[];
   discounts: AppliedDiscount[];
   customerName?: string;
+  tableId?: string | null;
   note?: string;
   status?: string;
   paymentStatus?: string;
@@ -124,4 +125,127 @@ export async function createModifier(productId: string, name: string, priceDelta
 
 export async function deleteModifier(id: string) {
   return api(`/api/admin/modifiers?id=${id}`, { method: "DELETE" });
+}
+
+export async function createIngredient(ingredient: {
+  name: string;
+  unit: IngredientUnit;
+  stock_quantity?: number;
+  min_stock_alert?: number;
+  cost_per_unit?: number;
+}) {
+  return api("/api/admin/ingredients", {
+    method: "POST",
+    body: JSON.stringify(ingredient),
+  });
+}
+
+export async function updateIngredient(
+  id: string,
+  ingredient: {
+    name?: string;
+    unit?: IngredientUnit;
+    stock_quantity?: number;
+    min_stock_alert?: number;
+    cost_per_unit?: number;
+    is_active?: boolean;
+  }
+) {
+  return api("/api/admin/ingredients", {
+    method: "PATCH",
+    body: JSON.stringify({ id, ...ingredient }),
+  });
+}
+
+export async function deleteIngredient(id: string) {
+  return api(`/api/admin/ingredients?id=${id}`, { method: "DELETE" });
+}
+
+export async function createExpense(expense: {
+  category: string;
+  amount: number;
+  description?: string;
+  expense_date?: string;
+}) {
+  return api("/api/admin/expenses", {
+    method: "POST",
+    body: JSON.stringify(expense),
+  });
+}
+
+export async function updateExpense(
+  id: string,
+  expense: {
+    category?: string;
+    amount?: number;
+    description?: string;
+    expense_date?: string;
+  }
+) {
+  return api("/api/admin/expenses", {
+    method: "PATCH",
+    body: JSON.stringify({ id, ...expense }),
+  });
+}
+
+export async function deleteExpense(id: string) {
+  return api(`/api/admin/expenses?id=${id}`, { method: "DELETE" });
+}
+
+export async function adjustIngredientStock(
+  id: string,
+  stockQuantity: number,
+  note?: string
+) {
+  return api(`/api/admin/ingredients/${id}/adjust`, {
+    method: "POST",
+    body: JSON.stringify({ stock_quantity: stockQuantity, note }),
+  });
+}
+
+export async function createPurchase(data: {
+  supplier_name?: string;
+  purchase_date?: string;
+  note?: string;
+  items: {
+    ingredient_id: string;
+    quantity: number;
+    unit_cost: number;
+  }[];
+}) {
+  return api("/api/admin/purchases", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getTables() {
+  return api("/api/admin/tables");
+}
+
+export async function createTable(name: string) {
+  return api("/api/admin/tables", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function updateTable(id: string, data: { name?: string; status?: string }) {
+  return api("/api/admin/tables", {
+    method: "PATCH",
+    body: JSON.stringify({ id, ...data }),
+  });
+}
+
+export async function deleteTable(id: string) {
+  return api(`/api/admin/tables?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function generateTables(count: number) {
+  return api("/api/admin/tables/generate", {
+    method: "POST",
+    body: JSON.stringify({ count }),
+  });
 }

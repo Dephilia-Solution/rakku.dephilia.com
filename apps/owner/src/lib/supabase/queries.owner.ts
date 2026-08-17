@@ -437,7 +437,7 @@ export async function getOwnerOutlets(
 
   const { data: outlets } = await supabase
     .from("outlets")
-    .select("id, name, address, status, created_at")
+    .select("id, name, address, status, created_at, qr_menu_slug")
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
 
@@ -474,6 +474,7 @@ export async function getOwnerOutlets(
       address: o.address,
       status: o.status,
       created_at: o.created_at,
+      qr_menu_slug: (o as Record<string, unknown>).qr_menu_slug as string | null,
       employee_count: directCount + allOutletUserIds.length,
     };
   });

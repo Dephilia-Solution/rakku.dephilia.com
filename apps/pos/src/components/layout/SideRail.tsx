@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 import { useDraftCount } from "@/hooks/useDraftCount";
+import { useLowStockCount } from "@/hooks/useLowStockCount";
 import type { Menu } from "@rakku/shared-types";
 
 interface SideRailProps {
@@ -24,6 +25,7 @@ function getIcon(iconName: string | null) {
 export default function SideRail({ menus }: SideRailProps) {
   const pathname = usePathname();
   const draftCount = useDraftCount();
+  const lowStockCount = useLowStockCount();
 
   return (
     <aside
@@ -50,6 +52,11 @@ export default function SideRail({ menus }: SideRailProps) {
               {item.path === "/register" && draftCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-forest text-[8px] font-bold text-white flex items-center justify-center">
                   {draftCount > 9 ? "9+" : draftCount}
+                </span>
+              )}
+              {item.path === "/ingredients" && lowStockCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-warning text-[8px] font-bold text-white flex items-center justify-center">
+                  {lowStockCount > 9 ? "9+" : lowStockCount}
                 </span>
               )}
             </Link>
