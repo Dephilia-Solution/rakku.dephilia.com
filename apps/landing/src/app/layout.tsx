@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Fraunces, JetBrains_Mono } from "next/font/google";
 import { MotionProvider } from "@/components/motion";
 import "./globals.css";
+import "../components/pos-preview.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],

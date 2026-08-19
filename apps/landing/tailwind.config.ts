@@ -59,12 +59,27 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(-5px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "hero-window-float": {
+          "0%, 100%": { transform: "translateY(0) rotate(1.8deg) rotateY(-3deg)" },
+          "50%": { transform: "translateY(-4px) rotate(1.8deg) rotateY(-3deg)" },
+        },
+        "sync-pulse": {
+          "0%, 100%": { boxShadow: "0 0 0 4px rgba(93, 160, 76, 0.12)" },
+          "50%": { boxShadow: "0 0 0 7px rgba(93, 160, 76, 0.04)" },
+        },
+        "cta-orbit": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
       },
       animation: {
         "sticker-float": "sticker-float 4.5s ease-in-out 900ms infinite",
         "sticker-float-reverse": "sticker-float-reverse 5s ease-in-out 1.2s infinite",
         "live-pulse": "live-pulse 2.4s ease-in-out infinite",
         "faq-open": "faq-open 220ms ease-out both",
+        "hero-window-float": "hero-window-float 8s cubic-bezier(0.22, 1, 0.36, 1) 1.1s infinite",
+        "sync-pulse": "sync-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite",
+        "cta-orbit": "cta-orbit 22s linear infinite",
       },
     },
   },
