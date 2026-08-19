@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { uploadFile } from "@rakku/silos-client";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import sharp from "sharp";
 
-const BUCKET = "product-images";
 const MAX_WIDTH = 800;
 const WEBP_QUALITY = 80;
 
@@ -43,26 +43,23 @@ export async function POST(request: NextRequest) {
       compressedBuffer = buffer;
     }
 
-    const filePath = `${productId}/${Date.now()}.webp`;
-
     const supabase = createAdminClient();
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(filePath, compressedBuffer, {
-        contentType: "image/webp",
-        cacheControl: "3600",
-        upsert: true,
-      });
+    const uploadedFile = await uploadFile({
+      file: compressedBuffer,
+      filename: `${productId}-${Date.now()}.webp`,
+      contentType: "image/webp",
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({ image_url: uploadedFile.url, image_silo_id: uploadedFile.id })
+      .eq("id", productId);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-
-    return NextResponse.json({ url: publicUrl });
+    return NextResponse.json({ url: uploadedFile.url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upload gagal";
     return NextResponse.json({ error: message }, { status: 500 });

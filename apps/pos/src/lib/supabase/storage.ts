@@ -1,7 +1,3 @@
-import { createClient } from "@rakku/supabase-clients/client";
-
-const BUCKET = "product-images";
-
 export async function uploadProductImage(
   productId: string,
   file: File
@@ -24,11 +20,14 @@ export async function uploadProductImage(
   return url;
 }
 
-export async function deleteProductImage(imageUrl: string) {
-  const supabase = createClient();
-  const path = imageUrl.split(`/${BUCKET}/`)[1];
-  if (!path) return;
+export async function deleteProductImage(productId: string) {
+  const res = await fetch(
+    `/api/admin/products/image?productId=${encodeURIComponent(productId)}`,
+    { method: "DELETE" }
+  );
 
-  const { error } = await supabase.storage.from(BUCKET).remove([path]);
-  if (error) throw error;
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error ?? "Hapus gambar gagal");
+  }
 }

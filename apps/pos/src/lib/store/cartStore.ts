@@ -54,6 +54,7 @@ interface CartState {
   orderType: OrderType;
   customerName: string;
   tableId: string | null;
+  tableName: string | null;
   note: string;
   draftOrderId: string | null;
   pricingTierId: string | null;
@@ -75,6 +76,7 @@ interface CartState {
   setOrderType: (type: OrderType) => void;
   setCustomerName: (name: string) => void;
   setTableId: (id: string | null) => void;
+  setTableName: (name: string | null) => void;
   setNote: (note: string) => void;
   setDraftOrderId: (id: string | null) => void;
   setPricingTier: (tierId: string | null) => void;
@@ -94,6 +96,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   orderType: "dine_in",
   customerName: "",
   tableId: null,
+  tableName: null,
   note: "",
   draftOrderId: null,
   pricingTierId: null,
@@ -406,6 +409,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           items: state.items,
           customerName: state.customerName.trim(),
           note: "",
+          tableId: state.tableId,
           companyId,
           outletId,
           cashierId,
@@ -424,6 +428,7 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   setCustomerName: (customerName) => set({ customerName }),
   setTableId: (tableId) => set({ tableId }),
+  setTableName: (tableName) => set({ tableName }),
   setNote: (note) => set({ note }),
   setDraftOrderId: (draftOrderId) => set({ draftOrderId }),
   clear: () =>
@@ -431,6 +436,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       items: [],
       customerName: "",
       tableId: null,
+      tableName: null,
       note: "",
       draftOrderId: null,
       pricingTierId: null,

@@ -18,6 +18,7 @@ interface InvoiceReceiptProps {
   orderNumber: number;
   customerName: string;
   cashierName: string | null;
+  tableName?: string | null;
   items: InvoiceItem[];
   subtotal: number;
   appliedTaxes: AppliedTax[];
@@ -33,7 +34,7 @@ interface InvoiceReceiptProps {
 
 function buildReceiptHtml(props: InvoiceReceiptProps) {
   const {
-    orderNumber, customerName, cashierName, items,
+    orderNumber, customerName, cashierName, tableName, items,
     subtotal, appliedTaxes, appliedDiscounts, total, paymentMethod, orderType,
     createdAt, cashAmount, change,
   } = props;
@@ -107,6 +108,7 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
   <table class="info-table">
     <tr><td>Tanggal</td><td>${createdAt}</td></tr>
     <tr><td>Customer</td><td>${customerName}</td></tr>
+    ${tableName ? `<tr><td>Meja</td><td>${tableName}</td></tr>` : ""}
     ${cashierName ? `<tr><td>Kasir</td><td>${cashierName}</td></tr>` : ""}
     <tr><td>Tipe</td><td style="text-transform:capitalize">${orderType.replace(/_/g, " ")}</td></tr>
     <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
@@ -143,7 +145,7 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
 
 export default function InvoiceReceipt(props: InvoiceReceiptProps) {
   const {
-    orderNumber, customerName, cashierName, items,
+    orderNumber, customerName, cashierName, tableName, items,
     subtotal, appliedTaxes, appliedDiscounts, total, paymentMethod, orderType,
     createdAt, onClose, cashAmount, change,
   } = props;
@@ -233,6 +235,12 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
               <span>Customer</span>
               <span className="font-medium text-neutral-900">{customerName}</span>
             </div>
+            {tableName && (
+              <div className="flex justify-between">
+                <span>Meja</span>
+                <span className="font-medium text-neutral-900">{tableName}</span>
+              </div>
+            )}
             {cashierName && (
               <div className="flex justify-between">
                 <span>Kasir</span>

@@ -82,6 +82,8 @@ export interface OwnerOrderWithItems {
   note: string | null;
   customer_name: string;
   cashier_name: string | null;
+  table_id: string | null;
+  table_name: string | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   reserved_until: string | null;
@@ -113,7 +115,7 @@ export async function getCompanyOrders(
   const supabase = createAdminClient();
   let query = supabase
     .from("orders")
-    .select("*, order_items(*), outlets!inner(name)")
+    .select("*, order_items(*), outlets!inner(name), dining_tables!fk_orders_table(name)")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
@@ -126,6 +128,7 @@ export async function getCompanyOrders(
   return (
     (data as JsonLike[])?.map((o) => {
       const outlet = o.outlets as JsonLike;
+      const table = o.dining_tables as JsonLike | null;
       return {
         id: o.id as string,
         order_number: o.order_number as number,
@@ -138,6 +141,8 @@ export async function getCompanyOrders(
         note: o.note as string | null,
         customer_name: (o.customer_name as string) ?? "",
         cashier_name: (o.cashier_name as string) ?? null,
+        table_id: (o.table_id as string) ?? null,
+        table_name: (table?.name as string) ?? null,
         status: (o.status as OrderStatus) ?? "completed",
         payment_status: (o.payment_status as PaymentStatus) ?? "paid",
         reserved_until: o.reserved_until as string | null,
@@ -175,7 +180,7 @@ export async function getCompanyOrderById(
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("orders")
-    .select("*, order_items(*), outlets!inner(name)")
+    .select("*, order_items(*), outlets!inner(name), dining_tables!fk_orders_table(name)")
     .eq("id", orderId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -183,6 +188,7 @@ export async function getCompanyOrderById(
   if (!data) return null;
   const o = data as JsonLike;
   const outlet = o.outlets as JsonLike;
+  const table = o.dining_tables as JsonLike | null;
 
   return {
     id: o.id as string,
@@ -196,6 +202,8 @@ export async function getCompanyOrderById(
     note: o.note as string | null,
     customer_name: (o.customer_name as string) ?? "",
     cashier_name: (o.cashier_name as string) ?? null,
+    table_id: (o.table_id as string) ?? null,
+    table_name: (table?.name as string) ?? null,
     status: (o.status as OrderStatus) ?? "completed",
     payment_status: (o.payment_status as PaymentStatus) ?? "paid",
     reserved_until: o.reserved_until as string | null,

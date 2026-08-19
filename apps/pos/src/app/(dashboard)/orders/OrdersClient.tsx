@@ -136,7 +136,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-neutral-200">
-                  {["Order", "Waktu", "Tipe", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
+                  {["Order", "Waktu", "Tipe", "Meja", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
                     <th
                       key={h}
                       className="text-left text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3"
@@ -175,6 +175,13 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                             {orderTypeLabelsAll[order.order_type] ?? order.order_type}
                           </Badge>
                         </td>
+                        <td className="px-4 py-3">
+                          {order.table_name ? (
+                            <Badge variant="inactive">{order.table_name}</Badge>
+                          ) : (
+                            <span className="text-neutral-300">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-neutral-600">
                           {order.items.length} item
                         </td>
@@ -208,7 +215,7 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                       </tr>
                       {isExpanded && (
                         <tr key={`${order.id}-detail`}>
-                          <td colSpan={8} className="px-4 py-3 bg-neutral-50">
+                          <td colSpan={9} className="px-4 py-3 bg-neutral-50">
                             <div className="pl-4 border-l-2 border-forest/30 space-y-2">
                               {order.items.map((item) => (
                                 <div
@@ -294,6 +301,12 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                     <span>{order.items.length} item</span>
                     <span>&middot;</span>
                     <span>{paymentLabels[order.payment_method] ?? order.payment_method}</span>
+                    {order.table_name && (
+                      <>
+                        <span>&middot;</span>
+                        <span className="font-medium text-neutral-600">{order.table_name}</span>
+                      </>
+                    )}
                     {order.cashier_name && (
                       <>
                         <span>&middot;</span>

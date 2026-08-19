@@ -48,6 +48,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const tableId = useCartStore((s) => s.tableId);
+  const tableName = useCartStore((s) => s.tableName);
   const pricingTierId = useCartStore((s) => s.pricingTierId);
   const draftOrderId = useCartStore((s) => s.draftOrderId);
   const setCartSplitPayments = useCartStore((s) => s.setSplitPayments);
@@ -200,6 +201,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             payment_method: method,
             cashier_name: cashierNameFromSession,
             pricing_tier_id: pricingTierId,
+            table_id: tableId,
             subtotal,
             tax_rate: 0,
             tax_amount: 0,
@@ -269,6 +271,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             orderNumber={invoiceData.orderNumber}
             customerName={customerName}
             cashierName={cashierName}
+            tableName={tableName}
             items={items.map((i) => ({
               product_name: i.product.name,
               quantity: i.quantity,

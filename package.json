@@ -10,14 +10,17 @@
     "dev:owner": "pnpm --filter @rakku/owner dev",
     "dev:pos": "pnpm --filter @rakku/pos dev",
     "dev:superadmin": "pnpm --filter @rakku/superadmin dev",
+    "dev:landing": "pnpm --filter @rakku/landing dev",
     "build:owner": "pnpm --filter @rakku/owner build",
     "build:pos": "pnpm --filter @rakku/pos build",
     "build:superadmin": "pnpm --filter @rakku/superadmin build",
+    "build:landing": "pnpm --filter @rakku/landing build",
     "seed": "tsx scripts/seed.ts",
     "seed:full": "tsx scripts/seed-full.ts",
     "backfill:owners": "tsx scripts/backfill-owners.ts"
   },
   "devDependencies": {
+    "@rakku/silos-client": "workspace:*",
     "@supabase/supabase-js": "^2.106.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

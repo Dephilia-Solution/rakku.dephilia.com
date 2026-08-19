@@ -98,6 +98,7 @@ export interface Order {
   note: string | null;
   customer_name: string;
   cashier_name: string | null;
+  table_id: string | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   reserved_until: string | null;
@@ -124,6 +125,7 @@ export interface OrderItem {
 export interface OrderWithItems extends Order {
   items: OrderItem[];
   split_payments?: SplitPayment[];
+  table_name?: string | null;
 }
 
 export interface Tax {

@@ -4,15 +4,16 @@
 
 ---
 
-## Arsitektur: Monorepo 3 App
+## Arsitektur: Monorepo 4 App
 
-Proyek ini adalah monorepo pnpm workspace + Turborepo yang berisi **3 aplikasi Next.js independen**, masing-masing deploy ke domain sendiri:
+Proyek ini adalah monorepo pnpm workspace + Turborepo yang berisi **4 aplikasi Next.js independen**, masing-masing deploy ke domain sendiri:
 
 | App | Domain | Port Dev | Fungsi |
 |-----|--------|----------|--------|
 | `apps/owner` | `rakku.com` | 3000 | Dashboard Owner (daftar, login, onboarding, kelola outlet/karyawan/produk/laporan) |
 | `apps/pos` | `pos.rakku.com` | 3001 | POS Kasir (login 4-step, register, pesanan, laporan) + **PWA** |
 | `apps/superadmin` | `superadmin.rakku.com` | 3002 | Panel Superadmin (kelola semua tenant, RBAC, audit log) |
+| `apps/landing` | `rakku.com` | 3003 | Landing page marketing untuk alur kasir, stok, resep, outlet, dan laba |
 
 ### Package bersama (`packages/`)
 
@@ -52,7 +53,7 @@ pnpm backfill:owners # buat akun owner untuk company existing
 
 # 4. Jalankan semua app paralel (Turborepo)
 pnpm dev
-# Owner → http://localhost:3000 | POS → http://localhost:3001 | Superadmin → http://localhost:3002
+# Owner → http://localhost:3000 | POS → http://localhost:3001 | Superadmin → http://localhost:3002 | Landing → http://localhost:3003
 ```
 
 ### Akun Testing
@@ -67,7 +68,7 @@ pnpm dev
 | Script | Fungsi |
 |--------|--------|
 | `pnpm dev` | Jalankan semua app paralel |
-| `pnpm dev:owner` / `dev:pos` / `dev:superadmin` | Jalankan satu app |
+| `pnpm dev:owner` / `dev:pos` / `dev:superadmin` / `dev:landing` | Jalankan satu app |
 | `pnpm build` | Build semua app |
 | `pnpm lint` | ESLint semua app |
 | `pnpm seed` / `seed:full` | Seed data testing |

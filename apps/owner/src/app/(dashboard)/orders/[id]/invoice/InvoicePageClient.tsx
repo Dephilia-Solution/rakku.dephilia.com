@@ -75,6 +75,7 @@ function buildReceiptHtml(order: OwnerOrderWithItems) {
   <table class="info-table">
     <tr><td>Tanggal</td><td>${formatDate(order.created_at)}</td></tr>
     <tr><td>Customer</td><td>${order.customer_name}</td></tr>
+    ${order.table_name ? `<tr><td>Meja</td><td>${order.table_name}</td></tr>` : ""}
     ${order.cashier_name ? `<tr><td>Kasir</td><td>${order.cashier_name}</td></tr>` : ""}
     <tr><td>Tipe</td><td style="text-transform:capitalize">${order.order_type.replace(/_/g, " ")}</td></tr>
     <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
@@ -174,6 +175,12 @@ export default function InvoicePageClient({ order }: { order: OwnerOrderWithItem
             <span>Customer</span>
             <span className="font-medium text-neutral-900">{order.customer_name}</span>
           </div>
+          {order.table_name && (
+            <div className="flex justify-between">
+              <span>Meja</span>
+              <span className="font-medium text-neutral-900">{order.table_name}</span>
+            </div>
+          )}
           {order.cashier_name && (
             <div className="flex justify-between">
               <span>Kasir</span>

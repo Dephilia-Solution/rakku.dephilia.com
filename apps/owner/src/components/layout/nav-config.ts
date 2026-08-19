@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   Settings,
+  Grid3X3,
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export const ownerMenuItems: OwnerNavItem[] = [
   { href: "/products", label: "Produk", icon: Package },
   { href: "/tax-discounts", label: "Pajak & Diskon", icon: Percent },
   { href: "/outlets", label: "Outlet", icon: Building2 },
+  { href: "/tables", label: "Meja", icon: Grid3X3 },
   { href: "/employees", label: "Karyawan", icon: Users },
   { href: "/settings", label: "Pengaturan", icon: Settings },
 ];
@@ -50,6 +52,7 @@ export const ownerPrimaryItems: OwnerNavItem[] = [
 export const ownerOverflowItems: OwnerNavItem[] = [
   { href: "/tax-discounts", label: "Pajak & Diskon", icon: Percent },
   { href: "/outlets", label: "Outlet", icon: Building2 },
+  { href: "/tables", label: "Meja", icon: Grid3X3 },
   { href: "/employees", label: "Karyawan", icon: Users },
   { href: "/settings", label: "Pengaturan", icon: Settings },
   loginKasirItem,

@@ -1,22 +1,33 @@
 /**
- * Seed foto produk BUILD COFFEE dari Unsplash.
+ * Seed foto produk BUILD COFFEE dari Wikimedia Commons.
  *
  * Untuk setiap produk BUILD:
- *  1. Ambil URL foto dari mapping (nama produk → photo id Unsplash).
- *  2. Kalau URL gagal (404), fallback ke foto generic per kategori.
- *  3. Download → kompres sharp (800px, webp q80) → upload ke bucket
- *     `product-images` di path `{productId}/seed.webp` → set image_url.
+ *  1. Ambil filename Commons dari mapping (nama produk → file foto).
+ *  2. Download thumbnail (Special:FilePath?width=800) → kompres sharp
+ *     (800px, webp q80) → upload ke Silos (SILOS_API_URL/SILOS_API_KEY)
+ *     → set image_url + image_silo_id.
+ *  3. Kalau file gagal, fallback ke foto generic per kategori.
  *
- * Idempotent: produk yang sudah punya image_url dilewati.
- * Jalankan: npx tsx scripts/seed-build-images.ts
+ * Idempotent default: produk yang sudah punya image_url dilewati.
+ * Gunakan `--force` untuk reseed semua (hapus file Silos lama dulu).
+ * Jalankan: npx tsx scripts/seed-build-images.ts [--force]
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { uploadFile, deleteFile } from "@rakku/silos-client";
 import sharp from "sharp";
 import * as dotenv from "dotenv";
+import * as fs from "fs";
 import * as path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
+// Muat env secara cascade: root .env.local dulu, lalu .env.local per-app.
+for (const envPath of [
+  path.resolve(__dirname, "../.env.local"),
+  path.resolve(__dirname, "../apps/owner/.env.local"),
+  path.resolve(__dirname, "../apps/pos/.env.local"),
+]) {
+  if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -30,82 +41,110 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const BUCKET = "product-images";
-const IMG = (id: string) => `https://images.unsplash.com/${id}?w=800&q=80&fm=webp`;
+const FORCE = process.argv.includes("--force");
+const DOWNLOAD_DELAY_MS = 400;
 
-// Mapping produk BUILD → photo id Unsplash (sudah divalidasi 200).
-const PRODUCT_IMAGE_URLS: Record<string, string> = {
+const COMMONS_URL = (file: string) =>
+  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=800`;
+
+// Mapping produk BUILD → filename di Wikimedia Commons (terverifikasi ada).
+const PRODUCT_IMAGE_FILES: Record<string, string> = {
   // Minuman Kopi
-  Espresso: IMG("photo-1509042239860-f550ce710b93"),
-  Americano: IMG("photo-1461023058943-07fcbe16d735"),
-  Cappuccino: IMG("photo-1541167760496-1628856ab772"),
-  "Cafe Latte": IMG("photo-1495474472287-4d71bcdd2085"),
-  "Vanilla Latte": IMG("photo-1521017432531-fbd92d768814"),
-  "Caramel Macchiato": IMG("photo-1517701550927-30cf4ba1dba5"),
-  Mocha: IMG("photo-1551024506-0bccd828d307"),
-  "Kopi Susu Gula Aren": IMG("photo-1571115177098-24ec42ed204d"),
-  "Vietnam Drip": IMG("photo-1447933601403-0c6688de566e"),
-  Affogato: IMG("photo-1497034825429-c343d7c6a68f"),
+  Espresso: "Espresso shot.jpg",
+  Americano: "Espresso Americano.jpeg",
+  Cappuccino: "Cappuccino 6.jpg",
+  "Cafe Latte": "Latte - Garden Café Brighton 2023-12-30.jpg",
+  "Vanilla Latte": "Vanilla Iced Latte - Caffè Nero 2025-08-09.jpg",
+  "Caramel Macchiato": "Caramel Latte Macchiato.jpg",
+  Mocha: "Caffè Mocha by Phil.jpg",
+  "Kopi Susu Gula Aren": "Es Kopi Susu Gula Aren.jpg",
+  "Vietnam Drip": "Foto Vietnam Drip.jpg",
+  Affogato: "GT-Affogato-al-caffe.jpg",
   // Minuman Non-Kopi
-  "Matcha Latte": IMG("photo-1556679343-c7306c1976bc"),
-  "Taro Latte": IMG("photo-1515823064-d6e0c04616a7"),
-  "Red Velvet": IMG("photo-1521305916504-4a1121188589"),
-  Chocolate: IMG("photo-1578985545062-69928b1d9587"),
-  "Green Tea": IMG("photo-1544787219-7f47ccb76574"),
-  "Teh Tarik": IMG("photo-1554118811-1e0d58224f24"),
-  "Lemon Tea": IMG("photo-1546171753-97d7676e4602"),
-  "Fresh Orange": IMG("photo-1563245372-f21724e3856d"),
-  "Air Mineral": IMG("photo-1523362628745-0c100150b504"),
+  "Matcha Latte": "Matcha green tea latte art.jpg",
+  "Taro Latte": "Taro flavored milk tea.jpg",
+  "Red Velvet": "Rose Latte (3328579214).jpg",
+  Chocolate: "Cup of Hot Chocolate.jpg",
+  "Green Tea": "White cup with green tea in it.jpg",
+  "Teh Tarik": "Teh tarik 3.jpg",
+  "Lemon Tea": "Iced lemon tea - Rawlab Juice & Tea.jpg",
+  "Fresh Orange": "Orange juice 1 edit1.jpg",
+  "Air Mineral": "Botol air mineral.jpg",
   // Roti & Pastry
-  "Butter Croissant": IMG("photo-1555507036-ab1f4038808a"),
-  "Almond Croissant": IMG("photo-1523293182086-7651a899d37f"),
-  "Choco Croissant": IMG("photo-1531746790731-6c087fecd65a"),
-  "Roti Cokelat": IMG("photo-1504674900247-0877df9cc836"),
-  "Blueberry Muffin": IMG("photo-1565958011703-44f9829ba187"),
-  "Pain au Chocolat": IMG("photo-1587314168485-3236d6710814"),
-  Bagel: IMG("photo-1587049352846-4a222e784d38"),
+  "Butter Croissant": "Croissants au beurre (18953292873).jpg",
+  "Almond Croissant": "Almond croissant - Bread & Milk 2024-06-27.jpg",
+  "Choco Croissant": "Chocolate croissant at Baker and Cook - 09-03-2020.jpg",
+  "Roti Cokelat": "Pain au chocolat Luc Viatour.jpg",
+  "Blueberry Muffin": "Blueberry muffin - GAIL's 2025-03-10.jpg",
+  "Pain au Chocolat": "Pain au Chocolat.jpg",
+  Bagel: "Bagel-Plain-Alt.jpg",
   // Makanan
-  "French Fries": IMG("photo-1601004890684-d8cbf643f5f2"),
-  "Chicken Wings": IMG("photo-1552332386-f8dd00dc2f85"),
-  "Nasi Goreng Spesial": IMG("photo-1512058564366-18510be2db19"),
-  "Spaghetti Bolognese": IMG("photo-1621996346565-e3dbc646d9a9"),
-  "Ayam Geprek": IMG("photo-1562967914-608f82629710"),
-  "Smoked Beef Sandwich": IMG("photo-1603133872878-684f208fb84b"),
-  "Tuna Melt": IMG("photo-1541519227354-08fa5d50c44d"),
+  "French Fries": "French Fries.JPG",
+  "Chicken Wings": "Chicken Wings with Montreal Seasoning.jpg",
+  "Nasi Goreng Spesial": "Nasi goreng indonesia.jpg",
+  "Spaghetti Bolognese": "Spaghetti Bolognese.jpg",
+  "Ayam Geprek": "Ayam geprek dan lalapan.jpg",
+  "Smoked Beef Sandwich": "Montreal Style Smoked Meat Sandwich.jpg",
+  "Tuna Melt": "Tuna melt sandwich with fries.jpg",
   // Dessert
-  Cheesecake: IMG("photo-1571877227200-a0d98ea607e9"),
-  "Choco Lava": IMG("photo-1562059390-a761a084768e"),
-  Tiramisu: IMG("photo-1533134242443-d4fd215305ad"),
-  "Red Velvet Cake": IMG("photo-1513104890138-7c749659a591"),
-  "Banana Split": IMG("photo-1563805042-7684c019e1cb"),
-  "Ice Cream": IMG("photo-1484723091739-30a097e8f929"),
+  Cheesecake: "Cheesecake with slice cut out.jpg",
+  "Choco Lava": "Chocolate lava cake.jpg",
+  Tiramisu: "Tiramisu dessert.jpg",
+  "Red Velvet Cake": "Red Velvet Cake Waldorf Astoria.jpg",
+  "Banana Split": "Banana split 1.jpg",
+  "Ice Cream": "Ice Cream Dessert.JPG",
 };
 
-// Fallback per kategori (photo id generic).
+// Fallback per kategori (filename generic).
 const CATEGORY_FALLBACKS: Record<string, string> = {
-  "Minuman Kopi": IMG("photo-1509042239860-f550ce710b93"),
-  "Minuman Non-Kopi": IMG("photo-1556679343-c7306c1976bc"),
-  "Roti & Pastry": IMG("photo-1555507036-ab1f4038808a"),
-  Makanan: IMG("photo-1504674900247-0877df9cc836"),
-  Dessert: IMG("photo-1565958011703-44f9829ba187"),
+  "Minuman Kopi": "Cappuccino 6.jpg",
+  "Minuman Non-Kopi": "Matcha green tea latte art.jpg",
+  "Roti & Pastry": "Croissants au beurre (18953292873).jpg",
+  Makanan: "Nasi goreng indonesia.jpg",
+  Dessert: "Tiramisu dessert.jpg",
 };
 
-async function downloadBuffer(url: string): Promise<Buffer | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Cache download per filename — satu file hanya di-download sekali
+// untuk semua produk dengan nama yang sama (117 produk = 39 file unik).
+const downloadCache = new Map<string, Buffer | null>();
+
+async function getImageBuffer(file: string): Promise<Buffer | null> {
+  if (downloadCache.has(file)) return downloadCache.get(file) ?? null;
+
+  let buffer: Buffer | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
+      const res = await fetch(COMMONS_URL(file));
+      if (res.status === 429) {
+        await sleep(2500 * (attempt + 1));
+        continue;
+      }
+      if (!res.ok) break;
       const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      buffer = Buffer.from(arrayBuffer);
+      break;
     } catch {
-      // retry sekali
+      // retry
     }
   }
-  return null;
+
+  downloadCache.set(file, buffer);
+  await sleep(DOWNLOAD_DELAY_MS);
+  return buffer;
 }
 
+type SeedRow = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  image_silo_id: string | null;
+  categories: { name: string } | null;
+};
+
 async function seedProductImages() {
-  console.log("🖼️  Mulai seed foto produk BUILD...\n");
+  console.log(`${FORCE ? "♻️" : "🖼️"} Mulai seed foto produk BUILD${FORCE ? " (--force: semua produk)" : ""}...\n`);
 
   const { data: company } = await supabase
     .from("companies")
@@ -120,15 +159,14 @@ async function seedProductImages() {
 
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, image_url, categories(name)")
+    .select("id, name, image_url, image_silo_id, categories(name)")
     .eq("company_id", company.id);
 
-  const rows = (products ?? []).filter(
-    (p) => !p.image_url
-  ) as { id: string; name: string; image_url: string | null; categories: { name: string } | null }[];
+  const all = (products ?? []) as unknown as SeedRow[];
+  const rows = FORCE ? all : all.filter((p) => !p.image_url);
 
   if (rows.length === 0) {
-    console.log("ℹ️  Semua produk BUILD sudah punya image_url. Tidak ada yang perlu di-seed.");
+    console.log("ℹ️  Tidak ada produk yang perlu di-seed.");
     return;
   }
 
@@ -140,33 +178,42 @@ async function seedProductImages() {
 
   for (const product of rows) {
     const categoryName = product.categories?.name ?? "";
-    let url = PRODUCT_IMAGE_URLS[product.name];
+    let file = PRODUCT_IMAGE_FILES[product.name];
     let usedFallback = false;
 
-    if (!url) {
-      url = CATEGORY_FALLBACKS[categoryName] ?? "";
+    if (!file) {
+      file = CATEGORY_FALLBACKS[categoryName] ?? "";
       usedFallback = true;
     }
 
-    if (!url) {
-      console.warn(`⚠️  ${product.name}: tidak ada URL (produk & kategori tidak terpetakan).`);
+    if (!file) {
+      console.warn(`⚠️  ${product.name}: tidak ada file (produk & kategori tidak terpetakan).`);
       failCount++;
       continue;
     }
 
-    let buffer = await downloadBuffer(url);
+    let buffer = await getImageBuffer(file);
     if (!buffer && !usedFallback) {
-      const fallbackUrl = CATEGORY_FALLBACKS[categoryName];
-      if (fallbackUrl && fallbackUrl !== url) {
-        buffer = await downloadBuffer(fallbackUrl);
+      const fallbackFile = CATEGORY_FALLBACKS[categoryName];
+      if (fallbackFile && fallbackFile !== file) {
+        buffer = await getImageBuffer(fallbackFile);
         usedFallback = true;
       }
     }
 
     if (!buffer) {
-      console.warn(`⚠️  ${product.name}: download gagal (URL & fallback).`);
+      console.warn(`⚠️  ${product.name}: download gagal (file & fallback).`);
       failCount++;
       continue;
+    }
+
+    // Hapus file Silos lama saat reseed
+    if (product.image_silo_id) {
+      try {
+        await deleteFile(product.image_silo_id);
+      } catch {
+        // lanjutkan walau gagal hapus (file lama mungkin sudah hilang)
+      }
     }
 
     let compressed: Buffer;
@@ -179,28 +226,15 @@ async function seedProductImages() {
       compressed = buffer;
     }
 
-    const filePath = `${product.id}/seed.webp`;
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(filePath, compressed, {
-        contentType: "image/webp",
-        cacheControl: "3600",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.warn(`❌ ${product.name}: upload gagal → ${uploadError.message}`);
-      failCount++;
-      continue;
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+    const uploaded = await uploadFile({
+      file: compressed,
+      filename: `${product.id}-seed.webp`,
+      contentType: "image/webp",
+    });
 
     const { error: updateError } = await supabase
       .from("products")
-      .update({ image_url: publicUrl })
+      .update({ image_url: uploaded.url, image_silo_id: uploaded.id })
       .eq("id", product.id);
 
     if (updateError) {
@@ -212,7 +246,7 @@ async function seedProductImages() {
     if (usedFallback) fallbackCount++;
     else okCount++;
 
-    console.log(`✅ ${product.name} → ${publicUrl}`);
+    console.log(`✅ ${product.name} → ${uploaded.url}`);
   }
 
   console.log("\n📊 Ringkasan:");

@@ -53,6 +53,7 @@ interface Order {
   total_price: number;
   customer_name: string;
   cashier_name: string | null;
+  table_name: string | null;
   created_at: string;
   outlet_id: string;
   outlet_name: string;
@@ -221,7 +222,7 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-container bg-surface-container-low">
-                  {["Order", "Waktu", "Outlet", "Tipe", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
+                  {["Order", "Waktu", "Outlet", "Tipe", "Meja", "Items", "Kasir", "Pembayaran", "Total", ""].map((h) => (
                     <th
                       key={h}
                       className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-4 py-3"
@@ -266,6 +267,13 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                             {orderTypeLabelsAll[order.order_type] ?? order.order_type}
                           </Badge>
                         </td>
+                        <td className="px-4 py-3">
+                          {order.table_name ? (
+                            <Badge variant="inactive">{order.table_name}</Badge>
+                          ) : (
+                            <span className="text-on-surface-variant/50">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-on-surface-variant">
                           {order.items.length} item
                         </td>
@@ -299,7 +307,7 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                       </tr>
                       {isExpanded && (
                         <tr key={`${order.id}-detail`}>
-                          <td colSpan={9} className="px-4 py-3 bg-surface-container-low">
+                          <td colSpan={10} className="px-4 py-3 bg-surface-container-low">
                             <div className="pl-4 border-l-2 border-primary/30 space-y-2">
                               {order.items.map((item) => (
                                 <div
@@ -396,6 +404,12 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
                     <span>{order.items.length} item</span>
                     <span>&middot;</span>
                     <span>{paymentLabels[order.payment_method] ?? order.payment_method}</span>
+                    {order.table_name && (
+                      <>
+                        <span>&middot;</span>
+                        <span className="font-medium text-on-surface">{order.table_name}</span>
+                      </>
+                    )}
                     {order.cashier_name && (
                       <>
                         <span>&middot;</span>

@@ -35,6 +35,7 @@ export default function OrderSidebar({
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const tableId = useCartStore((s) => s.tableId);
   const setTableId = useCartStore((s) => s.setTableId);
+  const setTableName = useCartStore((s) => s.setTableName);
   const incrementQty = useCartStore((s) => s.incrementQty);
   const decrementQty = useCartStore((s) => s.decrementQty);
   const removeItem = useCartStore((s) => s.removeItem);
@@ -151,16 +152,23 @@ export default function OrderSidebar({
             <Grid3X3 size={16} className="text-neutral-400 flex-shrink-0" />
             <select
               value={tableId ?? ""}
-              onChange={(e) => setTableId(e.target.value || null)}
+              onChange={(e) => {
+                const id = e.target.value || null;
+                setTableId(id);
+                setTableName(id ? tables.find((t) => t.id === id)?.name ?? null : null);
+              }}
               className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-base text-neutral-900 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
             >
               <option value="">Tanpa meja</option>
-              {tables.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.status === "occupied" ? " (Terisi)" : ""}
-                </option>
-              ))}
+              {[...tables]
+                .sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === "available" ? -1 : 1))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.status === "available" ? "• " : "◦ "}
+                    {t.name}
+                    {t.status === "occupied" ? " (Terisi)" : ""}
+                  </option>
+                ))}
             </select>
           </div>
         )}

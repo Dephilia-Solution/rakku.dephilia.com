@@ -29,7 +29,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { items, customerName, note, companyId, outletId, cashierId, pricingTierId } = body;
+  const { items, customerName, note, tableId, companyId, outletId, cashierId, pricingTierId } = body;
 
   if (!customerName || !customerName.trim()) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       discount_amount: 0,
       total_price: total,
       customer_name: customerName.trim(),
+      table_id: tableId || null,
       note: note || null,
       status: "draft",
       payment_status: "unpaid",
@@ -106,6 +107,7 @@ export async function PATCH(request: NextRequest) {
     payment_method,
     cashier_name,
     pricing_tier_id,
+    table_id,
     subtotal,
     tax_rate,
     tax_amount,
@@ -135,6 +137,7 @@ export async function PATCH(request: NextRequest) {
   if (discounts !== undefined) orderUpdates.discounts = discounts;
   if (total_price !== undefined) orderUpdates.total_price = total_price;
   if (order_type) orderUpdates.order_type = order_type;
+  if (table_id !== undefined) orderUpdates.table_id = table_id;
 
   const { data, error } = await supabase
     .from("orders")
@@ -191,6 +194,15 @@ export async function PATCH(request: NextRequest) {
       (data?.company_id as string | null) ?? null,
       (data?.outlet_id as string | null) ?? null
     );
+
+    // Tandai meja occupied (best-effort) — sejajar dengan alur order langsung.
+    const resolvedTableId = table_id ?? data?.table_id ?? null;
+    if (resolvedTableId) {
+      await supabase
+        .from("dining_tables")
+        .update({ status: "occupied" })
+        .eq("id", resolvedTableId);
+    }
   }
 
   return NextResponse.json(data);
