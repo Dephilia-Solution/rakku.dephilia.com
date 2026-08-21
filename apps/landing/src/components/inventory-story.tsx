@@ -1,31 +1,26 @@
 import { ArrowRightIcon } from "./icons";
-import { Lift, Stagger, StaggerItem } from "./motion";
-import { SectionKicker, TextLink } from "./primitives";
+import { Container, TextLink } from "./primitives";
 import { RecipeBoard } from "./recipe-board";
 import { ScrollReveal } from "./scroll-reveal";
 
 export function InventoryStory() {
   return (
-    <ScrollReveal className="bg-green-800 py-[clamp(3.5rem,6vw,5.5rem)] text-ivory" id="inventory">
-      <Stagger className="landing-container grid items-center gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-[clamp(2.5rem,6vw,4.5rem)]">
-        <StaggerItem>
-          <SectionKicker light>04 / Dari resep ke stok</SectionKicker>
-          <h2 className="font-display text-[clamp(2.45rem,4.5vw,4.05rem)] font-semibold leading-[1.02] text-ivory">
-            Satu gelas kopi.
-            <br />
-            <em className="not-italic text-lime">Jejaknya jelas.</em>
-          </h2>
-          <p className="mt-5 max-w-[24.375rem] text-[0.9375rem] leading-[1.65] text-ivory/70">Rakku menggunakan resep yang sama untuk menghitung pemakaian bahan, HPP, dan peringatan stok. Tidak ada mekanisme terpisah untuk produk jadi atau resale.</p>
-          <TextLink href="#fitur" light>
-            Lihat fitur inventory <ArrowRightIcon className="h-4 w-4" />
-          </TextLink>
-        </StaggerItem>
-        <StaggerItem>
-          <Lift>
+    <ScrollReveal className="bg-green-800 py-[clamp(4.5rem,8vw,7rem)] text-ivory" id="stok">
+      <Container>
+        <div className="grid items-center gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:gap-[clamp(3rem,7vw,7rem)]">
+          <div>
+            <span className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-lime">Contoh alur produk</span>
+            <h2 className="mt-5 max-w-[10ch] text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-ivory">Resep yang sama menghubungkan kasir dan stok.</h2>
+            <p className="mt-6 max-w-[25rem] text-[0.95rem] leading-[1.7] text-ivory/70">Satu konfigurasi produk membantu tim menjual lebih cepat dan owner membaca pemakaian bahan dengan konteks yang sama.</p>
+            <TextLink href="#alur" light>
+              Lihat cara kerja <ArrowRightIcon className="h-4 w-4" />
+            </TextLink>
+          </div>
+          <div className="min-w-0">
             <RecipeBoard />
-          </Lift>
-        </StaggerItem>
-      </Stagger>
+          </div>
+        </div>
+      </Container>
     </ScrollReveal>
   );
 }

@@ -1,20 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Fraunces, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { MotionProvider } from "@/components/motion";
 import "./globals.css";
-import "../components/pos-preview.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
-  display: "swap",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-display",
   display: "swap",
 });
 
@@ -27,14 +19,14 @@ const jetBrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Rakku - Operasional Kedai yang Tersusun Rapi",
+    default: "Rakku | Kasir, stok, dan laba dalam satu alur",
     template: "%s | Rakku",
   },
   description:
     "Rakku membantu kedai dan cafe mengelola kasir, stok bahan baku, resep, outlet, dan laba dalam satu sistem.",
   keywords: ["POS cafe", "inventory F&B", "kasir kedai", "Rakku"],
   openGraph: {
-    title: "Rakku - Operasional Kedai yang Tersusun Rapi",
+    title: "Rakku | Kasir, stok, dan laba dalam satu alur",
     description: "Satu alur kerja untuk kasir, stok, resep, outlet, dan laba.",
     type: "website",
     locale: "id_ID",
@@ -50,7 +42,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id" className={`${dmSans.variable} ${fraunces.variable} ${jetBrainsMono.variable}`}>
+    <html lang="id" className={`${dmSans.variable} ${jetBrainsMono.variable}`}>
       <body>
         <MotionProvider>{children}</MotionProvider>
       </body>

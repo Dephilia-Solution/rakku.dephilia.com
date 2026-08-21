@@ -58,6 +58,19 @@ textarea {
   }
 }
 
+@media (min-width: 768px) {
+  .owner-main {
+    margin-left: 256px;
+  }
+  html[data-owner-sidebar="collapsed"] .owner-main {
+    margin-left: 64px;
+  }
+}
+
+html:not([data-sidebar-ready]) .owner-main {
+  transition: none !important;
+}
+
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;

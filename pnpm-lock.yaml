@@ -129,6 +129,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      framer-motion:
+        specifier: ^11.18.2
+        version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       jose:
         specifier: ^6.2.3
         version: 6.2.3
@@ -153,6 +156,9 @@ importers:
       sharp:
         specifier: ^0.35.3
         version: 0.35.3(@types/node@20.19.43)
+      zustand:
+        specifier: ^5.0.14
+        version: 5.0.14(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
       '@types/bcryptjs':
         specifier: ^2.4.6
@@ -229,6 +235,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      framer-motion:
+        specifier: ^11.18.2
+        version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       jose:
         specifier: ^6.2.3
         version: 6.2.3

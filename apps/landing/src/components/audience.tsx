@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
-import { ArrowUpRightIcon } from "./icons";
-import { Lift, Stagger, StaggerItem } from "./motion";
-import { Container, SectionKicker } from "./primitives";
+import { ArrowRightIcon } from "./icons";
+import { InteractiveRow } from "./motion";
+import { Container } from "./primitives";
+import { ownerUrl, posUrl } from "./site";
 import { ScrollReveal } from "./scroll-reveal";
 
 type AudienceCardProps = {
@@ -10,100 +11,57 @@ type AudienceCardProps = {
   title: ReactNode;
   description: string;
   items: string[];
-  owner?: boolean;
+  href: string;
+  id?: string;
 };
 
 export function Audience() {
-  const ownerItems = ["Outlet & karyawan", "HPP & laba rugi", "QR menu per outlet"];
-  const cashierItems = ["Register cepat", "Draft & split bill", "PWA untuk operasional"];
-
   return (
-    <ScrollReveal className="bg-paper py-[clamp(3.5rem,6vw,5.5rem)]" id="untuk-siapa">
+    <ScrollReveal className="bg-paper py-[clamp(4.5rem,8vw,7rem)]" id="untuk-siapa">
       <Container>
-        <div className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <SectionKicker>05 / Dua layar, satu ritme</SectionKicker>
-            <h2 className="font-display text-[clamp(2.45rem,4.5vw,4.05rem)] font-semibold leading-[1.02] text-green-950">
-              Owner berpikir jauh.
-              <br />
-              <em className="not-italic text-green-700">Kasir bergerak cepat.</em>
-            </h2>
-          </div>
+        <div className="mb-12 max-w-[38rem] lg:mb-16">
+          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Satu sistem. Dua ritme kerja.</h2>
+          <p className="mt-5 max-w-[32rem] text-[0.95rem] leading-[1.7] text-muted">Rakku memberi owner konteks dan memberi kasir ruang untuk bergerak cepat.</p>
         </div>
 
-        <Stagger className="grid gap-3 md:grid-cols-2">
-          <StaggerItem>
-            <AudienceCard
-              label="Portal Owner"
-              title={
-                <>
-                  Untuk keputusan
-                  <br />
-                  di balik layar.
-                </>
-              }
-              description="Kelola outlet, tim, katalog, harga, resep, pengeluaran, dan laporan laba dari satu dashboard."
-              items={ownerItems}
-              owner
-            />
-          </StaggerItem>
-          <StaggerItem>
-            <AudienceCard
-              label="POS Kasir"
-              title={
-                <>
-                  Untuk transaksi
-                  <br />
-                  di garis depan.
-                </>
-              }
-              description="Login 4 langkah, pilih produk, atur modifier, kelola meja, terima pembayaran, dan cetak invoice."
-              items={cashierItems}
-            />
-          </StaggerItem>
-        </Stagger>
+        <div className="border-t border-green-950/15">
+          <AudienceCard
+            id="outlet"
+            label="Portal Owner"
+            title={<>Untuk keputusan<br className="hidden sm:block" /> di balik layar.</>}
+            description="Kelola outlet, tim, katalog, harga, resep, pengeluaran, dan laporan dari satu dashboard."
+            items={["Outlet & karyawan", "HPP & laba rugi", "QR menu per outlet"]}
+            href={`${ownerUrl}/login`}
+          />
+          <AudienceCard
+            label="POS Kasir"
+            title={<>Untuk transaksi<br className="hidden sm:block" /> di garis depan.</>}
+            description="Pilih produk, atur modifier, kelola meja, terima pembayaran, dan cetak invoice tanpa pindah alur."
+            items={["Register cepat", "Draft & split bill", "PWA untuk operasional"]}
+            href={`${posUrl}/login`}
+          />
+        </div>
       </Container>
     </ScrollReveal>
   );
 }
 
-export function AudienceCard({ label, title, description, items, owner = false }: AudienceCardProps) {
+export function AudienceCard({ id, label, title, description, items, href }: AudienceCardProps) {
   return (
-    <Lift className={`relative flex h-full min-h-[26rem] flex-col overflow-hidden rounded-lg p-6 pb-[9.5rem] ${owner ? "bg-green-950 text-ivory" : "bg-lime text-green-950"}`}>
-      <div className="relative z-10 flex items-center justify-between">
-        <span className="font-mono text-[0.65rem] uppercase tracking-[0.1em]">{label}</span>
-        <ArrowUpRightIcon className="h-5 w-5" />
-      </div>
-
-      <h3 className="relative z-10 mt-12 font-display text-[clamp(2.2rem,4.3vw,2.7rem)] font-semibold leading-[0.98]">{title}</h3>
-      <p className={`relative z-10 mt-3 max-w-[20rem] text-sm leading-[1.6] ${owner ? "text-ivory/65" : "text-green-950/70"}`}>{description}</p>
-
-      <div className="relative z-10 mt-4 flex max-w-[20rem] flex-wrap gap-2">
-        {items.map((item) => (
-          <span key={item} className={`rounded border px-2 py-1.5 font-mono text-[0.5rem] ${owner ? "border-ivory/20 text-ivory/75" : "border-green-950/20 text-green-950/75"}`}>
-            {item}
-          </span>
-        ))}
-      </div>
-
-      {owner ? (
-        <div className="pointer-events-none absolute -bottom-6 right-[-2rem] h-32 w-[55%] max-w-[16rem] rotate-[-5deg] rounded-t-lg border-[7px] border-ivory/20 bg-[#f7f9f2] p-4" aria-hidden="true">
-          <div className="h-2.5 w-3/5 rounded-sm bg-[#d2e6c7]" />
-          <div className="my-2 h-2.5 w-2/5 rounded-sm bg-[#e8efe3]" />
-          <div className="h-2.5 w-4/5 rounded-sm bg-[#edf3e9]" />
-          <span className="absolute right-5 top-8 h-11 w-11 rounded-full border-[8px] border-[#b9d99a]" />
+    <article id={id} className="border-b border-green-950/15">
+      <InteractiveRow className="group grid gap-6 py-8 transition-colors duration-200 hover:bg-paper-deep/35 md:grid-cols-[8rem_minmax(0,1fr)_minmax(0,18rem)_auto] md:items-start md:gap-8 md:px-4 md:first:pl-0 md:last:pr-0">
+        <span className="font-mono text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-green-700/70 transition-colors duration-200 group-hover:text-green-700">{label}</span>
+        <h3 className="m-0 font-display text-[clamp(1.8rem,3.2vw,2.6rem)] font-bold leading-[0.98] tracking-[-0.06em] text-green-950 transition-transform duration-200 group-hover:translate-x-1">{title}</h3>
+        <div>
+          <p className="m-0 max-w-[22rem] text-sm leading-[1.62] text-muted">{description}</p>
+          <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-2 font-mono text-[0.58rem] text-green-800/75">
+            {items.map((item) => <li key={item} className="border-b border-green-800/20 pb-1">{item}</li>)}
+          </ul>
         </div>
-      ) : (
-        <div className="pointer-events-none absolute -bottom-6 right-[-2rem] h-32 w-[55%] max-w-[16rem] rotate-[5deg] rounded-t-lg border-[7px] border-green-950/15 bg-[#fff9e6] p-4" aria-hidden="true">
-          <div className="grid grid-cols-2 gap-2">
-            <i className="h-8 rounded bg-[#e9d69a]" />
-            <i className="h-8 rounded bg-[#d5e5ae]" />
-            <i className="h-8 rounded bg-[#e5c99e]" />
-            <i className="h-8 rounded bg-[#cfe1a7]" />
-          </div>
-          <div className="absolute bottom-4 right-5 h-12 w-16 rounded border border-green-950/15 bg-ivory" />
-        </div>
-      )}
-    </Lift>
+        <a href={href} className="landing-link-underline inline-flex min-h-12 items-center gap-2 self-start text-[0.78rem] font-bold text-green-800 hover:text-green-950">
+          Buka {label === "Portal Owner" ? "portal" : "POS"} <ArrowRightIcon className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+        </a>
+      </InteractiveRow>
+    </article>
   );
 }

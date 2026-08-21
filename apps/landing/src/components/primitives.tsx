@@ -14,7 +14,7 @@ export function SectionKicker({ children, light = false }: PropsWithChildren<{ l
 
   return (
     <div className={`mb-5 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] ${light ? "text-lime" : "text-green-700"}`}>
-      <span className="text-coral">{number}</span>
+      <span className={light ? "text-lime" : "text-green-800"}>{number}</span>
       {label.length > 0 ? `/${label.join("/")}` : null}
     </div>
   );

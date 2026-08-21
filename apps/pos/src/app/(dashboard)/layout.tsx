@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import ResponsiveNav from "@/components/layout/ResponsiveNav";
+import DashboardContent from "@/components/layout/DashboardContent";
 import { ToastContainer } from "@rakku/ui";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { getAllowedMenus } from "@/lib/auth/menus";
@@ -26,7 +27,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-dvh overflow-hidden">
       <ResponsiveNav menus={menus} />
-      <main className="flex-1 min-w-0 overflow-hidden md:ml-60 pb-[var(--nav-bottom-safe)] md:pb-0">{children}</main>
+      <DashboardContent>{children}</DashboardContent>
       <ToastContainer />
     </div>
   );

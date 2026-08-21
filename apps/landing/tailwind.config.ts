@@ -23,7 +23,6 @@ const config: Config = {
         "paper-deep": "#e9e2d3",
         ink: "#183126",
         muted: "#68756d",
-        coral: "#d87959",
         ivory: "#fffdf8",
       },
       borderColor: {
@@ -31,55 +30,16 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "DM Sans", "Arial", "sans-serif"],
-        display: ["var(--font-display)", "Fraunces", "Georgia", "serif"],
+        display: ["var(--font-sans)", "DM Sans", "Arial", "sans-serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "Consolas", "monospace"],
       },
       maxWidth: {
-        shell: "1180px",
+        shell: "1200px",
       },
       boxShadow: {
-        window: "0 36px 70px rgba(25, 55, 37, 0.17), 0 4px 12px rgba(25, 55, 37, 0.08)",
-        card: "0 14px 28px rgba(24, 49, 38, 0.11)",
-        cta: "0 25px 55px rgba(16, 44, 29, 0.19)",
-      },
-      keyframes: {
-        "sticker-float": {
-          "0%, 100%": { transform: "translateY(0) rotate(7deg)" },
-          "50%": { transform: "translateY(-5px) rotate(7deg)" },
-        },
-        "sticker-float-reverse": {
-          "0%, 100%": { transform: "translateY(0) rotate(-5deg)" },
-          "50%": { transform: "translateY(4px) rotate(-5deg)" },
-        },
-        "live-pulse": {
-          "0%, 100%": { boxShadow: "0 0 0 4px rgba(216, 121, 89, 0.15)" },
-          "50%": { boxShadow: "0 0 0 7px rgba(216, 121, 89, 0.04)" },
-        },
-        "faq-open": {
-          from: { opacity: "0", transform: "translateY(-5px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
-        },
-        "hero-window-float": {
-          "0%, 100%": { transform: "translateY(0) rotate(1.8deg) rotateY(-3deg)" },
-          "50%": { transform: "translateY(-4px) rotate(1.8deg) rotateY(-3deg)" },
-        },
-        "sync-pulse": {
-          "0%, 100%": { boxShadow: "0 0 0 4px rgba(93, 160, 76, 0.12)" },
-          "50%": { boxShadow: "0 0 0 7px rgba(93, 160, 76, 0.04)" },
-        },
-        "cta-orbit": {
-          from: { transform: "rotate(0deg)" },
-          to: { transform: "rotate(360deg)" },
-        },
-      },
-      animation: {
-        "sticker-float": "sticker-float 4.5s ease-in-out 900ms infinite",
-        "sticker-float-reverse": "sticker-float-reverse 5s ease-in-out 1.2s infinite",
-        "live-pulse": "live-pulse 2.4s ease-in-out infinite",
-        "faq-open": "faq-open 220ms ease-out both",
-        "hero-window-float": "hero-window-float 8s cubic-bezier(0.22, 1, 0.36, 1) 1.1s infinite",
-        "sync-pulse": "sync-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite",
-        "cta-orbit": "cta-orbit 22s linear infinite",
+        card: "0 12px 26px rgba(24, 49, 38, 0.09)",
+        preview: "0 24px 60px rgba(16, 44, 29, 0.16), 0 4px 14px rgba(16, 44, 29, 0.08)",
+        cta: "0 20px 42px rgba(16, 44, 29, 0.16)",
       },
     },
   },

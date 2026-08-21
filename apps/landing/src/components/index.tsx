@@ -12,7 +12,7 @@ import { Workflow } from "./workflow";
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="min-h-dvh bg-paper">
       <a href="#main-content" className="fixed left-3 top-3 z-[100] -translate-y-[150%] rounded-md bg-green-950 px-4 py-2.5 text-sm text-ivory transition-transform focus:translate-y-0">
         Lewati ke konten utama
       </a>

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import DevServiceWorkerCleanup from "@/components/layout/DevServiceWorkerCleanup";
 import "./globals.css";
 
 const APP_NAME = "Rakku POS";
@@ -63,7 +64,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var s=window.localStorage.getItem("rakku-pos-sidebar-collapsed");document.documentElement.setAttribute("data-pos-sidebar",s==="1"?"collapsed":"expanded")}catch(e){}`,
+          }}
+        />
+        <DevServiceWorkerCleanup />
+        {children}
+      </body>
     </html>
   );
 }

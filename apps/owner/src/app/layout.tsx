@@ -35,7 +35,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id" className={`${inter.variable} ${fraunces.variable}`}>
-      <body>{children}</body>
+      <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var s=window.localStorage.getItem("rakku-owner-sidebar-collapsed");document.documentElement.setAttribute("data-owner-sidebar",s==="1"?"collapsed":"expanded")}catch(e){}`,
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

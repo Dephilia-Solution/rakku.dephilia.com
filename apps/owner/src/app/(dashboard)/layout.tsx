@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/supabase-clients";
 import ResponsiveNav from "@/components/layout/ResponsiveNav";
+import DashboardContent from "@/components/layout/DashboardContent";
 import { ToastContainer } from "@rakku/ui";
 
 export default async function OwnerDashboardLayout({
@@ -36,11 +37,7 @@ export default async function OwnerDashboardLayout({
   return (
     <div className="flex min-h-dvh overflow-hidden bg-neutral-50">
       <ResponsiveNav owner={ownerData} />
-      <main className="flex-1 min-w-0 overflow-hidden md:ml-64 pb-[var(--nav-bottom-safe)] md:pb-0 pt-4 md:pt-0">
-        <div className="p-4 lg:p-8">
-          {children}
-        </div>
-      </main>
+      <DashboardContent>{children}</DashboardContent>
       <ToastContainer />
     </div>
   );

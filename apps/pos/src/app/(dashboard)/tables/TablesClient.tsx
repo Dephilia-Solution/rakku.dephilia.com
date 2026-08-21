@@ -175,7 +175,7 @@ export default function TablesClient({ tables: initialTables }: Props) {
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
       <PageHeader
         title="Meja"
-        subtitle="Kelola meja sederhana â€” status kosong/terisi untuk order dine-in."
+        subtitle="Kelola meja sederhana, status kosong/terisi untuk order dine-in."
         actions={
           <div className="flex items-center gap-2">
             <button

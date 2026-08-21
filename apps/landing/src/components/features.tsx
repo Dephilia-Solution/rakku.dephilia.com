@@ -1,108 +1,63 @@
-import type { PropsWithChildren } from "react";
-
-import { KeyIcon, PackageIcon, QrCodeIcon, ReceiptIcon, StoreIcon, TrendingUpIcon } from "./icons";
-import { Lift, Stagger, StaggerItem } from "./motion";
-import { Container, SectionKicker } from "./primitives";
+import { CashierFeaturePreview, OwnerFeaturePreview, RecipeFeaturePreview } from "./feature-previews";
+import { Stagger, StaggerItem } from "./motion";
+import { Container } from "./primitives";
 import { ScrollReveal } from "./scroll-reveal";
 
-export function FeatureIcon({ className = "", children }: PropsWithChildren<{ className?: string }>) {
-  return (
-    <div className={`mt-4 grid h-[3.75rem] w-[3.75rem] place-items-center rounded-[0.9rem] ${className}`} aria-hidden="true">
-      {children}
-    </div>
-  );
-}
-
-export function FeatureCard({ children, className = "" }: PropsWithChildren<{ className?: string }>) {
-  return <Lift className={`group flex h-full min-h-[20.5rem] flex-col items-start overflow-hidden rounded-lg border border-brand p-6 ${className}`}>{children}</Lift>;
-}
-
-const iconMotion = "transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105";
+const features = [
+  {
+    number: "01",
+    label: "Kasir",
+    title: "Kasir yang mengikuti ritme antrean.",
+    description: "Produk, modifier, meja, pembayaran, dan invoice berada di satu alur yang singkat.",
+    items: ["Dine in & take away", "QRIS & tunai", "Split bill"],
+    preview: <CashierFeaturePreview />,
+  },
+  {
+    number: "02",
+    label: "Resep",
+    title: "Resep membuat stok lebih masuk akal.",
+    description: "Hubungkan produk dengan bahan baku. Setiap order selesai meninggalkan catatan pemakaian.",
+    items: ["Resep per produk", "Stock movement", "Peringatan stok"],
+    preview: <RecipeFeaturePreview />,
+  },
+  {
+    number: "03",
+    label: "Owner",
+    title: "Owner melihat yang perlu diputuskan.",
+    description: "Omzet, HPP, pengeluaran, outlet, dan laba tidak lagi tersebar di tempat berbeda.",
+    items: ["Laporan laba", "Multi-outlet", "Role & akses"],
+    preview: <OwnerFeaturePreview />,
+  },
+] as const;
 
 export function Features() {
   return (
-    <ScrollReveal className="bg-paper-deep py-[clamp(3.5rem,6vw,5.5rem)]" id="fitur">
+    <ScrollReveal className="bg-paper py-[clamp(4.5rem,8vw,7rem)]" id="fitur">
       <Container>
-        <Stagger className="mb-10 flex flex-col gap-6 lg:mb-12 lg:flex-row lg:items-end lg:justify-between">
-          <StaggerItem>
-            <div>
-              <SectionKicker>02 / Yang Anda dapatkan</SectionKicker>
-              <h2 className="font-display text-[clamp(2.45rem,4.5vw,4.05rem)] font-semibold leading-[1.02] text-green-950">
-                Kerja harian lebih ringan.
-                <br />
-                <em className="not-italic text-green-700">Keputusan lebih tajam.</em>
-              </h2>
-            </div>
-          </StaggerItem>
-        </Stagger>
+        <div className="mb-12 max-w-[42rem] lg:mb-16">
+          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Yang dikerjakan Rakku di belakang layar.</h2>
+          <p className="mt-5 max-w-[34rem] text-[0.95rem] leading-[1.7] text-muted">Tiga bagian penting yang tetap terhubung ketika kedai mulai ramai.</p>
+        </div>
 
-        <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StaggerItem className="sm:col-span-2">
-            <FeatureCard className="bg-green-950 text-ivory hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-ivory/70">A / Kasir</div>
-              <FeatureIcon className="bg-lime text-green-950">
-                <ReceiptIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08] text-lime">Transaksi tanpa menghambat antrean.</h3>
-              <p className="my-2 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-ivory/65">Register yang cepat untuk produk, modifier, tier harga, meja, pembayaran, split bill, dan invoice.</p>
-              <div className="mt-auto w-full border-t border-ivory/20 pt-3 font-mono text-[0.5rem] text-ivory/60">Dine in / Take away / QRIS / Tunai</div>
-            </FeatureCard>
-          </StaggerItem>
-
-          <StaggerItem>
-            <FeatureCard className="bg-lime text-green-950 hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-green-900/80">B / Inventory</div>
-              <FeatureIcon className="bg-green-950 text-lime">
-                <PackageIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08]">Bahan baku yang ikut bergerak.</h3>
-              <p className="my-2 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-green-900/75">Hubungkan produk ke resep. Setiap order selesai, stok berkurang dan jejaknya tersimpan.</p>
-            </FeatureCard>
-          </StaggerItem>
-
-          <StaggerItem>
-            <FeatureCard className="bg-ivory/50 hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">C / Owner</div>
-              <FeatureIcon className="bg-green-300 text-green-950">
-                <TrendingUpIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08] text-green-950">Laba, bukan sekadar omzet.</h3>
-              <p className="m-0 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-muted">Lihat omzet, HPP, pengeluaran, laba kotor, dan laba bersih dalam satu laporan.</p>
-            </FeatureCard>
-          </StaggerItem>
-
-          <StaggerItem className="sm:col-span-2">
-            <FeatureCard className="bg-ivory/50 hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">D / Multi-outlet</div>
-              <FeatureIcon className="bg-green-800 text-ivory">
-                <StoreIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08] text-green-950">Satu pemilik. Banyak outlet. Tetap terarah.</h3>
-              <p className="m-0 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-muted">Kelola outlet, karyawan, produk, akses menu, dan laporan dalam konteks yang jelas per cabang.</p>
-            </FeatureCard>
-          </StaggerItem>
-
-          <StaggerItem>
-            <FeatureCard className="bg-green-950 text-ivory hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-ivory/70">E / Akses</div>
-              <FeatureIcon className="bg-lime text-green-950">
-                <KeyIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08] text-lime">Setiap orang melihat yang perlu.</h3>
-              <p className="m-0 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-ivory/65">Role dan akses menu dinamis untuk menjaga operasional tetap aman dan tidak membingungkan.</p>
-            </FeatureCard>
-          </StaggerItem>
-
-          <StaggerItem className="sm:col-span-2">
-            <FeatureCard className="bg-coral text-ivory hover:shadow-xl">
-              <div className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-ivory/80">F / QR Menu</div>
-              <FeatureIcon className="bg-ivory text-green-950">
-                <QrCodeIcon className={`h-8 w-8 ${iconMotion}`} />
-              </FeatureIcon>
-              <h3 className="mt-5 max-w-[16.25rem] font-display text-[clamp(1.5rem,2.2vw,1.65rem)] font-semibold leading-[1.08]">Menu digital tanpa aplikasi.</h3>
-              <p className="m-0 max-w-[18.5rem] text-[0.8125rem] leading-[1.58] text-ivory/80">Buat QR menu view-only untuk tiap outlet. Pelanggan cukup scan dan melihat katalog terbaru.</p>
-            </FeatureCard>
-          </StaggerItem>
+        <Stagger className="grid border-t border-green-950/15 lg:grid-cols-[1.08fr_0.96fr_0.96fr]">
+          {features.map((feature, index) => {
+            return (
+              <StaggerItem key={feature.number} className={`border-b border-green-950/15 py-8 sm:px-8 lg:border-b-0 lg:border-r lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0 ${index > 0 ? "lg:pl-8" : ""}`}>
+                <article id={feature.label === "Kasir" ? "kasir" : feature.label === "Resep" ? "resep" : "laba"} className="flex h-full flex-col">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-mono text-[0.65rem] font-semibold text-green-700">{feature.number}</span>
+                    <span className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.15em] text-green-700">{feature.label}</span>
+                  </div>
+                  <h3 className="mt-5 max-w-[16rem] font-display text-[clamp(1.55rem,2.4vw,2rem)] font-bold leading-[1.04] tracking-[-0.05em] text-green-950">{feature.title}</h3>
+                  <div className="mt-7">{feature.preview}</div>
+                  <p className="mt-5 max-w-[19rem] text-sm leading-[1.62] text-muted">{feature.description}</p>
+                  <ul className="mt-5 flex flex-wrap gap-x-3 gap-y-2 font-mono text-[0.58rem] text-green-800/75">
+                    {feature.items.map((item) => <li key={item} className="border-b border-green-800/20 pb-1">{item}</li>)}
+                  </ul>
+                </article>
+              </StaggerItem>
+            );
+          })}
         </Stagger>
       </Container>
     </ScrollReveal>

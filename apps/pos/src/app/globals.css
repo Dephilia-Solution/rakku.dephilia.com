@@ -59,6 +59,19 @@ textarea {
   }
 }
 
+@media (min-width: 768px) {
+  .pos-main {
+    margin-left: 240px;
+  }
+  html[data-pos-sidebar="collapsed"] .pos-main {
+    margin-left: 64px;
+  }
+}
+
+html:not([data-sidebar-ready]) .pos-main {
+  transition: none !important;
+}
+
 @layer base {
   html {
     -webkit-overflow-scrolling: touch;
