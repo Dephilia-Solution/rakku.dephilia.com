@@ -11,18 +11,16 @@ import {
   type Variants,
 } from "framer-motion";
 
-const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-const SPRING_BUTTON = { type: "spring", stiffness: 520, damping: 32, mass: 0.4 } as const;
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 export const fadeRise: Variants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } },
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.52, ease: EASE } },
 };
 
 export const stagger: Variants = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } },
+  visible: { transition: { staggerChildren: 0.09, delayChildren: 0.04 } },
 };
 
 export function MotionProvider({ children }: PropsWithChildren) {
@@ -44,12 +42,17 @@ export function HeaderFrame({ children, className = "" }: HeaderFrameProps) {
   return (
     <motion.header
       initial={reduceMotion ? false : { opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: EASE }}
-      className={`sticky top-0 z-50 border-b pt-[env(safe-area-inset-top)] backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-300 ${
+      animate={{
+        opacity: 1,
+        y: 0,
+        backgroundColor: scrolled ? "rgba(243, 239, 230, 0.95)" : "rgba(243, 239, 230, 0.85)",
+        boxShadow: scrolled ? "0 8px 24px rgba(24, 49, 38, 0.06)" : "0 0 0 rgba(24, 49, 38, 0)",
+      }}
+      transition={{ duration: reduceMotion ? 0 : 0.35, ease: EASE }}
+      className={`sticky top-0 z-50 border-b bg-paper/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl ${
         scrolled
-          ? "border-green-950/20 bg-paper/95 shadow-[0_8px_24px_rgba(24,49,38,0.06)]"
-          : "border-green-950/10 bg-paper/85"
+          ? "border-green-950/20"
+          : "border-green-950/10"
       } ${className}`}
     >
       {children}
@@ -84,7 +87,25 @@ export function StaggerItem({ children, className = "", ...props }: StaggerProps
   );
 }
 
-type ButtonLinkProps = HTMLMotionProps<"a">;
+type MotionLinkProps = HTMLMotionProps<"a">;
+
+export function MotionLink({ children, className = "", ...props }: MotionLinkProps) {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <motion.a
+      {...props}
+      className={className}
+      whileHover={reduceMotion ? undefined : { y: -1 }}
+      whileTap={reduceMotion ? undefined : { y: 1, scale: 0.985 }}
+      transition={{ duration: 0.18, ease: EASE }}
+    >
+      {children}
+    </motion.a>
+  );
+}
+
+type ButtonLinkProps = MotionLinkProps;
 
 export function ButtonLink({ children, className = "", ...props }: ButtonLinkProps) {
   const reduceMotion = useReducedMotion();
@@ -93,9 +114,9 @@ export function ButtonLink({ children, className = "", ...props }: ButtonLinkPro
     <motion.a
       {...props}
       className={`landing-button ${className}`}
-      whileHover={reduceMotion ? undefined : { y: -1 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-      transition={SPRING_BUTTON}
+      whileHover={reduceMotion ? undefined : { y: -1, scale: 1.015 }}
+      whileTap={reduceMotion ? undefined : { y: 1, scale: 0.98 }}
+      transition={{ duration: 0.18, ease: EASE }}
     >
       {children}
     </motion.a>
@@ -130,9 +151,9 @@ export function HeroVisual({ children, className = "" }: HeroCopyProps) {
   return (
     <motion.div
       className={className}
-      initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.65, ease: EASE, delay: 0.12 }}
+      transition={{ duration: 0.6, ease: EASE, delay: 0.16 }}
     >
       {children}
     </motion.div>
@@ -147,9 +168,9 @@ export function InteractiveRow({ children, className = "" }: InteractiveRowProps
   return (
     <motion.div
       className={className}
-      whileHover={reduceMotion ? undefined : { x: 4 }}
-      whileTap={reduceMotion ? undefined : { x: 2 }}
-      transition={{ duration: 0.22, ease: EASE }}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      whileTap={reduceMotion ? undefined : { y: 1 }}
+      transition={{ duration: 0.2, ease: EASE }}
     >
       {children}
     </motion.div>

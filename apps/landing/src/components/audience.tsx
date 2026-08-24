@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ArrowRightIcon } from "./icons";
-import { InteractiveRow } from "./motion";
+import { InteractiveRow, MotionLink } from "./motion";
 import { Container } from "./primitives";
 import { ownerUrl, posUrl } from "./site";
 import { ScrollReveal } from "./scroll-reveal";
@@ -50,7 +50,7 @@ export function AudienceCard({ id, label, title, description, items, href }: Aud
   return (
     <article id={id} className="border-b border-green-950/15">
       <InteractiveRow className="group grid gap-6 py-8 transition-colors duration-200 hover:bg-paper-deep/35 md:grid-cols-[8rem_minmax(0,1fr)_minmax(0,18rem)_auto] md:items-start md:gap-8 md:px-4 md:first:pl-0 md:last:pr-0">
-        <span className="font-mono text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-green-700/70 transition-colors duration-200 group-hover:text-green-700">{label}</span>
+        <span className="text-sm font-semibold text-green-700/70 transition-colors duration-200 group-hover:text-green-700">{label}</span>
         <h3 className="m-0 font-display text-[clamp(1.8rem,3.2vw,2.6rem)] font-bold leading-[0.98] tracking-[-0.06em] text-green-950 transition-transform duration-200 group-hover:translate-x-1">{title}</h3>
         <div>
           <p className="m-0 max-w-[22rem] text-sm leading-[1.62] text-muted">{description}</p>
@@ -58,9 +58,9 @@ export function AudienceCard({ id, label, title, description, items, href }: Aud
             {items.map((item) => <li key={item} className="border-b border-green-800/20 pb-1">{item}</li>)}
           </ul>
         </div>
-        <a href={href} className="landing-link-underline inline-flex min-h-12 items-center gap-2 self-start text-[0.78rem] font-bold text-green-800 hover:text-green-950">
+        <MotionLink href={href} className="landing-link-underline inline-flex min-h-12 items-center gap-2 self-start text-[0.78rem] font-bold text-green-800 hover:text-green-950">
           Buka {label === "Portal Owner" ? "portal" : "POS"} <ArrowRightIcon className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-        </a>
+        </MotionLink>
       </InteractiveRow>
     </article>
   );

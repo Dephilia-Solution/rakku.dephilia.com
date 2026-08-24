@@ -17,7 +17,7 @@ export function LandingPage() {
         Lewati ke konten utama
       </a>
       <Header />
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1}>
         <Hero />
         <SignalStrip />
         <Problem />

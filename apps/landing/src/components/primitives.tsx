@@ -1,5 +1,7 @@
 import type { PropsWithChildren } from "react";
 
+import { MotionLink } from "./motion";
+
 type ContainerProps = PropsWithChildren<{
   className?: string;
 }>;
@@ -22,13 +24,13 @@ export function SectionKicker({ children, light = false }: PropsWithChildren<{ l
 
 export function TextLink({ href, children, light = false }: PropsWithChildren<{ href: string; light?: boolean }>) {
   return (
-    <a
+    <MotionLink
       href={href}
       className={`landing-link-underline inline-flex min-h-12 items-center gap-2 text-[0.8125rem] font-bold transition-colors duration-200 ${
         light ? "text-lime hover:text-ivory" : "text-green-800 hover:text-green-950"
       }`}
     >
       {children}
-    </a>
+    </MotionLink>
   );
 }

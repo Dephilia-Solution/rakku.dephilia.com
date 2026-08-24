@@ -34,6 +34,8 @@
     font-size: 16px;
     line-height: 1.5;
     font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
@@ -155,14 +157,15 @@
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+
+  .landing-button:active,
+  .landing-button:hover svg {
+    transform: none;
+  }
 }
 
 /* Product previews use one restrained depth treatment; the surrounding story stays flat. */
 .recipe-board {
   overflow: hidden;
-  border: 1px solid rgba(255, 253, 248, 0.2);
-  border-radius: 0.55rem;
-  color: #102c1d;
-  background: #fffdf8;
   box-shadow: 0 24px 60px rgba(16, 44, 29, 0.16), 0 4px 14px rgba(16, 44, 29, 0.08);
 }

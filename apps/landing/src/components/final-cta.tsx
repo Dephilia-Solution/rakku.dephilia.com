@@ -10,7 +10,7 @@ export function FinalCta() {
       <Container>
         <div className="grid gap-10 bg-green-950 px-6 py-10 text-ivory sm:px-10 sm:py-12 lg:grid-cols-[1fr_auto] lg:items-end lg:gap-16 lg:px-14 lg:py-14">
           <div>
-            <span className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-lime">RAKKU</span>
+            <span className="text-sm font-semibold tracking-[0.12em] text-lime">RAKKU</span>
             <h2 className="mt-5 max-w-[10ch] text-balance font-display text-[clamp(2.8rem,5vw,4.6rem)] font-bold leading-[0.95] tracking-[-0.07em] text-ivory">Operasional lebih terbaca.</h2>
             <p className="mt-5 max-w-[24rem] text-sm leading-[1.65] text-ivory/65">Mulai dengan satu outlet, lalu biarkan sistem mengikuti cara bisnis Anda berkembang.</p>
           </div>

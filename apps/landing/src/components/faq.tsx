@@ -30,24 +30,27 @@ export function FAQ() {
         <div className="border-t border-green-950/15">
           {questions.map(([question, answer], index) => (
             <div key={question} className="border-b border-green-950/15">
-              <button
+              <motion.button
                 type="button"
                 id={`faq-question-${index}`}
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
                 className="group flex min-h-16 w-full items-center justify-between gap-6 py-4 text-left font-display text-[clamp(1.1rem,2vw,1.35rem)] font-bold leading-[1.15] tracking-[-0.04em] text-green-950 transition-colors hover:text-green-700"
                 onClick={() => setOpenIndex((current) => (current === index ? -1 : index))}
+                whileHover={reduceMotion ? undefined : { y: -1 }}
+                whileTap={reduceMotion ? undefined : { y: 1, scale: 0.995 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               >
                 <span>{question}</span>
                 <motion.span
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-green-800/20 text-green-700"
-                  animate={{ rotate: openIndex === index ? 45 : 0 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  animate={{ rotate: reduceMotion ? 0 : openIndex === index ? 45 : 0 }}
+                  transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                   aria-hidden="true"
                 >
                   <PlusIcon className="h-4 w-4" />
                 </motion.span>
-              </button>
+              </motion.button>
               <AnimatePresence initial={false}>
                 {openIndex === index ? (
                   <motion.div
@@ -58,7 +61,7 @@ export function FAQ() {
                     initial={reduceMotion ? false : { height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    transition={reduceMotion ? { duration: 0 } : { duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                     className="overflow-hidden"
                   >
                     <p className="mb-5 max-w-[39rem] pr-10 text-sm leading-[1.65] text-muted">{answer}</p>

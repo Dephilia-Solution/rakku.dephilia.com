@@ -1,201 +1,184 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type KeyboardEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 
-import { CheckIcon, SearchIcon } from "./icons";
+import { SearchIcon } from "./icons";
 
 type ProductCategory = "Semua" | "Coffee" | "Pastry" | "Non-coffee";
 
 type HeroProduct = {
   id: string;
   image: string;
-  alt: string;
   category: Exclude<ProductCategory, "Semua">;
   name: string;
   price: string;
 };
 
-const categories: ProductCategory[] = ["Semua", "Coffee", "Pastry", "Non-coffee"];
-
 const products: HeroProduct[] = [
-  { id: "kopi-susu-gula-aren", image: "/images/kopsuaren.webp", alt: "Kopi susu gula aren", category: "Coffee", name: "Kopi Susu Gula Aren", price: "Rp 24.000" },
-  { id: "cafe-latte", image: "/images/caffelatte.webp", alt: "Cafe latte", category: "Coffee", name: "Cafe Latte", price: "Rp 22.000" },
-  { id: "espresso", image: "/images/espresso.webp", alt: "Espresso", category: "Coffee", name: "Espresso", price: "Rp 16.000" },
-  { id: "matcha-latte", image: "/images/matchalatte.webp", alt: "Matcha latte", category: "Non-coffee", name: "Matcha Latte", price: "Rp 25.000" },
-  { id: "butter-croissant", image: "/images/croissant.webp", alt: "Butter croissant", category: "Pastry", name: "Butter Croissant", price: "Rp 18.000" },
-  { id: "banana-bread", image: "/images/bananabread.webp", alt: "Banana bread", category: "Pastry", name: "Banana Bread", price: "Rp 19.000" },
-  { id: "lemon-tea", image: "/images/lemontea.webp", alt: "Lemon tea", category: "Non-coffee", name: "Lemon Tea", price: "Rp 15.000" },
-  { id: "chocolate-cookie", image: "/images/chococookie.webp", alt: "Chocolate cookie", category: "Pastry", name: "Chocolate Cookie", price: "Rp 12.000" },
+  { id: "kopi-susu-gula-aren", image: "/images/kopsuaren.webp", category: "Coffee", name: "Kopi Susu Gula Aren", price: "Rp 24.000" },
+  { id: "cafe-latte", image: "/images/caffelatte.webp", category: "Coffee", name: "Cafe Latte", price: "Rp 22.000" },
+  { id: "espresso", image: "/images/espresso.webp", category: "Coffee", name: "Espresso", price: "Rp 16.000" },
+  { id: "butter-croissant", image: "/images/croissant.webp", category: "Pastry", name: "Butter Croissant", price: "Rp 18.000" },
+  { id: "matcha-latte", image: "/images/matchalatte.webp", category: "Non-coffee", name: "Matcha Latte", price: "Rp 25.000" },
+  { id: "banana-bread", image: "/images/bananabread.webp", category: "Pastry", name: "Banana Bread", price: "Rp 19.000" },
+  { id: "lemon-tea", image: "/images/lemontea.webp", category: "Non-coffee", name: "Lemon Tea", price: "Rp 15.000" },
+  { id: "chocolate-cookie", image: "/images/chococookie.webp", category: "Pastry", name: "Chocolate Cookie", price: "Rp 12.000" },
 ];
 
+const previewProducts = products.slice(0, 4);
+
+const categoryStyles: Record<HeroProduct["category"], string> = {
+  Coffee: "bg-amber-100 text-amber-800",
+  Pastry: "bg-orange-100 text-orange-800",
+  "Non-coffee": "bg-green-100 text-green-800",
+};
+
 export function HeroProductMenu() {
-  const [category, setCategory] = useState<ProductCategory>("Semua");
-  const [selectedProductId, setSelectedProductId] = useState(products[0].id);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const selectedProduct = previewProducts[frameIndex] ?? previewProducts[0];
 
-  const visibleProducts = category === "Semua" ? products : products.filter((product) => product.category === category);
-  const displayedProducts = visibleProducts.slice(0, 6);
-  const selectedProduct = products.find((product) => product.id === selectedProductId) ?? products[0];
+  useEffect(() => {
+    if (reduceMotion !== false || previewProducts.length < 2) return;
 
-  function selectCategory(nextCategory: ProductCategory) {
-    setCategory(nextCategory);
+    const timer = window.setInterval(() => {
+      setFrameIndex((current) => (current + 1) % previewProducts.length);
+    }, 2800);
 
-    const nextProducts = nextCategory === "Semua" ? products : products.filter((product) => product.category === nextCategory);
-    if (!nextProducts.some((product) => product.id === selectedProductId)) {
-      setSelectedProductId(nextProducts[0].id);
-    }
-  }
-
-  function handleCategoryKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const direction = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (!direction) return;
-
-    event.preventDefault();
-    const nextIndex = (index + direction + categories.length) % categories.length;
-    const nextCategory = categories[nextIndex];
-    selectCategory(nextCategory);
-    document.getElementById(`hero-category-${nextIndex}`)?.focus();
-  }
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
 
   return (
-    <div className="overflow-hidden rounded-[0.65rem] border border-green-950/15 bg-[#f7f9f4] shadow-preview">
-      <div className="flex items-center gap-3 border-b border-green-950/10 bg-ivory px-4 py-3 sm:px-5">
-        <div className="flex gap-1.5" aria-hidden="true">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-700/35" />
-          <span className="h-1.5 w-1.5 rounded-full bg-green-700/20" />
-          <span className="h-1.5 w-1.5 rounded-full bg-green-700/20" />
+    <figure
+      role="img"
+      aria-label="Preview tampilan POS Rakku"
+      className="hero-pos-preview overflow-hidden rounded-[0.75rem] border border-neutral-200 bg-neutral-50 shadow-preview"
+    >
+      <div
+        aria-hidden="true"
+        className="flex aspect-[1.18] min-w-0 flex-col overflow-hidden sm:aspect-[1.45] lg:aspect-[1.6]"
+      >
+        <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-white px-3 text-[0.55rem] text-neutral-500 sm:h-10 sm:px-4 sm:text-[0.62rem]">
+          <span className="font-display font-semibold text-neutral-900">Kasir</span>
+          <span className="truncate">Outlet Kemang</span>
         </div>
-        <span className="font-mono text-[0.56rem] uppercase tracking-[0.14em] text-green-900/50">pos / register</span>
-        <span className="ml-auto hidden font-mono text-[0.56rem] uppercase tracking-[0.12em] text-green-700 sm:block">RAKKU POS</span>
-      </div>
 
-      <div className="grid lg:grid-cols-[3.2rem_minmax(0,1fr)]">
-        <aside className="hidden flex-col items-center gap-5 bg-green-950 px-2 py-4 lg:flex" aria-hidden="true">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-lime font-display text-base font-bold text-green-950">r</span>
-          <span className="h-6 w-6 rounded-md border border-lime bg-lime/15" />
-          <span className="h-6 w-6 rounded-md border border-ivory/30" />
-          <span className="h-6 w-6 rounded-md border border-ivory/30" />
-          <span className="h-6 w-6 rounded-md border border-ivory/30" />
-          <span className="mt-auto font-mono text-[0.48rem] uppercase text-ivory/60">rk</span>
-        </aside>
-
-        <div className="min-w-0 bg-[#f7f9f4]">
-          <div className="flex items-start justify-between gap-4 border-b border-green-950/10 px-4 py-4 sm:px-5">
-            <div>
-              <span className="block font-mono text-[0.56rem] uppercase tracking-[0.14em] text-green-900/50">Outlet aktif</span>
-              <strong className="mt-1 block text-base font-bold tracking-[-0.035em] text-green-950 sm:text-lg">Kasir / Register</strong>
-            </div>
-            <span className="inline-flex items-center gap-2 font-mono text-[0.56rem] uppercase tracking-[0.1em] text-green-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Outlet Kemang
-            </span>
+        <div className="flex min-h-0 flex-1">
+          <div className="hidden w-10 shrink-0 flex-col items-center gap-2 border-r border-neutral-200 bg-white p-1.5 lg:flex">
+            <Image src="/images/rakku_logo.png" alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-cover" />
+            <span className="mt-2 h-7 w-7 rounded-xl bg-primary" />
+            <span className="h-7 w-7 rounded-xl bg-neutral-100" />
+            <span className="h-7 w-7 rounded-xl bg-neutral-100" />
+            <span className="h-7 w-7 rounded-xl bg-neutral-100" />
           </div>
 
-          <div className="border-b border-green-950/10 px-4 py-3 sm:px-5">
-            <div className="flex min-h-10 items-center gap-2 rounded-md border border-green-950/10 bg-ivory px-3 text-[0.68rem] text-green-900/45" role="search">
-              <SearchIcon className="h-4 w-4 shrink-0 text-green-700/70" />
-              <span>Cari produk...</span>
-              <kbd className="ml-auto rounded border border-green-950/10 bg-[#f1f3ed] px-1.5 py-1 font-mono text-[0.52rem] text-green-900/45">K</kbd>
-            </div>
-          </div>
-
-          <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_15.5rem]">
-            <div className="min-w-0">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <span className="block font-mono text-[0.56rem] uppercase tracking-[0.13em] text-green-700/70">Menu</span>
-                  <h2 className="mt-1 text-lg font-bold tracking-[-0.04em] text-green-950">Pilih produk</h2>
-                </div>
-                <span className="font-mono text-[0.56rem] text-green-900/45">{displayedProducts.length} item</span>
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_8.75rem] sm:grid-cols-[minmax(0,1fr)_11.5rem] lg:grid-cols-[minmax(0,1fr)_14rem]">
+            <div className="min-h-0 min-w-0 overflow-hidden bg-neutral-50 p-2.5 sm:p-3.5">
+              <div className="flex min-h-8 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-2.5 text-[0.55rem] text-neutral-400 sm:min-h-9 sm:px-3 sm:text-[0.62rem]">
+                <SearchIcon className="h-3.5 w-3.5 shrink-0 text-neutral-400 sm:h-4 sm:w-4" />
+                <span className="truncate">Cari produk...</span>
+                <span className="ml-auto hidden rounded-md bg-neutral-100 px-1.5 py-1 font-mono text-[0.48rem] text-neutral-400 sm:inline-flex">K</span>
               </div>
 
-              <div className="mb-4 flex gap-1 overflow-x-auto border-b border-green-950/10" role="tablist" aria-label="Kategori produk">
-                {categories.map((item, index) => {
-                  const isActive = category === item;
-
-                  return (
-                    <button
-                      key={item}
-                      id={`hero-category-${index}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      aria-controls="hero-product-list"
-                      tabIndex={isActive ? 0 : -1}
-                      className={`min-h-11 shrink-0 border-b-2 px-2 text-[0.68rem] font-semibold transition-colors active:scale-[0.98] ${
-                        isActive ? "border-green-700 text-green-950" : "border-transparent text-green-900/45 hover:text-green-800"
-                      }`}
-                      onClick={() => selectCategory(item)}
-                      onKeyDown={(event) => handleCategoryKeyDown(event, index)}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
+              <div className="mt-2 flex gap-1 overflow-hidden whitespace-nowrap text-[0.5rem] font-medium sm:mt-3 sm:text-[0.58rem]">
+                <span className="shrink-0 rounded-full bg-forest px-2.5 py-1.5 text-white sm:px-3">All Items</span>
+                <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Coffee</span>
+                <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Pastry</span>
+                <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Non-Coffee</span>
               </div>
 
-              <div id="hero-product-list" role="tabpanel" aria-label={`Produk kategori ${category}`} className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                {displayedProducts.map((product) => {
-                  const isSelected = selectedProductId === product.id;
+              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-3 sm:gap-2 lg:grid-cols-4">
+                {previewProducts.map((product) => {
+                  const isSelected = product.id === selectedProduct.id;
 
                   return (
-                    <button
+                    <div
                       key={product.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      aria-label={`Pilih ${product.name}`}
-                      className={`group relative min-w-0 rounded-md border bg-ivory p-2 text-left transition-[border-color,box-shadow,transform] active:scale-[0.98] ${
-                        isSelected ? "border-green-700 shadow-sm" : "border-green-950/10 hover:-translate-y-0.5 hover:border-green-500/60"
+                      className={`min-w-0 overflow-hidden rounded-xl bg-white text-left shadow-sm ring-1 ring-inset transition-[box-shadow,ring-color] duration-300 ${
+                        isSelected ? "ring-2 ring-primary-500" : "ring-neutral-200"
                       }`}
-                      onClick={() => setSelectedProductId(product.id)}
                     >
-                      <div className="relative mb-2 aspect-[1.18] overflow-hidden rounded-[0.3rem] bg-[#e7efe0]">
-                        <Image src={product.image} alt={product.alt} fill priority={product.id === products[0].id} sizes="(max-width: 640px) 42vw, (max-width: 1024px) 16vw, 130px" className="object-contain p-1 transition-transform duration-300 group-hover:scale-[1.03]" />
-                      </div>
-                      <span className="block truncate font-mono text-[0.52rem] uppercase tracking-[0.1em] text-green-900/45">{product.category}</span>
-                      <strong className="mt-1 block min-h-[2.35rem] text-[0.7rem] font-semibold leading-[1.25] tracking-[-0.02em] text-green-950">{product.name}</strong>
-                      <span className="mt-2 block font-mono text-[0.62rem] font-semibold text-green-700">{product.price}</span>
-                      {isSelected ? (
-                        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-lime text-green-950">
-                          <CheckIcon className="h-3 w-3" strokeWidth={2.4} />
+                      <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
+                        <Image
+                          src={product.image}
+                          alt=""
+                          fill
+                          priority={product.id === previewProducts[0].id}
+                          sizes="(max-width: 640px) 25vw, (max-width: 1024px) 18vw, 170px"
+                          className="object-cover"
+                        />
+                        <span className={`absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[0.42rem] font-medium sm:text-[0.48rem] ${categoryStyles[product.category]}`}>
+                          {product.category === "Non-coffee" ? "Non-Coffee" : product.category}
                         </span>
-                      ) : null}
-                    </button>
+                      </div>
+                      <div className="p-1.5 sm:p-2">
+                        <p className="min-h-[0.8rem] truncate text-[0.52rem] font-semibold leading-tight text-neutral-900 sm:text-[0.62rem]">{product.name}</p>
+                        <p className="mt-1 truncate font-mono text-[0.48rem] font-semibold text-forest sm:text-[0.56rem]">{product.price}</p>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             </div>
 
-            <aside className="flex min-h-[18rem] flex-col rounded-md bg-green-950 p-4 text-ivory" aria-label="Pesanan saat ini">
-              <div className="flex items-start justify-between gap-3 border-b border-ivory/15 pb-3">
-                <div>
-                  <span className="block font-mono text-[0.54rem] uppercase tracking-[0.14em] text-ivory/55">Order berjalan</span>
-                  <strong className="mt-1 block text-sm tracking-[-0.02em]">Pesanan baru</strong>
-                </div>
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-lime text-[0.62rem] font-bold text-green-950">1</span>
+            <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-neutral-200 bg-white p-2.5 text-neutral-900 sm:p-3" aria-label="Preview order sidebar">
+            <div className="flex shrink-0 items-start justify-between gap-2 border-b border-neutral-200 pb-2">
+              <div className="min-w-0">
+                <h2 className="truncate text-[0.68rem] font-semibold sm:text-[0.78rem]">Current Order</h2>
+                <span className="mt-0.5 block text-[0.48rem] text-neutral-400 sm:text-[0.55rem]">1 item</span>
               </div>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-forest/40 text-[0.5rem] font-semibold text-forest">1</span>
+            </div>
 
-              <div className="flex flex-1 items-start gap-3 border-b border-ivory/15 py-4">
-                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-ivory/10">
-                  <Image src={selectedProduct.image} alt="" fill sizes="48px" className="object-contain p-1" />
-                </div>
-                <div className="min-w-0">
-                  <strong className="block text-[0.74rem] leading-[1.3] text-ivory">{selectedProduct.name}</strong>
-                  <span className="mt-1 block text-[0.64rem] text-ivory/55">{selectedProduct.category} · 1x</span>
-                  <span className="mt-2 block font-mono text-[0.64rem] text-lime">{selectedProduct.price}</span>
+            <div className="shrink-0 border-b border-neutral-200 py-2">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-2 py-1.5 sm:px-2.5">
+                <span className="block truncate text-[0.43rem] text-neutral-400 sm:text-[0.5rem]">Nama Customer</span>
+                <span className="mt-0.5 block truncate text-[0.55rem] font-medium text-neutral-700 sm:text-[0.62rem]">Walk-in</span>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden py-2">
+              <span className="mb-1.5 block truncate text-[0.46rem] font-semibold uppercase tracking-[0.08em] text-neutral-400 sm:text-[0.52rem]">{selectedProduct.category}</span>
+              <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <AnimatePresence initial={false} mode="wait">
+                  <motion.div
+                    key={selectedProduct.id}
+                    initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="min-h-[3.7rem] border-b border-neutral-200 px-2 py-2 sm:min-h-[4.3rem] sm:px-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 truncate text-[0.55rem] font-semibold text-neutral-900 sm:text-[0.64rem]">{selectedProduct.name}</span>
+                      <span className="shrink-0 font-mono text-[0.5rem] font-semibold text-forest sm:text-[0.56rem]">{selectedProduct.price}</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1 text-[0.48rem] text-neutral-500 sm:text-[0.54rem]">
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-neutral-100 text-neutral-500">-</span>
+                      <span className="grid h-5 min-w-5 place-items-center rounded-lg font-semibold text-neutral-900">1</span>
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-neutral-100 text-neutral-500">+</span>
+                      <span className="ml-1 truncate">Regular</span>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="space-y-1 px-2 py-2 font-mono text-[0.48rem] text-neutral-600 sm:px-2.5 sm:text-[0.54rem]">
+                  <div className="flex justify-between gap-2"><span>Subtotal</span><span className="shrink-0">{selectedProduct.price}</span></div>
+                  <div className="flex justify-between gap-2 border-t border-neutral-200 pt-1.5 text-[0.58rem] font-bold text-neutral-900 sm:text-[0.64rem]"><span>Total</span><span className="shrink-0">{selectedProduct.price}</span></div>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-2 py-4 font-mono text-[0.62rem]">
-                <div className="flex justify-between gap-3 text-ivory/55"><span>Subtotal</span><span className="text-ivory">{selectedProduct.price}</span></div>
-                <div className="flex justify-between gap-3 border-t border-ivory/15 pt-3 text-[0.72rem] font-semibold"><span>Total</span><span className="text-lime">{selectedProduct.price}</span></div>
-              </div>
-
-              <div className="rounded bg-lime px-3 py-2.5 text-center text-[0.64rem] font-bold text-green-950">Lanjut ke pembayaran</div>
-              <p className="mt-3 text-[0.6rem] leading-[1.5] text-ivory/50">Setelah order selesai, resep dan stok ikut diperbarui.</p>
+            <div className="grid shrink-0 grid-cols-2 gap-1 border-t border-neutral-200 pt-2 text-center text-[0.44rem] font-semibold sm:text-[0.5rem]">
+              <span className="rounded-xl bg-neutral-100 px-1.5 py-2 text-neutral-700">Bayar Nanti</span>
+              <span className="rounded-xl bg-forest px-1.5 py-2 text-white">Payment</span>
+            </div>
             </aside>
           </div>
         </div>
       </div>
-    </div>
+    </figure>
   );
 }
