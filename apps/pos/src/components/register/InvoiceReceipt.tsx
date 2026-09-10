@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
 import { Printer, X } from "lucide-react";
 

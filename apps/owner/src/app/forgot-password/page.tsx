@@ -18,15 +18,20 @@ export default function ForgotPasswordPage() {
     }
     setIsLoading(true);
     try {
-      await fetch("/api/auth/owner/forgot-password", {
+      const res = await fetch("/api/auth/owner/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast("error", data.error || "Gagal mengirim link reset");
+        return;
+      }
       setSent(true);
-      showToast("success", "Jika email terdaftar, link reset telah dikirim.");
+      showToast("success", data.message || "Link reset telah dikirim.");
     } catch {
-      setSent(true);
+      showToast("error", "Terjadi kesalahan, coba lagi");
     } finally {
       setIsLoading(false);
     }

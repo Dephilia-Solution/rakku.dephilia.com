@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import type { OwnerSession } from "@rakku/shared-types";
 import { createAdminClient } from "@rakku/supabase-clients";
-import { sendEmail } from "@/lib/email";
+import { sendEmail } from "@rakku/echo-client";
+import { checkFeature } from "@rakku/plans";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };
 
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  const feature = await checkFeature(supabase, session.company_id, "email_reports");
+  if (!feature.allowed) {
+    return NextResponse.json(feature, { status: 403 });
+  }
+
   let query = supabase
     .from("orders")
     .select("*, order_items(*), outlets!inner(name)")

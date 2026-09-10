@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { deductStockForOrder } from "@/lib/inventory/stock";
 
@@ -123,6 +124,25 @@ export async function PATCH(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  if (status === "completed") {
+    const { data: existing } = await supabase
+      .from("orders")
+      .select("company_id, status")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (existing && existing.status !== "completed") {
+      const limit = await checkLimit(
+        supabase,
+        existing.company_id as string,
+        "transactions"
+      );
+      if (!limit.allowed) {
+        return NextResponse.json(limit, { status: 403 });
+      }
+    }
+  }
 
   const orderUpdates: Record<string, unknown> = {};
   if (status) orderUpdates.status = status;

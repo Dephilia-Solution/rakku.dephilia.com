@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@rakku/pricing": "workspace:*",
     "@rakku/shared-types": "workspace:*",
     "@rakku/supabase-clients": "workspace:*",
     "@rakku/ui": "workspace:*",

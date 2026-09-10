@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Ingredient } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { showToast, Badge, EmptyState, PageHeader, FormField, fieldInputClass } from "@rakku/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { usePlan } from "@/components/billing/PlanProvider";
 import { updateIngredient, deleteIngredient, adjustIngredientStock } from "@/lib/supabase/queries.client";
 import {
   Plus,
@@ -32,6 +33,7 @@ function formatStock(value: number): string {
 }
 
 export default function IngredientsClient({ ingredients: initialIngredients }: Props) {
+  const { hasFeature, openUpgrade } = usePlan();
   const [ingredientList, setIngredientList] = useState(initialIngredients);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -87,6 +89,10 @@ export default function IngredientsClient({ ingredients: initialIngredients }: P
   };
 
   const openOpname = (ingredient: Ingredient) => {
+    if (!hasFeature("inventory_advanced")) {
+      openUpgrade("Stock Opname tersedia di paket Pro.");
+      return;
+    }
     setOpnameIngredient(ingredient);
     setOpnameStock(String(ingredient.stock_quantity));
     setOpnameNote("");

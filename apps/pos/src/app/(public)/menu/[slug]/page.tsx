@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getPublicMenuBySlug } from "@/lib/supabase/queries.server";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { ImageIcon, UtensilsCrossed } from "lucide-react";
 
 export const metadata = {

@@ -6,7 +6,13 @@ async function api(url: string, options?: RequestInit) {
     ...options,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Terjadi kesalahan");
+  if (!res.ok) {
+    const error = new Error(data.error ?? "Terjadi kesalahan") as Error & {
+      code?: string;
+    };
+    error.code = data.code;
+    throw error;
+  }
   return data;
 }
 

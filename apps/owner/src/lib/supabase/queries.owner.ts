@@ -421,6 +421,68 @@ export async function createCompanyWithOnboarding(params: {
     ]);
   }
 
+  // 4. Seed role default (paket Free = role tetap): Owner (semua menu) + Kasir.
+  //    Role custom tambahan hanya untuk paket Pro/Business (v6).
+  const { data: roles } = await supabase
+    .from("roles")
+    .insert([
+      { company_id: company.id, name: "Owner" },
+      { company_id: company.id, name: "Kasir" },
+    ])
+    .select("id, name");
+
+  const { data: menus } = await supabase.from("menus").select("id, slug");
+
+  if (roles && menus) {
+    const allMenuIds = menus.map((m) => m.id);
+    const kasirSlugs = ["register", "orders", "reports", "tax-discounts"];
+    const kasirMenuIds = menus
+      .filter((m) => kasirSlugs.includes(m.slug))
+      .map((m) => m.id);
+
+    const accessRows: {
+      role_id: string;
+      menu_id: string;
+      can_view: boolean;
+    }[] = [];
+
+    for (const role of roles) {
+      const menuIds = role.name === "Owner" ? allMenuIds : kasirMenuIds;
+      for (const menuId of menuIds) {
+        accessRows.push({
+          role_id: role.id,
+          menu_id: menuId,
+          can_view: true,
+        });
+      }
+    }
+
+    if (accessRows.length > 0) {
+      await supabase.from("role_menu_access").insert(accessRows);
+    }
+  }
+
+  // 5. Trial Pro 14 hari (v6 M2). Setelah habis, resolusi plan otomatis
+  //    turun ke Free tanpa menghapus data.
+  const { data: proPlan } = await supabase
+    .from("plans")
+    .select("id")
+    .eq("slug", "pro")
+    .maybeSingle();
+
+  if (proPlan) {
+    await supabase
+      .from("companies")
+      .update({
+        plan_id: proPlan.id,
+        subscription_status: "trial",
+        trial_ends_at: new Date(
+          Date.now() + 14 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      })
+      .eq("id", company.id);
+  }
+
   return {
     company: { id: company.id, name: company.name, slug, code },
     error: null,

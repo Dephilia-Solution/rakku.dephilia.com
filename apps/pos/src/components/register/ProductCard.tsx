@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ProductWithCategory } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { useCartStore, getTierPrice } from "@/lib/store/cartStore";
 import { ImageIcon } from "lucide-react";
 

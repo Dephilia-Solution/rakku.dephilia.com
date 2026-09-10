@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
+import { createAdminClient } from "@rakku/supabase-clients";
+import { checkFeature } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
   getRoleCompanyId,
@@ -59,6 +61,15 @@ export async function POST(
   const roleCompanyId = await getRoleCompanyId(id);
   if (!roleCompanyId || roleCompanyId !== session.company_id) {
     return NextResponse.json({ error: "Role tidak ditemukan" }, { status: 404 });
+  }
+
+  const feature = await checkFeature(
+    createAdminClient(),
+    session.company_id,
+    "custom_roles"
+  );
+  if (!feature.allowed) {
+    return NextResponse.json(feature, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

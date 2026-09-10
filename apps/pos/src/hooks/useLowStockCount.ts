@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePlanOptional } from "@/components/billing/PlanProvider";
 
 interface IngredientStock {
   stock_quantity: number;
@@ -8,9 +9,18 @@ interface IngredientStock {
 }
 
 export function useLowStockCount() {
+  const plan = usePlanOptional();
+  const enabled = plan
+    ? Boolean(plan.summary.features?.inventory_advanced)
+    : true;
   const [lowStockCount, setLowStockCount] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setLowStockCount(0);
+      return;
+    }
+
     const fetchLowStock = async () => {
       try {
         const res = await fetch("/api/admin/ingredients");
@@ -28,7 +38,7 @@ export function useLowStockCount() {
     fetchLowStock();
     const interval = setInterval(fetchLowStock, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled]);
 
   return lowStockCount;
 }

@@ -63,18 +63,18 @@ function LoginForm() {
   return (
     <>
       <AuthShell>
-        <h2 className="font-serif font-medium text-[25px] tracking-[-0.01em] m-0 mb-1.5 text-ink">
+        <h2 className="m-0 mb-1 font-serif text-[22px] font-medium tracking-[-0.01em] text-ink sm:text-[25px]">
           Selamat datang kembali
         </h2>
-        <p className="text-[13.5px] text-muted m-0 mb-[26px] leading-[1.5]">
+        <p className="m-0 mb-4 text-[13px] leading-[1.45] text-muted sm:mb-5 sm:text-[13.5px]">
           Masuk ke akun owner Anda untuk melanjutkan.
         </p>
 
         <form onSubmit={handleSubmit} noValidate>
-          <div className="auth-field flex flex-col gap-1.5 mb-[15px]">
+          <div className="auth-field mb-2.5 flex flex-col gap-1 sm:mb-3">
             <label
               htmlFor="email"
-              className="text-[11px] font-semibold tracking-[0.04em] uppercase text-muted"
+              className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted sm:text-[11px]"
             >
               Email
             </label>
@@ -97,15 +97,15 @@ function LoginForm() {
                 placeholder="Email"
                 autoComplete="email"
                 required
-                className="w-full py-[11px] px-[13px] pl-[38px] border-[1.5px] border-line rounded-[10px] font-sans text-[13.5px] text-ink bg-white transition-[border-color,box-shadow] duration-200 outline-none placeholder:text-[#A8B0A5] focus:border-leaf focus:shadow-[0_0_0_4px_rgba(46,125,50,0.1)]"
+                className="w-full rounded-[10px] border-[1.5px] border-line bg-white px-[13px] py-2.5 pl-[38px] font-sans text-[13.5px] text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[#A8B0A5] focus:border-leaf focus:shadow-[0_0_0_4px_rgba(46,125,50,0.1)]"
               />
             </div>
           </div>
 
-          <div className="auth-field flex flex-col gap-1.5 mb-[15px]">
+          <div className="auth-field mb-2.5 flex flex-col gap-1 sm:mb-3">
             <label
               htmlFor="password"
-              className="text-[11px] font-semibold tracking-[0.04em] uppercase text-muted"
+              className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted sm:text-[11px]"
             >
               Kata sandi
             </label>
@@ -128,7 +128,7 @@ function LoginForm() {
                 placeholder="Kata sandi"
                 autoComplete="current-password"
                 required
-                className="w-full py-[11px] px-[13px] pl-[38px] pr-[40px] border-[1.5px] border-line rounded-[10px] font-sans text-[13.5px] text-ink bg-white transition-[border-color,box-shadow] duration-200 outline-none placeholder:text-[#A8B0A5] focus:border-leaf focus:shadow-[0_0_0_4px_rgba(46,125,50,0.1)]"
+                className="w-full rounded-[10px] border-[1.5px] border-line bg-white px-[13px] py-2.5 pl-[38px] pr-[40px] font-sans text-[13.5px] text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[#A8B0A5] focus:border-leaf focus:shadow-[0_0_0_4px_rgba(46,125,50,0.1)]"
               />
               <button
                 type="button"
@@ -151,7 +151,7 @@ function LoginForm() {
             </div>
           </div>
 
-          <div className="auth-rowbetween flex justify-between items-center text-[12.5px] mb-5">
+          <div className="auth-rowbetween mb-3 flex items-center justify-between text-[12px] sm:mb-4 sm:text-[12.5px]">
             <label className="auth-remember flex items-center gap-1.5 text-muted cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -169,7 +169,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="auth-btn w-full py-[13px] border-0 rounded-[10px] bg-leaf text-white font-sans text-[13.5px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-[background,transform] duration-200 hover:bg-leaf-dark active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+            className="auth-btn flex w-full items-center justify-center gap-2 rounded-[10px] border-0 bg-leaf py-2.5 font-sans text-[13.5px] font-semibold text-white transition-[background,transform] duration-200 hover:bg-leaf-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isLoading ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -192,7 +192,7 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="text-center mt-5 text-[13px] text-muted">
+        <p className="mt-3 text-center text-[12.5px] text-muted sm:mt-4 sm:text-[13px]">
           Belum punya akun?{" "}
           <Link href="/register" className="text-leaf font-semibold no-underline hover:underline">
             Daftar sekarang

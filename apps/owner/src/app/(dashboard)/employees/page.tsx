@@ -15,6 +15,7 @@ import {
   Shield,
 } from "lucide-react";
 import { showToast, Tabs } from "@rakku/ui";
+import { usePlan } from "@/components/billing/PlanProvider";
 
 interface Employee {
   id: string;
@@ -54,6 +55,7 @@ interface Outlet {
 }
 
 export default function OwnerEmployeesPage() {
+  const { hasFeature, openUpgrade } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
@@ -396,6 +398,12 @@ export default function OwnerEmployeesPage() {
   };
 
   const handleSelectAll = (roleId: string, checked: boolean) => {
+    if (!hasFeature("custom_roles")) {
+      openUpgrade(
+        "Mengatur akses menu role tersedia di paket Pro. Paket Free memakai role bawaan."
+      );
+      return;
+    }
     const role = rolesWithAccess.find((r) => r.id === roleId);
     if (!role) return;
     setRolesWithAccess((prev) =>
@@ -437,6 +445,12 @@ export default function OwnerEmployeesPage() {
     menuId: string,
     canView: boolean
   ) => {
+    if (!hasFeature("custom_roles")) {
+      openUpgrade(
+        "Mengatur akses menu role tersedia di paket Pro. Paket Free memakai role bawaan."
+      );
+      return;
+    }
     // Optimistic update
     setRolesWithAccess((prev) =>
       prev.map((r) =>
@@ -492,7 +506,17 @@ export default function OwnerEmployeesPage() {
             </button>
           ) : (
             <button
-              onClick={() => { setEditingRoleId(null); setRoleFormName(""); setShowRoleForm(true); }}
+              onClick={() => {
+                if (!hasFeature("custom_roles")) {
+                  openUpgrade(
+                    "Role custom & access matrix tersedia di paket Pro. Paket Free memakai role bawaan Owner dan Kasir."
+                  );
+                  return;
+                }
+                setEditingRoleId(null);
+                setRoleFormName("");
+                setShowRoleForm(true);
+              }}
               className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
             >
               <Plus size={16} />
@@ -1024,14 +1048,28 @@ export default function OwnerEmployeesPage() {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                               <button
-                                onClick={() => { setEditingRoleId(role.id); setRoleFormName(role.name); setShowRoleForm(true); }}
+                                onClick={() => {
+                                  if (!hasFeature("custom_roles")) {
+                                    openUpgrade("Role custom tersedia di paket Pro.");
+                                    return;
+                                  }
+                                  setEditingRoleId(role.id);
+                                  setRoleFormName(role.name);
+                                  setShowRoleForm(true);
+                                }}
                                 className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-all"
                                 title="Edit role"
                               >
                                 <Pencil size={16} />
                               </button>
                               <button
-                                onClick={() => setDeletingRole(role)}
+                                onClick={() => {
+                                  if (!hasFeature("custom_roles")) {
+                                    openUpgrade("Role custom tersedia di paket Pro.");
+                                    return;
+                                  }
+                                  setDeletingRole(role);
+                                }}
                                 className="p-2 text-error hover:bg-error-container/20 rounded-full transition-all"
                                 title="Hapus role"
                               >

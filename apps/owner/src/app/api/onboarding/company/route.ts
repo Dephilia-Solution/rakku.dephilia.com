@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
+import { createAdminClient } from "@rakku/supabase-clients";
 import {
   createCompanyWithOnboarding,
   generateCompanyCode,
   generateSlug,
 } from "@/lib/supabase/queries.owner";
+import { sendBillingEmail } from "@/lib/billing/emails";
 import {
   signOwnerSession,
   setOwnerSessionCookie,
@@ -56,6 +58,35 @@ export async function POST(request: NextRequest) {
 
   if (error || !company) {
     return NextResponse.json({ error }, { status: 400 });
+  }
+
+  // Email trial Pro dimulai (idempotent, tidak menggagalkan onboarding).
+  try {
+    const supabase = createAdminClient();
+    const { data: trialCompany } = await supabase
+      .from("companies")
+      .select("trial_ends_at")
+      .eq("id", company.id)
+      .maybeSingle();
+
+    const trialEndsAt = trialCompany?.trial_ends_at as string | undefined;
+    await sendBillingEmail(supabase, {
+      companyId: company.id,
+      type: "trial_started",
+      period: trialEndsAt?.slice(0, 10) ?? "start",
+      subject: "Trial Pro 14 hari aktif — selamat datang di Rakku",
+      eyebrow: "Langganan",
+      title: `Selamat datang, ${session.name}.`,
+      paragraphs: [
+        "Trial Pro 14 hari Anda sudah aktif. Semua fitur Pro — laba rugi, pembelian, opname, role custom — bisa dicoba sekarang.",
+        trialEndsAt
+          ? `Trial berakhir pada ${new Date(trialEndsAt).toLocaleDateString("id-ID")}. Setelah itu akun otomatis turun ke paket Free.`
+          : "Setelah trial berakhir, akun otomatis turun ke paket Free.",
+      ],
+      note: "Data Anda tetap aman di paket Free. Upgrade kapan saja untuk kembali ke Pro.",
+    });
+  } catch (err) {
+    console.error("[onboarding] gagal kirim email trial:", err);
   }
 
   // Update session dengan info company baru

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Ingredient } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import {
   showToast,
   PageHeader,

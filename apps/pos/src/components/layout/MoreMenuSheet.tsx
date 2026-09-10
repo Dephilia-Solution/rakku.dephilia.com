@@ -3,13 +3,15 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Users, X } from "lucide-react";
+import { Lock, LogOut, Users, X } from "lucide-react";
+import { usePlan } from "@/components/billing/PlanProvider";
 import type { Menu } from "@rakku/shared-types";
 
 interface MoreMenuSheetProps {
   isOpen: boolean;
   onClose: () => void;
   overflowItems: Menu[];
+  lockedPaths?: string[];
 }
 
 function getIcon(iconName: string | null) {
@@ -23,8 +25,14 @@ function getIcon(iconName: string | null) {
   }
 }
 
-export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMenuSheetProps) {
+export default function MoreMenuSheet({
+  isOpen,
+  onClose,
+  overflowItems,
+  lockedPaths = [],
+}: MoreMenuSheetProps) {
   const pathname = usePathname();
+  const { openUpgrade } = usePlan();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -71,6 +79,27 @@ export default function MoreMenuSheet({ isOpen, onClose, overflowItems }: MoreMe
           {overflowItems.map((item) => {
             const active = pathname === item.path || pathname.startsWith(item.path + "/");
             const Icon = getIcon(item.icon);
+            const locked = lockedPaths.includes(item.path);
+
+            if (locked) {
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    openUpgrade(
+                      `Menu ${item.name} tersedia di paket Pro. Upgrade untuk membuka pembelian, opname, dan alert stok.`
+                    );
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left transition-colors active:scale-[0.98] text-neutral-500 hover:bg-neutral-100"
+                >
+                  {Icon && <Icon size={20} className="text-neutral-400" />}
+                  <span className="font-medium text-sm">{item.name}</span>
+                  <Lock size={14} className="ml-auto text-amber-500" />
+                </button>
+              );
+            }
 
             return (
               <Link

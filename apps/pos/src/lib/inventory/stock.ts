@@ -60,9 +60,6 @@ export async function deductStockForOrder(
     }
 
     if ((existingCount ?? 0) > 0) {
-      console.log("[stock] sale_deduction already exists for order, skipping", {
-        orderId,
-      });
       return;
     }
 
@@ -183,11 +180,6 @@ export async function deductStockForOrder(
       console.error("[stock] failed to insert stock_movements:", movementsError);
       return;
     }
-
-    console.log("[stock] stock deducted for order", {
-      orderId,
-      ingredients: movementRows.length,
-    });
   } catch (err) {
     console.error("[stock] unexpected error deducting stock:", err);
   }

@@ -3,16 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, LogOut, PanelLeftOpen, Users } from "lucide-react";
+import { ChevronLeft, LogOut, Lock, PanelLeftOpen, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useDraftCount } from "@/hooks/useDraftCount";
 import { useLowStockCount } from "@/hooks/useLowStockCount";
 import { useSidebarStore } from "@/lib/store/sidebarStore";
+import { usePlan } from "@/components/billing/PlanProvider";
 import type { Menu } from "@rakku/shared-types";
 
 interface AppSidebarProps {
   menus: Menu[];
+  lockedPaths?: string[];
 }
 
 function getIcon(iconName: string | null) {
@@ -72,8 +74,12 @@ function LogoSlot({
   );
 }
 
-export default function AppSidebar({ menus }: AppSidebarProps) {
+export default function AppSidebar({
+  menus,
+  lockedPaths = [],
+}: AppSidebarProps) {
   const pathname = usePathname();
+  const { openUpgrade } = usePlan();
   const isCollapsed = useSidebarStore((s) => s.isCollapsed);
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed);
@@ -142,21 +148,18 @@ export default function AppSidebar({ menus }: AppSidebarProps) {
         {menus.map((item) => {
           const active = isActive(item.path, pathname);
           const Icon = getIcon(item.icon);
+          const locked = lockedPaths.includes(item.path);
 
-          return (
-            <Link
-              key={item.id}
-              href={item.path}
-              aria-current={active ? "page" : undefined}
-              title={isCollapsed ? item.name : undefined}
-              className={`flex items-center gap-3 h-11 rounded-xl overflow-hidden flex-shrink-0 transition-colors ${
-                isCollapsed ? "w-11" : "w-full"
-              } ${
-                active
-                  ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
-                  : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
-              }`}
-            >
+          const className = `flex items-center gap-3 h-11 rounded-xl overflow-hidden flex-shrink-0 transition-colors ${
+            isCollapsed ? "w-11" : "w-full"
+          } ${
+            active
+              ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
+              : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+          }`;
+
+          const content = (
+            <>
               <span className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
                 {Icon ? (
                   <Icon size={22} />
@@ -170,9 +173,16 @@ export default function AppSidebar({ menus }: AppSidebarProps) {
                     {draftCount > 9 ? "9+" : draftCount}
                   </span>
                 )}
-                {item.path === "/ingredients" && lowStockCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
-                    {lowStockCount > 9 ? "9+" : lowStockCount}
+                {item.path === "/ingredients" &&
+                  !locked &&
+                  lowStockCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
+                      {lowStockCount > 9 ? "9+" : lowStockCount}
+                    </span>
+                  )}
+                {locked && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center">
+                    <Lock size={9} />
                   </span>
                 )}
               </span>
@@ -184,6 +194,36 @@ export default function AppSidebar({ menus }: AppSidebarProps) {
               >
                 {item.name}
               </motion.span>
+            </>
+          );
+
+          if (locked) {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() =>
+                  openUpgrade(
+                    `Menu ${item.name} tersedia di paket Pro. Upgrade untuk membuka pembelian, opname, dan alert stok.`
+                  )
+                }
+                title={isCollapsed ? item.name : undefined}
+                className={className}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={item.id}
+              href={item.path}
+              aria-current={active ? "page" : undefined}
+              title={isCollapsed ? item.name : undefined}
+              className={className}
+            >
+              {content}
             </Link>
           );
         })}

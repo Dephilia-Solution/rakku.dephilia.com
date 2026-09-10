@@ -16,6 +16,7 @@ import {
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
 import RecipeManagerSlideOver, { RecipeRow } from "./RecipeManagerSlideOver";
+import { usePlan } from "@/components/billing/PlanProvider";
 import { useNavMode } from "@/hooks/useNavMode";
 import {
   ArrowLeft,
@@ -71,6 +72,7 @@ export default function OwnerProductForm({
   initialRecipes = [],
 }: OwnerProductFormProps) {
   const router = useRouter();
+  const { openUpgrade } = usePlan();
 
   const [form, setForm] = useState({
     name: initialProduct?.name ?? "",
@@ -355,7 +357,11 @@ export default function OwnerProductForm({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "Gagal mengupdate produk");
+          const error = new Error(
+            data.error ?? "Gagal mengupdate produk"
+          ) as Error & { code?: string };
+          error.code = data.code;
+          throw error;
         }
         const imageUrl = await uploadImage(productId);
         if (imageUrl) {
@@ -380,7 +386,11 @@ export default function OwnerProductForm({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "Gagal menambah produk");
+          const error = new Error(
+            data.error ?? "Gagal menambah produk"
+          ) as Error & { code?: string };
+          error.code = data.code;
+          throw error;
         }
         const created = await res.json();
         pid = created.id;
@@ -447,7 +457,14 @@ export default function OwnerProductForm({
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Terjadi kesalahan";
-      showToast("error", message);
+      if (
+        err instanceof Error &&
+        (err as Error & { code?: string }).code === "PLAN_LIMIT"
+      ) {
+        openUpgrade(message);
+      } else {
+        showToast("error", message);
+      }
     } finally {
       setSaving(false);
     }

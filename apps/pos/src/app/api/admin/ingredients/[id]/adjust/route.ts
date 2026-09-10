@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkFeature } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 export async function POST(
@@ -27,6 +28,15 @@ export async function POST(
   }
 
   const supabase = createAdminClient();
+
+  const feature = await checkFeature(
+    supabase,
+    session.company_id,
+    "inventory_advanced"
+  );
+  if (!feature.allowed) {
+    return NextResponse.json(feature, { status: 403 });
+  }
 
   // Ambil stok saat ini (scoped company+outlet)
   const { data: current, error: fetchError } = await supabase

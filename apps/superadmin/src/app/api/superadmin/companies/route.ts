@@ -13,7 +13,10 @@ export async function GET() {
   try {
     await requireSuperadmin();
     const supabase = await createClient();
-    const { data } = await supabase.from("companies").select("*").order("name");
+    const { data } = await supabase
+      .from("companies")
+      .select("*, plans(slug, name)")
+      .order("name");
     return NextResponse.json(data ?? []);
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -51,6 +54,18 @@ export async function PUT(request: NextRequest) {
     if (body.code) updates.code = body.code.toUpperCase();
     if (body.status) updates.status = body.status;
     if (body.password) updates.password_hash = await bcrypt.hash(body.password, 10);
+
+    if (body.plan_id !== undefined) updates.plan_id = body.plan_id || null;
+    if (body.subscription_status) {
+      updates.subscription_status = body.subscription_status;
+    }
+    if (body.billing_cycle) updates.billing_cycle = body.billing_cycle;
+    if (body.trial_ends_at !== undefined) {
+      updates.trial_ends_at = body.trial_ends_at || null;
+    }
+    if (body.plan_expires_at !== undefined) {
+      updates.plan_expires_at = body.plan_expires_at || null;
+    }
 
     const supabase = await createClient();
     const { error } = await supabase.from("companies").update(updates).eq("id", id);

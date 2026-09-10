@@ -1,7 +1,7 @@
 "use client";
 
 import { CartItem, Product } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { X } from "lucide-react";
 
 interface ItemDetailModalProps {

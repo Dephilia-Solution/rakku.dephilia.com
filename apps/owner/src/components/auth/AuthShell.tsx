@@ -10,10 +10,10 @@ interface AuthShellProps {
 
 export default function AuthShell({ children, reverse = false }: AuthShellProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cream p-6">
-      <div className="auth-shell w-full max-w-[1080px] min-h-[640px] flex flex-col lg:flex-row bg-white rounded-3xl overflow-hidden shadow-[0_30px_80px_-20px_rgba(27,79,31,0.22),0_2px_8px_rgba(0,0,0,0.04)]">
+    <main className="flex h-[100dvh] w-full items-center justify-center overflow-hidden bg-cream p-3 sm:p-5 lg:p-6">
+      <div className="auth-shell flex h-full w-full max-w-[960px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_-24px_rgba(27,79,31,0.24),0_2px_8px_rgba(0,0,0,0.03)] sm:max-h-[620px] lg:flex-row">
         <aside
-          className={`auth-panel relative flex flex-col justify-center p-7 lg:p-10 text-white overflow-hidden bg-[linear-gradient(160deg,#1B4F1F_0%,#2E7D32_62%)] min-h-[200px] lg:min-h-0 lg:flex-1 ${
+          className={`auth-panel relative hidden overflow-hidden bg-[linear-gradient(160deg,#1B4F1F_0%,#2E7D32_62%)] p-8 text-white lg:flex lg:flex-1 lg:flex-col lg:justify-center ${
             reverse ? "lg:order-2" : "lg:order-1"
           }`}
         >
@@ -35,11 +35,11 @@ export default function AuthShell({ children, reverse = false }: AuthShellProps)
             </div>
           </div>
 
-          <div className="auth-copy relative z-[2] max-w-[360px] hidden lg:block">
+          <div className="auth-copy relative z-[2] max-w-[320px]">
             <span className="auth-eyebrow block text-xs font-semibold tracking-[0.08em] uppercase text-moss mb-3">
               Sistem POS Modern
             </span>
-            <h1 className="font-serif font-medium text-[30px] leading-[1.22] tracking-[-0.01em] m-0 mb-3">
+            <h1 className="m-0 mb-3 font-serif text-[27px] font-medium leading-[1.2] tracking-[-0.015em]">
               Setiap transaksi, tersusun rapi di raknya.
             </h1>
             <p className="text-[14px] leading-[1.6] text-white/78 m-0">
@@ -50,33 +50,33 @@ export default function AuthShell({ children, reverse = false }: AuthShellProps)
         </aside>
 
         <section
-          className={`auth-form-side p-8 sm:p-11 lg:p-12 flex flex-col justify-center lg:flex-1 ${
+          className={`auth-form-side flex min-h-0 flex-1 flex-col justify-center px-4 py-3 max-[359px]:px-3 max-[359px]:py-2 sm:px-8 sm:py-6 lg:p-10 ${
             reverse ? "lg:order-1" : "lg:order-2"
           }`}
         >
-          <div className="auth-form-inner w-full max-w-[340px] mx-auto">
-            <div className="auth-brand flex items-center gap-2.5 mb-8">
+          <div className="auth-form-inner mx-auto w-full max-w-[340px]">
+            <div className="auth-brand mb-4 flex items-center gap-2 max-[359px]:mb-3 sm:mb-5">
               <Image
                 src="/images/rakku_logo.png"
                 alt="Rakku"
-                width={36}
-                height={36}
+                width={30}
+                height={30}
                 priority
-                className="w-9 h-9 object-contain"
+                className="h-[30px] w-[30px] object-contain"
               />
               <Image
                 src="/images/rakku_logotype.png"
                 alt="Rakku"
-                width={110}
-                height={28}
+                width={94}
+                height={24}
                 priority
-                className="h-7 w-auto"
+                className="h-6 w-auto"
               />
             </div>
             {children}
           </div>
         </section>
       </div>
-    </div>
+    </main>
   );
 }

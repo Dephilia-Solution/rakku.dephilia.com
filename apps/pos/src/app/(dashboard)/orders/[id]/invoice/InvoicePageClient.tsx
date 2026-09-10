@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import Image from "next/image";
-import { formatCurrency, formatDate } from "@/lib/dummy-data";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
 import { Printer, ArrowLeft } from "lucide-react";
 import Link from "next/link";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { OrderWithItems } from "@rakku/shared-types";
-import { formatCurrency, formatDate } from "@/lib/dummy-data";
+import { formatCurrency, formatDate } from "@/lib/format";
 import EmailReportModal from "@/components/reports/EmailReportModal";
 import { BarChart3, TrendingUp, CupSoda, Mail } from "lucide-react";
 

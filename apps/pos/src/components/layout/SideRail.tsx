@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Users } from "lucide-react";
+import { Lock, LogOut, Users } from "lucide-react";
 import { useDraftCount } from "@/hooks/useDraftCount";
 import { useLowStockCount } from "@/hooks/useLowStockCount";
+import { usePlan } from "@/components/billing/PlanProvider";
 import type { Menu } from "@rakku/shared-types";
 
 interface SideRailProps {
   menus: Menu[];
+  lockedPaths?: string[];
 }
 
 function getIcon(iconName: string | null) {
@@ -22,8 +24,12 @@ function getIcon(iconName: string | null) {
   }
 }
 
-export default function SideRail({ menus }: SideRailProps) {
+export default function SideRail({
+  menus,
+  lockedPaths = [],
+}: SideRailProps) {
   const pathname = usePathname();
+  const { openUpgrade } = usePlan();
   const draftCount = useDraftCount();
   const lowStockCount = useLowStockCount();
 
@@ -36,29 +42,56 @@ export default function SideRail({ menus }: SideRailProps) {
         {menus.map((item) => {
           const active = pathname === item.path || pathname.startsWith(item.path + "/");
           const Icon = getIcon(item.icon);
+          const locked = lockedPaths.includes(item.path);
 
-          return (
-            <Link
-              key={item.id}
-              href={item.path}
-              title={item.name}
-              className={`relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-                active
-                  ? "bg-forest text-white shadow-sm"
-                  : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
-              }`}
-            >
+          const className = `relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+            active
+              ? "bg-forest text-white shadow-sm"
+              : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+          }`;
+
+          const content = (
+            <>
               {Icon ? <Icon size={20} /> : <span className="text-xs font-bold">{item.name.charAt(0)}</span>}
               {item.path === "/register" && draftCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-forest text-[8px] font-bold text-white flex items-center justify-center">
                   {draftCount > 9 ? "9+" : draftCount}
                 </span>
               )}
-              {item.path === "/ingredients" && lowStockCount > 0 && (
+              {item.path === "/ingredients" && !locked && lowStockCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-warning text-[8px] font-bold text-white flex items-center justify-center">
                   {lowStockCount > 9 ? "9+" : lowStockCount}
                 </span>
               )}
+              {locked && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 text-white flex items-center justify-center">
+                  <Lock size={8} />
+                </span>
+              )}
+            </>
+          );
+
+          if (locked) {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                title={`${item.name} (paket Pro)`}
+                onClick={() =>
+                  openUpgrade(
+                    `Menu ${item.name} tersedia di paket Pro. Upgrade untuk membuka pembelian, opname, dan alert stok.`
+                  )
+                }
+                className={className}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <Link key={item.id} href={item.path} title={item.name} className={className}>
+              {content}
             </Link>
           );
         })}

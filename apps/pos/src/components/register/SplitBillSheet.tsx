@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { SplitPayment, CartItem } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import SplitBillPanel from "@/components/register/SplitBillPanel";
 import { X, ChevronLeft } from "lucide-react";

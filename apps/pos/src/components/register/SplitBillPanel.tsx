@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { SplitPayment, PaymentMethod, CartItem } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { X, Plus, Minus } from "lucide-react";
 
 interface SplitBillPanelProps {

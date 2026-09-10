@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/cartStore";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { showToast } from "@rakku/ui";
 import { createOrder } from "@/lib/supabase/queries.client";
 import InvoiceReceipt from "@/components/register/InvoiceReceipt";
 import { PaymentMethod, SplitPayment } from "@rakku/shared-types";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useModalHistory } from "@/hooks/useModalHistory";
+import { usePlan } from "@/components/billing/PlanProvider";
 import SplitBillSheet from "@/components/register/SplitBillSheet";
 import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
 
@@ -29,6 +30,7 @@ const paymentMethods: {
 ];
 
 export default function PaymentModal({ isOpen, onClose, onOrderComplete }: PaymentModalProps) {
+  const { openUpgrade } = usePlan();
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -213,7 +215,14 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           }),
         });
 
-        if (!res.ok) throw new Error("Gagal menyelesaikan draft");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const error = new Error(
+            data.error ?? "Gagal menyelesaikan draft"
+          ) as Error & { code?: string };
+          error.code = data.code;
+          throw error;
+        }
         order = await res.json();
       } else {
         // Create new order
@@ -255,8 +264,15 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       setIsSuccess(true);
       setIsSubmitting(false);
       onOrderComplete?.();
-    } catch {
-      showToast("error", "Gagal menyimpan transaksi");
+    } catch (err) {
+      const planError =
+        err instanceof Error &&
+        (err as Error & { code?: string }).code === "PLAN_LIMIT";
+      if (planError) {
+        openUpgrade((err as Error).message);
+      } else {
+        showToast("error", "Gagal menyimpan transaksi");
+      }
       setIsSubmitting(false);
     }
   };

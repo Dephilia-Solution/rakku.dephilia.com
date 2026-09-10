@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { useModalHistory } from "@/hooks/useModalHistory";
 import { Clock, ShoppingBag, X } from "lucide-react";
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
+import { createAdminClient } from "@rakku/supabase-clients";
+import { checkFeature } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
   getCompanyRoles,
@@ -60,6 +62,16 @@ export async function POST(request: NextRequest) {
       { error: "Nama role harus diisi" },
       { status: 400 }
     );
+  }
+
+  const supabase = createAdminClient();
+  const feature = await checkFeature(
+    supabase,
+    session.company_id,
+    "custom_roles"
+  );
+  if (!feature.allowed) {
+    return NextResponse.json(feature, { status: 403 });
   }
 
   const { role, error } = await createCompanyRole(

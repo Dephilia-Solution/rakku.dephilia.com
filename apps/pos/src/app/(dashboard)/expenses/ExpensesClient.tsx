@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Expense } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import {
   showToast,
   Badge,

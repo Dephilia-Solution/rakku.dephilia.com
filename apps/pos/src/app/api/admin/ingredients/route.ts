@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 const VALID_UNITS = ["gram", "ml", "pcs", "kg", "liter"];
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  const limit = await checkLimit(supabase, session.company_id, "ingredients");
+  if (!limit.allowed) {
+    return NextResponse.json(limit, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("ingredients")

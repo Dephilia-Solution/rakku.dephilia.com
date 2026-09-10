@@ -5,7 +5,8 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { Tabs } from "@rakku/ui";
 import EmailReportModal from "@/components/reports/EmailReportModal";
 import ProfitLossClient from "@/components/reports/ProfitLossClient";
-import { BarChart3, TrendingUp, CupSoda, Mail, Building2 } from "lucide-react";
+import { usePlan } from "@/components/billing/PlanProvider";
+import { BarChart3, TrendingUp, CupSoda, Mail, Building2, Lock } from "lucide-react";
 
 interface OutletOption {
   id: string;
@@ -36,6 +37,7 @@ interface ReportsClientProps {
 }
 
 export default function ReportsClient({ outlets, companyName }: ReportsClientProps) {
+  const { hasFeature, openUpgrade } = usePlan();
   const [activeTab, setActiveTab] = useState("penjualan");
   const [dateRange, setDateRange] = useState("today");
   const [outletId, setOutletId] = useState<string>("");
@@ -113,7 +115,9 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
         <Tabs
           tabs={[
             { key: "penjualan", label: "Penjualan" },
-            { key: "laba-rugi", label: "Laba Rugi" },
+            ...(hasFeature("profit_loss")
+              ? [{ key: "laba-rugi", label: "Laba Rugi" }]
+              : []),
           ]}
           active={activeTab}
           onChange={setActiveTab}
@@ -154,13 +158,25 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
                 </button>
               ))}
 
-              <button
-                onClick={() => setShowEmailModal(true)}
-                className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center gap-1.5"
-              >
-                <Mail size={13} />
-                Kirim Email
-              </button>
+              {hasFeature("email_reports") ? (
+                <button
+                  onClick={() => setShowEmailModal(true)}
+                  className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center gap-1.5"
+                >
+                  <Mail size={13} />
+                  Kirim Email
+                </button>
+              ) : (
+                <button
+                  onClick={() =>
+                    openUpgrade("Kirim laporan via email tersedia di paket Pro.")
+                  }
+                  className="flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors bg-surface-container text-on-surface-variant/70 hover:bg-surface-container-high flex items-center gap-1.5"
+                >
+                  <Lock size={13} />
+                  Kirim Email
+                </button>
+              )}
             </div>
           </div>
 
@@ -298,7 +314,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
             )}
           </div>
         </>
-      ) : (
+      ) : hasFeature("profit_loss") ? (
         <ProfitLossClient
           outlets={outlets}
           dateRange={dateRange}
@@ -306,6 +322,26 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
           onDateRangeChange={setDateRange}
           onOutletChange={setOutletId}
         />
+      ) : (
+        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">
+          <div className="w-14 h-14 bg-surface-container rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <Lock size={26} className="text-on-surface-variant" />
+          </div>
+          <p className="font-semibold text-on-surface">
+            Laporan Laba Rugi tersedia di paket Pro
+          </p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Hitung HPP dari resep, pengeluaran, dan laba bersih otomatis.
+          </p>
+          <button
+            onClick={() =>
+              openUpgrade("Laporan Laba Rugi tersedia di paket Pro.")
+            }
+            className="mt-4 rounded-xl bg-forest text-white px-4 py-2.5 text-sm font-semibold hover:bg-forest-dark"
+          >
+            Lihat paket
+          </button>
+        </div>
       )}
     </div>
   );

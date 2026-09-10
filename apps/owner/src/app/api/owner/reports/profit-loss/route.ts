@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import type { OwnerSession } from "@rakku/shared-types";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkFeature } from "@rakku/plans";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };
 
@@ -48,6 +49,11 @@ export async function GET(request: NextRequest) {
   const outletId = searchParams.get("outlet_id") || undefined;
 
   const supabase = createAdminClient();
+
+  const feature = await checkFeature(supabase, session.company_id, "profit_loss");
+  if (!feature.allowed) {
+    return NextResponse.json(feature, { status: 403 });
+  }
 
   // 1. Orders selesai (revenue + basis HPP), scoped company (+ outlet opsional)
   let orderQuery = supabase

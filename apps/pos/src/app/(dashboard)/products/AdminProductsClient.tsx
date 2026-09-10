@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ProductWithCategory, Category } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { showToast, Badge, EmptyState, PageHeader, fieldSelectClass } from "@rakku/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CategoryManagerSlideOver from "@/components/products/CategoryManagerSlideOver";

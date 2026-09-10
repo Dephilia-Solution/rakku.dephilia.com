@@ -34,9 +34,21 @@ DOCS.md
 PRD.md
 PRD_V5_CAFE.md
 PROMPT_RAKKU_*.md
+prompt-*.md
 PANDUAN.md
 *.pdf
 *_reference.html
 rakku_login_signup.html
 supabase_full_export.sql
 supabase/.temp/
+
+# Artefak lokal / legacy (tidak ikut push)
+.temp/
+/public/
+/next-env.d.ts
+/index.html
+/landing.css
+/scripts/generate-pwa-icons.mjs
+/scripts/run-migration.js
+/scripts/run-migration.ts
+/scripts/migration-004.ts

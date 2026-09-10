@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { showToast } from "@rakku/ui";
+import { usePlan } from "@/components/billing/PlanProvider";
 
 interface Outlet {
   id: string;
@@ -24,6 +25,7 @@ interface Outlet {
 }
 
 export default function OwnerOutletsPage() {
+  const { openUpgrade } = usePlan();
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -120,7 +122,12 @@ export default function OwnerOutletsPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          showToast("error", data.error || "Gagal membuat outlet");
+          if (data.code === "PLAN_LIMIT") {
+            setShowForm(false);
+            openUpgrade(data.error);
+          } else {
+            showToast("error", data.error || "Gagal membuat outlet");
+          }
           setIsSubmitting(false);
           return;
         }

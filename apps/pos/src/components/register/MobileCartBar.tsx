@@ -2,7 +2,7 @@
 
 import { useNavMode } from "@/hooks/useNavMode";
 import { useCartStore, useCartTotals } from "@/lib/store/cartStore";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 
 interface MobileCartBarProps {

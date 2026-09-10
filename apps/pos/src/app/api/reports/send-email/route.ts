@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { sendEmail } from "@/lib/email";
+import { sendEmail } from "@rakku/echo-client";
 
 export async function POST(request: NextRequest) {
   const session = await getTenantSessionFromCookies();

@@ -88,7 +88,6 @@ export default function AuditLogsPage() {
       }
 
       const data = await res.json();
-      console.log("[AuditLogsPage] Loaded logs:", data.length, "records");
       setLogs(data);
     } catch (err) {
       console.error("[AuditLogsPage] Fetch error:", err);

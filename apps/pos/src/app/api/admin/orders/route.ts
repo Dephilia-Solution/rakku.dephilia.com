@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { CartItem, SplitPayment, AppliedDiscount } from "@rakku/shared-types";
 import { deductStockForOrder } from "@/lib/inventory/stock";
@@ -21,9 +22,19 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await getTenantSessionFromCookies();
-  const cashierName = session?.user_name ?? null;
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const cashierName = session.user_name ?? null;
 
   const supabase = createAdminClient();
+
+  if ((status || "completed") === "completed") {
+    const limit = await checkLimit(supabase, session.company_id, "transactions");
+    if (!limit.allowed) {
+      return NextResponse.json(limit, { status: 403 });
+    }
+  }
 
   const discountAmount = (discounts as AppliedDiscount[] | undefined)?.reduce((sum, d) => sum + d.amount, 0) ?? 0;
 

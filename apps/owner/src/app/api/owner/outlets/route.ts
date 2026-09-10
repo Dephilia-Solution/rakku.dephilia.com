@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
+import { createAdminClient } from "@rakku/supabase-clients";
+import { checkLimit } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
   getOwnerOutlets,
@@ -49,6 +51,12 @@ export async function POST(request: NextRequest) {
       { error: "Nama outlet harus diisi" },
       { status: 400 }
     );
+  }
+
+  const supabase = createAdminClient();
+  const limit = await checkLimit(supabase, session.company_id, "outlets");
+  if (!limit.allowed) {
+    return NextResponse.json(limit, { status: 403 });
   }
 
   const { outlet, error } = await createOutlet({

@@ -12,6 +12,7 @@ const links = [
   ["Stok", "#stok"],
   ["Outlet", "#outlet"],
   ["Laba", "#laba"],
+  ["Harga", "#harga"],
 ] as const;
 
 export function Header() {

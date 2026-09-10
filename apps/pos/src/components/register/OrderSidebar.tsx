@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useCartStore, useCartTotals, useCartGroupedByProduct } from "@/lib/store/cartStore";
-import { formatCurrency } from "@/lib/dummy-data";
+import { formatCurrency } from "@/lib/format";
 import { showToast, EmptyState } from "@rakku/ui";
 import ItemDetailModal from "@/components/register/ItemDetailModal";
 import { Product, CartItem, DiningTable } from "@rakku/shared-types";

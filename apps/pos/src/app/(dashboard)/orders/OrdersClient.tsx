@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatCurrency, formatDate } from "@/lib/dummy-data";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { OrderWithItems } from "@rakku/shared-types";
 import { Badge, EmptyState } from "@rakku/ui";
 import { Search, ClipboardList, ChevronDown, ChevronUp, Printer, ChevronLeft, ChevronRight } from "lucide-react";

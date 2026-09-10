@@ -6,6 +6,7 @@ import { Footer } from "./footer";
 import { Header } from "./header";
 import { Hero } from "./hero";
 import { InventoryStory } from "./inventory-story";
+import { Pricing } from "./pricing";
 import { Problem } from "./problem";
 import { SignalStrip } from "./signal-strip";
 import { Workflow } from "./workflow";
@@ -25,6 +26,7 @@ export function LandingPage() {
         <Workflow />
         <InventoryStory />
         <Audience />
+        <Pricing />
         <FAQ />
         <FinalCta />
       </main>

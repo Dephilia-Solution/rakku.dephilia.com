@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/supabase-clients";
+import { checkLimit } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
   getOutletProducts,
@@ -66,6 +67,11 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const limit = await checkLimit(supabase, session.company_id, "products");
+  if (!limit.allowed) {
+    return NextResponse.json(limit, { status: 403 });
+  }
+
   const { data, error } = await supabase
     .from("products")
     .insert({
