@@ -24,7 +24,10 @@ const nextConfig = {
     "@rakku/supabase-clients",
     "@rakku/auth-utils",
     "@rakku/ui",
+    "@rakku/emails",
+    "@rakku/ledger",
     "@rakku/plans",
+    "@rakku/payments",
     "@rakku/vessel-client",
   ],
 };

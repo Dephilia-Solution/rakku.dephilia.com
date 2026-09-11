@@ -108,6 +108,15 @@ importers:
       '@rakku/echo-client':
         specifier: workspace:*
         version: link:../../packages/echo-client
+      '@rakku/emails':
+        specifier: workspace:*
+        version: link:../../packages/emails
+      '@rakku/ledger':
+        specifier: workspace:*
+        version: link:../../packages/ledger
+      '@rakku/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@rakku/plans':
         specifier: workspace:*
         version: link:../../packages/plans
@@ -211,6 +220,12 @@ importers:
       '@rakku/echo-client':
         specifier: workspace:*
         version: link:../../packages/echo-client
+      '@rakku/inventory':
+        specifier: workspace:*
+        version: link:../../packages/inventory
+      '@rakku/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@rakku/plans':
         specifier: workspace:*
         version: link:../../packages/plans
@@ -253,6 +268,9 @@ importers:
       next:
         specifier: 14.2.35
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      qrcode.react:
+        specifier: ^4.2.0
+        version: 4.2.0(react@18.3.1)
       react:
         specifier: ^18
         version: 18.3.1
@@ -302,6 +320,12 @@ importers:
 
   apps/superadmin:
     dependencies:
+      '@rakku/emails':
+        specifier: workspace:*
+        version: link:../../packages/emails
+      '@rakku/ledger':
+        specifier: workspace:*
+        version: link:../../packages/ledger
       '@rakku/pricing':
         specifier: workspace:*
         version: link:../../packages/pricing
@@ -384,6 +408,48 @@ importers:
         version: 2.4.6
 
   packages/echo-client: {}
+
+  packages/emails:
+    dependencies:
+      '@rakku/echo-client':
+        specifier: workspace:*
+        version: link:../echo-client
+      '@supabase/supabase-js':
+        specifier: ^2.106.1
+        version: 2.110.0
+
+  packages/inventory:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.106.1
+        version: 2.110.0
+
+  packages/ledger:
+    dependencies:
+      '@rakku/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@supabase/supabase-js':
+        specifier: ^2.106.1
+        version: 2.110.0
+
+  packages/payments:
+    dependencies:
+      '@rakku/inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@rakku/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@rakku/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@rakku/vessel-client':
+        specifier: workspace:*
+        version: link:../vessel-client
+      '@supabase/supabase-js':
+        specifier: ^2.106.1
+        version: 2.110.0
 
   packages/plans:
     dependencies:

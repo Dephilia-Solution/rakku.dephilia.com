@@ -4,7 +4,7 @@ import {
   type VesselPaymentDetail,
 } from "@rakku/vessel-client";
 import type { SubscriptionInvoice } from "@rakku/shared-types";
-import { sendBillingEmail } from "./emails";
+import { sendBillingEmail } from "@rakku/emails";
 
 export interface ProcessResult {
   invoice: SubscriptionInvoice;

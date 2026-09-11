@@ -6,7 +6,7 @@ import {
   generateCompanyCode,
   generateSlug,
 } from "@/lib/supabase/queries.owner";
-import { sendBillingEmail } from "@/lib/billing/emails";
+import { sendBillingEmail } from "@rakku/emails";
 import {
   signOwnerSession,
   setOwnerSessionCookie,

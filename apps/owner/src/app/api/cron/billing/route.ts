@@ -6,8 +6,13 @@ import {
   PLAN_LIMIT_KEYS,
 } from "@rakku/plans";
 import { processInvoice } from "@/lib/billing/subscription";
-import { sendBillingEmail } from "@/lib/billing/emails";
-import type { PlanLimitKey, SubscriptionInvoice } from "@rakku/shared-types";
+import { sendBillingEmail } from "@rakku/emails";
+import { processOrderPayment } from "@rakku/payments";
+import type {
+  PaymentIntent,
+  PlanLimitKey,
+  SubscriptionInvoice,
+} from "@rakku/shared-types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -44,6 +49,8 @@ async function run(request: NextRequest) {
   const result = {
     synced: 0,
     activated: 0,
+    intentsSynced: 0,
+    ordersFinalized: 0,
     trialReminders: 0,
     trialExpired: 0,
     renewalReminders: 0,
@@ -65,6 +72,22 @@ async function run(request: NextRequest) {
     );
     result.synced++;
     if (processed.activated) result.activated++;
+  }
+
+  // 1b. Sinkronkan QRIS order pending (finalisasi + kredit saldo bila sukses)
+  const { data: pendingIntents } = await supabase
+    .from("payment_intents")
+    .select("*")
+    .eq("status", "pending")
+    .limit(100);
+
+  for (const intent of pendingIntents ?? []) {
+    const processed = await processOrderPayment(
+      supabase,
+      intent as PaymentIntent
+    );
+    result.intentsSynced++;
+    if (processed.finalized) result.ordersFinalized++;
   }
 
   // 2. Siklus trial & langganan + peringatan kuota

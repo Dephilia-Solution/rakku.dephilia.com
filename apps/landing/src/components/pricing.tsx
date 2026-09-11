@@ -244,8 +244,9 @@ export function Pricing() {
         </div>
 
         <p className="mt-8 text-center text-[0.8rem] text-muted">
-          Pembayaran QRIS lewat dashboard Owner. Paket aktif otomatis setelah
-          pembayaran berhasil — bisa berhenti kapan saja.
+          Langganan dibayar via QRIS di dashboard Owner. Pembayaran pelanggan
+          juga bisa lewat QRIS dinamis — uangnya masuk saldo dan bisa dicairkan
+          ke rekening Anda.
         </p>
       </Container>
     </ScrollReveal>

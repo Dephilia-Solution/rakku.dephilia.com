@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail, setOwnerResetToken } from "@/lib/supabase/queries.owner";
 import { sendEmail } from "@rakku/echo-client";
-import { renderRakkuEmail } from "@/lib/email-templates";
+import { renderRakkuEmail } from "@rakku/emails";
 import { generateResetToken } from "@/lib/auth/reset-token";
 
 export async function POST(request: NextRequest) {

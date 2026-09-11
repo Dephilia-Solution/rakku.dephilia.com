@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/supabase-clients";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
-import { deductStockForOrder } from "@/lib/inventory/stock";
+import { deductStockForOrder } from "@rakku/inventory";
 
 export async function GET() {
   const session = await getTenantSessionFromCookies();
@@ -210,6 +210,7 @@ export async function PATCH(request: NextRequest) {
   // Idempotency guard di helper mencegah double-deduct jika PATCH di-retry.
   if (status === "completed") {
     await deductStockForOrder(
+      supabase,
       id,
       (data?.company_id as string | null) ?? null,
       (data?.outlet_id as string | null) ?? null

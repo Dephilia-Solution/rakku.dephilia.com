@@ -159,7 +159,14 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                         className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 font-mono text-sm font-semibold text-neutral-900">
-                          #{order.order_number}
+                          <span className="flex items-center gap-2">
+                            #{order.order_number}
+                            {order.status === "pending_payment" && (
+                              <span className="rounded-full bg-amber-100 text-amber-700 text-[10px] font-sans font-semibold px-2 py-0.5">
+                                Menunggu
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-600">
                           {formatDate(order.created_at)}
@@ -275,6 +282,11 @@ export default function OrdersClient({ orders }: OrdersClientProps) {
                       <span className="font-mono font-bold text-neutral-900">
                         #{order.order_number}
                       </span>
+                      {order.status === "pending_payment" && (
+                        <span className="rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-2 py-0.5">
+                          Menunggu
+                        </span>
+                      )}
                       <Badge
                         variant={order.order_type === "delivery" || order.order_type === "gojek" || order.order_type === "grab" || order.order_type === "shopee" ? "warning" : "active"}
                       >

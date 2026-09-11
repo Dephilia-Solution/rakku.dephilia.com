@@ -13,6 +13,10 @@ import {
   FileText,
   CreditCard,
   Wallet,
+  Landmark,
+  ArrowDownToLine,
+  BarChart3,
+  Scale,
 } from "lucide-react";
 import { ToastContainer } from "@rakku/ui";
 
@@ -20,6 +24,10 @@ const superadminNav = [
   { href: "/companies", icon: Building2, label: "Companies" },
   { href: "/plans", icon: CreditCard, label: "Plans" },
   { href: "/subscriptions", icon: Wallet, label: "Subscriptions" },
+  { href: "/balances", icon: Landmark, label: "Balances" },
+  { href: "/withdrawals", icon: ArrowDownToLine, label: "Withdrawals" },
+  { href: "/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/reconciliation", icon: Scale, label: "Reconciliation" },
   { href: "/outlets", icon: Store, label: "Outlets" },
   { href: "/menus", icon: Menu, label: "Menus" },
   { href: "/roles", icon: Users, label: "Roles" },

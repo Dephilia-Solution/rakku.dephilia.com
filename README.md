@@ -43,7 +43,7 @@ pnpm install
 #    NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
 #    apps/owner/.env.local      → OWNER_JWT_SECRET, NEXT_PUBLIC_OWNER_URL, NEXT_PUBLIC_POS_URL,
 #                                  SILOS_*, ECHO_*, VESSEL_*, CRON_SECRET
-#    apps/pos/.env.local        → POS_JWT_SECRET, SILOS_*, ECHO_*
+#    apps/pos/.env.local        → POS_JWT_SECRET, NEXT_PUBLIC_OWNER_URL, SILOS_*, ECHO_*, VESSEL_*
 #    apps/superadmin/.env.local → Supabase keys saja
 #    apps/landing               → tidak butuh env
 #    Produksi: nilai publik ada di apps/<app>/.env.production (ter-commit);

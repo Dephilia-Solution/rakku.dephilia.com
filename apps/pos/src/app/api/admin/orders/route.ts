@@ -3,7 +3,7 @@ import { createAdminClient } from "@rakku/supabase-clients";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { CartItem, SplitPayment, AppliedDiscount } from "@rakku/shared-types";
-import { deductStockForOrder } from "@/lib/inventory/stock";
+import { deductStockForOrder } from "@rakku/inventory";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -113,7 +113,13 @@ export async function POST(request: NextRequest) {
   // Potong stok otomatis (best-effort) — hanya untuk order selesai.
   // Gagal di sini tidak menggagalkan order; error di-log (keputusan M2).
   if ((status || "completed") === "completed") {
-    await deductStockForOrder(order.id, companyId, outletId);
+    await deductStockForOrder(
+      supabase,
+      order.id,
+      companyId,
+      outletId,
+      session.user_id ?? null
+    );
   }
 
   // Tandai meja occupied (best-effort) — hanya untuk order selesai ber-meja.

@@ -9,6 +9,8 @@ const nextConfig = {
     ],
   },
   transpilePackages: [
+    "@rakku/emails",
+    "@rakku/ledger",
     "@rakku/pricing",
     "@rakku/shared-types",
     "@rakku/supabase-clients",

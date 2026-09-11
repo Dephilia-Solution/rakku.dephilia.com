@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail } from "@/lib/supabase/queries.owner";
 import { sendEmail } from "@rakku/echo-client";
-import { renderRakkuEmail } from "@/lib/email-templates";
+import { renderRakkuEmail } from "@rakku/emails";
 import { SignJWT } from "jose";
 
 const VERIFY_SECRET = new TextEncoder().encode(

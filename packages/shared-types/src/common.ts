@@ -107,7 +107,36 @@ export interface Order {
   discount_amount: number;
   taxes: AppliedTax[] | null;
   discounts: AppliedDiscount[] | null;
+  payment_channel?: PaymentChannel | null;
   created_at: string;
+}
+
+export type PaymentChannel = "dynamic_qris" | "manual_qris";
+
+export type PaymentIntentStatus =
+  | "pending"
+  | "success"
+  | "expired"
+  | "failed"
+  | "cancelled";
+
+export interface PaymentIntent {
+  id: string;
+  company_id: string;
+  outlet_id: string | null;
+  order_id: string;
+  provider: string;
+  provider_transaction_id: string | null;
+  invoice_number: string;
+  amount: number;
+  qr_string: string | null;
+  status: PaymentIntentStatus;
+  expired_at: string | null;
+  paid_at: string | null;
+  raw_payload: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrderItem {

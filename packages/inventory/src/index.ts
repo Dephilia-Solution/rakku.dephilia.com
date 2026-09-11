@@ -1,5 +1,4 @@
-import { createAdminClient } from "@rakku/supabase-clients";
-import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type JsonLike = Record<string, unknown>;
 
@@ -18,25 +17,23 @@ interface OrderItemRow extends JsonLike {
 /**
  * Potong stok otomatis (best-effort) untuk order yang baru selesai.
  *
- * Strategi (keputusan M2): dipanggil SETELAH order + order_items tersimpan,
- * TIDAK dalam transaksi yang sama (Supabase JS admin client tidak mendukung
- * multi-statement transaction native tanpa RPC). Gagal di sini TIDAK
- * menggagalkan order — error cukup di-log; konsisten dengan PRD §F3
- * ("best-effort dengan retry/log").
+ * Strategi (keputusan v5 M2): dipanggil SETELAH order + order_items tersimpan,
+ * TIDAK dalam transaksi yang sama. Gagal di sini TIDAK menggagalkan order —
+ * error cukup di-log ("best-effort").
  *
- * Idempotent: jika sudah ada stock_movements type=sale_deduction untuk
- * order ini, langsung skip (cegah double-deduct saat PATCH draft di-retry).
+ * Idempotent: jika sudah ada stock_movements type=sale_deduction untuk order
+ * ini, langsung skip (cegah double-deduct saat retry/webhook+polling).
  */
 export async function deductStockForOrder(
+  supabase: SupabaseClient,
   orderId: string,
   companyId: string | null,
-  outletId: string | null
-) {
+  outletId: string | null,
+  createdBy: string | null = null
+): Promise<void> {
   try {
-    const session = await getTenantSessionFromCookies();
-    const company = companyId ?? session?.company_id ?? null;
-    const outlet = outletId ?? session?.outlet_id ?? null;
-    const createdBy = session?.user_id ?? null;
+    const company = companyId;
+    const outlet = outletId;
 
     if (!company || !outlet) {
       console.error(
@@ -45,8 +42,6 @@ export async function deductStockForOrder(
       );
       return;
     }
-
-    const supabase = createAdminClient();
 
     const { count: existingCount, error: countError } = await supabase
       .from("stock_movements")
@@ -82,7 +77,9 @@ export async function deductStockForOrder(
 
     const { data: recipeRows, error: recipesError } = await supabase
       .from("product_recipes")
-      .select("product_id, ingredient_id, quantity_used, ingredients(company_id, outlet_id)")
+      .select(
+        "product_id, ingredient_id, quantity_used, ingredients(company_id, outlet_id)"
+      )
       .in("product_id", productIds);
 
     if (recipesError) {
@@ -167,7 +164,10 @@ export async function deductStockForOrder(
 
     for (const result of updateResults) {
       if (result.error) {
-        console.error("[stock] failed to update ingredient stock:", result.error);
+        console.error(
+          "[stock] failed to update ingredient stock:",
+          result.error
+        );
         return;
       }
     }

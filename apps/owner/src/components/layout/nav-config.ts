@@ -9,6 +9,7 @@ import {
   Settings,
   Grid3X3,
   CreditCard,
+  Wallet,
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ export const ownerMenuItems: OwnerNavItem[] = [
   { href: "/tables", label: "Meja", icon: Grid3X3 },
   { href: "/employees", label: "Karyawan", icon: Users },
   { href: "/subscription", label: "Langganan", icon: CreditCard },
+  { href: "/balance", label: "Saldo", icon: Wallet },
   { href: "/settings", label: "Pengaturan", icon: Settings },
 ];
 
@@ -57,6 +59,7 @@ export const ownerOverflowItems: OwnerNavItem[] = [
   { href: "/tables", label: "Meja", icon: Grid3X3 },
   { href: "/employees", label: "Karyawan", icon: Users },
   { href: "/subscription", label: "Langganan", icon: CreditCard },
+  { href: "/balance", label: "Saldo", icon: Wallet },
   { href: "/settings", label: "Pengaturan", icon: Settings },
   loginKasirItem,
 ];

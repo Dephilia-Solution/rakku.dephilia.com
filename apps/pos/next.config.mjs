@@ -57,6 +57,8 @@ const nextConfig = {
     "@rakku/auth-utils",
     "@rakku/ui",
     "@rakku/pricing",
+    "@rakku/inventory",
+    "@rakku/payments",
     "@rakku/plans",
     "@serwist/next",
     "serwist",

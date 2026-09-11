@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/cartStore";
 import { formatCurrency } from "@/lib/format";
 import { showToast } from "@rakku/ui";
@@ -11,7 +11,17 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useModalHistory } from "@/hooks/useModalHistory";
 import { usePlan } from "@/components/billing/PlanProvider";
 import SplitBillSheet from "@/components/register/SplitBillSheet";
-import { Banknote, QrCode, CreditCard, X, Users } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  Banknote,
+  QrCode,
+  CreditCard,
+  X,
+  Users,
+  Clock,
+  RefreshCw,
+  CheckCircle2,
+} from "lucide-react";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -39,6 +49,16 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const [splitBillMode, setSplitBillMode] = useState(false);
   const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([]);
   const [cashierName, setCashierName] = useState<string | null>(null);
+
+  const [qrisMode, setQrisMode] = useState<"dynamic" | "manual">("dynamic");
+  const [qrisStep, setQrisStep] = useState<"form" | "qr" | "expired">("form");
+  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
+  const [qrisData, setQrisData] = useState<{
+    qr_string: string;
+    expired_at: string | null;
+    amount: number;
+  } | null>(null);
+  const [qrisNow, setQrisNow] = useState(0);
 
   const [invoiceData, setInvoiceData] = useState<{
     orderNumber: number;
@@ -72,6 +92,11 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       setSplitPayments([]);
       setShowSplit(false);
       setCashierName(null);
+      setQrisMode("dynamic");
+      setQrisStep("form");
+      setQrisOrderId(null);
+      setQrisData(null);
+      setQrisNow(0);
     }
   }, [isOpen]);
 
@@ -102,6 +127,19 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
 
   const change = cashAmount ? Number(cashAmount) - total : 0;
   const isCashEnough = change >= 0;
+
+  const qrisRemaining =
+    qrisData?.expired_at && qrisNow
+      ? new Date(qrisData.expired_at).getTime() - qrisNow
+      : null;
+  const qrisCountdown = (() => {
+    if (qrisRemaining === null) return "--:--";
+    if (qrisRemaining <= 0) return "00:00";
+    const totalSeconds = Math.floor(qrisRemaining / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  })();
 
   // Generate dynamic payment suggestions based on total
   const paymentSuggestions = (() => {
@@ -148,8 +186,175 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     setSplitPayments([]);
     setShowSplit(false);
     setCashierName(null);
+    setQrisStep("form");
+    setQrisOrderId(null);
+    setQrisData(null);
     clear();
     onClose();
+  };
+
+  // ---- QRIS Dinamis (v6.1 M2) ----
+  const dynamicDisabled = splitBillMode || Boolean(draftOrderId);
+
+  const finishQrisSuccess = useCallback(
+    (order: { order_number: number }) => {
+      setInvoiceData({
+        orderNumber: order.order_number,
+        createdAt: new Date().toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+      setIsSuccess(true);
+      setQrisStep("form");
+      onOrderComplete?.();
+    },
+    [onOrderComplete]
+  );
+
+  const pollQris = useCallback(async () => {
+    if (!qrisOrderId) return;
+    try {
+      const res = await fetch(`/api/admin/orders/qris/${qrisOrderId}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (
+        data.order?.status === "completed" ||
+        data.intent?.status === "success"
+      ) {
+        finishQrisSuccess(data.order);
+        return;
+      }
+      if (
+        ["expired", "cancelled", "failed"].includes(
+          data.intent?.status as string
+        )
+      ) {
+        setQrisStep("expired");
+      }
+    } catch {
+      // diamkan, coba lagi di polling berikutnya
+    }
+  }, [qrisOrderId, finishQrisSuccess]);
+
+  useEffect(() => {
+    if (!isOpen || qrisStep !== "qr") return;
+    setQrisNow(Date.now());
+    const ticker = setInterval(() => setQrisNow(Date.now()), 1000);
+    const poll = setInterval(pollQris, 4000);
+    return () => {
+      clearInterval(ticker);
+      clearInterval(poll);
+    };
+  }, [isOpen, qrisStep, pollQris]);
+
+  const handleDynamicQris = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/orders/qris", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderType,
+          items,
+          subtotal,
+          total,
+          customerName: customerName.trim(),
+          tableId,
+          taxes: appliedTaxes.map((t) => ({
+            name: t.name,
+            type: t.type,
+            value: t.value,
+            amount: t.amount,
+          })),
+          discounts: appliedDiscounts.map((d) => ({
+            name: d.name,
+            type: d.type,
+            value: d.value,
+            amount: d.amount,
+          })),
+          pricingTierId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.intent) {
+        const error = new Error(
+          data.error ?? "Gagal membuat QRIS"
+        ) as Error & { code?: string };
+        error.code = data.code;
+        throw error;
+      }
+      setQrisOrderId(data.order.id);
+      setQrisData({
+        qr_string: data.intent.qr_string,
+        expired_at: data.intent.expired_at,
+        amount: Number(data.intent.amount),
+      });
+      setQrisNow(Date.now());
+      setQrisStep("qr");
+    } catch (err) {
+      const planError =
+        err instanceof Error &&
+        (err as Error & { code?: string }).code === "PLAN_LIMIT";
+      if (planError) {
+        openUpgrade((err as Error).message);
+      } else {
+        showToast(
+          "error",
+          err instanceof Error ? err.message : "Gagal membuat QRIS"
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQrisRetry = async () => {
+    if (!qrisOrderId) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/admin/orders/qris/${qrisOrderId}/retry`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.intent) {
+        showToast("error", data.error ?? "Gagal membuat QR baru");
+        return;
+      }
+      setQrisData({
+        qr_string: data.intent.qr_string,
+        expired_at: data.intent.expired_at,
+        amount: Number(data.intent.amount),
+      });
+      setQrisNow(Date.now());
+      setQrisStep("qr");
+    } catch {
+      showToast("error", "Terjadi kesalahan, coba lagi");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQrisCancel = async () => {
+    if (qrisOrderId) {
+      try {
+        await fetch(`/api/admin/orders/qris/${qrisOrderId}/cancel`, {
+          method: "POST",
+        });
+      } catch {
+        // abaikan; order tetap bisa dibatalkan dari daftar pesanan
+      }
+    }
+    setQrisStep("form");
+    setQrisOrderId(null);
+    setQrisData(null);
+    setMethod(null);
   };
 
   const handleSubmit = async () => {
@@ -158,6 +363,14 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       showToast("error", "Nama customer wajib diisi");
       return;
     }
+
+    const useDynamicQris =
+      method === "qris" && qrisMode === "dynamic" && !dynamicDisabled;
+    if (useDynamicQris) {
+      await handleDynamicQris();
+      return;
+    }
+
     setIsSubmitting(true);
 
     // Get tenant session
@@ -308,6 +521,104 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             change={method === "cash" ? (change >= 0 ? change : undefined) : undefined}
           />
         </div>
+      ) : qrisStep === "qr" || qrisStep === "expired" ? (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200">
+            <h3 className="font-display font-semibold text-base text-neutral-900">
+              Pembayaran QRIS
+            </h3>
+            <button
+              onClick={handleQrisCancel}
+              aria-label="Tutup"
+              className="w-11 h-11 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600 active:scale-95 transition-all flex-shrink-0"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 py-5 flex flex-col items-center">
+            {qrisStep === "expired" ? (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-red-50 text-danger flex items-center justify-center">
+                  <X size={26} />
+                </div>
+                <p className="font-semibold text-neutral-900 mt-3">
+                  QR sudah kadaluarsa
+                </p>
+                <p className="text-sm text-neutral-500 mt-1 text-center">
+                  Buat QR baru untuk melanjutkan pembayaran pesanan ini.
+                </p>
+                <div className="flex gap-3 mt-5 w-full max-w-xs">
+                  <button
+                    onClick={handleQrisCancel}
+                    className="flex-1 text-sm font-medium text-neutral-600 bg-neutral-100 rounded-xl py-3 hover:bg-neutral-200"
+                  >
+                    Batalkan
+                  </button>
+                  <button
+                    onClick={handleQrisRetry}
+                    disabled={isSubmitting}
+                    className="flex-1 bg-forest text-white rounded-xl py-3 text-sm font-semibold hover:bg-forest-dark disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <RefreshCw size={15} />
+                    )}
+                    Buat QR Baru
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-400">Total Pembayaran</p>
+                <p className="font-mono text-3xl font-bold text-neutral-900">
+                  {formatCurrency(qrisData?.amount ?? total)}
+                </p>
+
+                <div className="mt-4 p-3 bg-white border border-neutral-200 rounded-2xl">
+                  {qrisData?.qr_string ? (
+                    <QRCodeSVG value={qrisData.qr_string} size={230} />
+                  ) : (
+                    <div className="w-[254px] h-[254px] rounded-xl bg-neutral-100 flex items-center justify-center text-sm text-neutral-400">
+                      QR tidak tersedia
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 text-sm text-amber-700">
+                  <Clock size={15} />
+                  <span>Berlaku {qrisCountdown} lagi</span>
+                </div>
+                <p className="text-xs text-neutral-400 mt-1 text-center max-w-xs">
+                  Minta pelanggan scan QR dengan aplikasi bank/e-wallet yang
+                  mendukung QRIS. Status dicek otomatis.
+                </p>
+
+                <div className="flex gap-3 mt-5 w-full max-w-xs">
+                  <button
+                    onClick={handleQrisCancel}
+                    className="flex-1 text-sm font-medium text-neutral-600 bg-neutral-100 rounded-xl py-3 hover:bg-neutral-200"
+                  >
+                    Batalkan
+                  </button>
+                  <button
+                    onClick={pollQris}
+                    className="flex-1 bg-forest text-white rounded-xl py-3 text-sm font-semibold hover:bg-forest-dark flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={15} />
+                    Cek Status
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-neutral-400 mt-3 flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  Stok & meja baru diproses setelah pembayaran sukses.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="flex flex-col flex-1 min-h-0">
           <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200">
@@ -411,6 +722,55 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                 })}
               </div>
             </div>
+
+            {method === "qris" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                  Jenis QRIS
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQrisMode("dynamic")}
+                    disabled={dynamicDisabled}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      qrisMode === "dynamic"
+                        ? "border-forest bg-primary-50"
+                        : "border-neutral-200 hover:border-neutral-300"
+                    } ${dynamicDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <p className="text-xs font-semibold text-neutral-900">
+                      QRIS Dinamis
+                    </p>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      QR dibuat sistem, masuk ke saldo
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQrisMode("manual")}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      qrisMode === "manual"
+                        ? "border-forest bg-primary-50"
+                        : "border-neutral-200 hover:border-neutral-300"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold text-neutral-900">
+                      QRIS Manual
+                    </p>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      Scan QR merchant sendiri
+                    </p>
+                  </button>
+                </div>
+                {dynamicDisabled && (
+                  <p className="text-[11px] text-amber-700">
+                    QRIS dinamis tidak tersedia untuk split bill / pembayaran
+                    draft — memakai QRIS manual.
+                  </p>
+                )}
+              </div>
+            )}
 
             {method === "cash" && (
               <div className="space-y-3">
@@ -520,6 +880,10 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             >
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : method === "qris" &&
+                qrisMode === "dynamic" &&
+                !dynamicDisabled ? (
+                "Tampilkan QRIS"
               ) : (
                 "Selesaikan Transaksi"
               )}
