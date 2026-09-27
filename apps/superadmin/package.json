@@ -1,0 +1,38 @@
+{
+  "name": "@rakku/superadmin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@rakku/emails": "workspace:*",
+    "@rakku/ledger": "workspace:*",
+    "@rakku/pricing": "workspace:*",
+    "@rakku/shared-types": "workspace:*",
+    "@rakku/supabase-clients": "workspace:*",
+    "@rakku/ui": "workspace:*",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.1",
+    "bcryptjs": "^3.0.3",
+    "lucide-react": "^0.460.0",
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

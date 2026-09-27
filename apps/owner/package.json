@@ -1,0 +1,51 @@
+{
+  "name": "@rakku/owner",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@rakku/auth-utils": "workspace:*",
+    "@rakku/echo-client": "workspace:*",
+    "@rakku/emails": "workspace:*",
+    "@rakku/ledger": "workspace:*",
+    "@rakku/plans": "workspace:*",
+    "@rakku/payments": "workspace:*",
+    "@rakku/shared-types": "workspace:*",
+    "@rakku/silos-client": "workspace:*",
+    "@rakku/supabase-clients": "workspace:*",
+    "@rakku/ui": "workspace:*",
+    "@rakku/vessel-client": "workspace:*",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.1",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^11.18.2",
+    "jose": "^6.2.3",
+    "lucide-react": "^0.460.0",
+    "next": "14.2.35",
+    "qrcode.react": "^4.2.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "sharp": "^0.35.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

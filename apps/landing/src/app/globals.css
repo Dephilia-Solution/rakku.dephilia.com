@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --landing-line: rgba(24, 49, 38, 0.15);
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fast: 180ms;
+  --motion-base: 280ms;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  section[id] {
+    scroll-margin-top: 6rem;
+  }
+
+  body {
+    margin: 0;
+    overflow-x: hidden;
+    background: #f3efe6;
+    color: #183126;
+    font-family: var(--font-sans), "DM Sans", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  a,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 3px solid #b9d99a;
+    outline-offset: 4px;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin-top: 0;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.045em;
+  }
+}
+
+@layer components {
+  .landing-container {
+    width: min(calc(100% - 2rem), 1200px);
+    margin-inline: auto;
+  }
+
+  .landing-button {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    padding: 0 1.25rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1;
+    transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .landing-button:active {
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .landing-link-underline {
+    position: relative;
+  }
+
+  .landing-link-underline::after {
+    position: absolute;
+    right: 0;
+    bottom: 0.2rem;
+    left: 0;
+    height: 1px;
+    background: currentColor;
+    content: "";
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 240ms var(--motion-ease);
+  }
+
+  .landing-link-underline:hover::after,
+  .landing-link-underline:focus-visible::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+
+  .landing-button svg {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .landing-button:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+@media (min-width: 640px) {
+  .landing-container {
+    width: min(calc(100% - 3rem), 1200px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-container {
+    width: min(calc(100% - 4rem), 1200px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .landing-button:active,
+  .landing-button:hover svg {
+    transform: none;
+  }
+}
+
+/* Product previews use one restrained depth treatment; the surrounding story stays flat. */
+.recipe-board {
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(16, 44, 29, 0.16), 0 4px 14px rgba(16, 44, 29, 0.08);
+}

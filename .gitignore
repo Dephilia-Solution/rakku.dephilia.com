@@ -1,0 +1,54 @@
+node_modules/
+.next/
+.turbo/
+dist/
+*.tsbuildinfo
+.env.local
+.env*.local
+
+# Next.js
+apps/*/next-env.d.ts
+apps/*/.next/
+
+# PWA
+apps/*/public/sw.js
+apps/*/public/sw.js.map
+apps/*/public/swe-worker*.js
+
+# Build
+.turbo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Backup
+.package-lock.json.bak
+
+# Dokumentasi & file non-sistem
+DOCS.md
+PRD.md
+PRD_V5_CAFE.md
+PROMPT_RAKKU_*.md
+prompt-*.md
+PANDUAN.md
+*.pdf
+*_reference.html
+rakku_login_signup.html
+supabase_full_export.sql
+supabase/.temp/
+
+# Artefak lokal / legacy (tidak ikut push)
+.temp/
+/public/
+/next-env.d.ts
+/index.html
+/landing.css
+/scripts/generate-pwa-icons.mjs
+/scripts/run-migration.js
+/scripts/run-migration.ts
+/scripts/migration-004.ts

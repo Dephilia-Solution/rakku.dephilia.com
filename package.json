@@ -1,0 +1,36 @@
+{
+  "name": "rakku",
+  "version": "4.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "dev:owner": "pnpm --filter @rakku/owner dev",
+    "dev:pos": "pnpm --filter @rakku/pos dev",
+    "dev:superadmin": "pnpm --filter @rakku/superadmin dev",
+    "dev:landing": "pnpm --filter @rakku/landing dev",
+    "build:owner": "pnpm --filter @rakku/owner build",
+    "build:pos": "pnpm --filter @rakku/pos build",
+    "build:superadmin": "pnpm --filter @rakku/superadmin build",
+    "build:landing": "pnpm --filter @rakku/landing build",
+    "seed": "tsx scripts/seed.ts",
+    "seed:full": "tsx scripts/seed-full.ts",
+    "backfill:owners": "tsx scripts/backfill-owners.ts"
+  },
+  "devDependencies": {
+    "@rakku/silos-client": "workspace:*",
+    "@supabase/supabase-js": "^2.106.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.5",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "sharp": "^0.35.3",
+    "tsx": "^4.22.4",
+    "turbo": "^2.3.3",
+    "typescript": "^5"
+  }
+}
