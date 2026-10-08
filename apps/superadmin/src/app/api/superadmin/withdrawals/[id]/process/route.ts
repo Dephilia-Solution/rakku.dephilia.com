@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@rakku/supabase-clients/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createClient } from "@/lib/auth/database";
+import { createAdminClient } from "@rakku/db";
 
 async function requireSuperadmin() {
   const supabase = await createClient();
@@ -45,6 +45,7 @@ export async function POST(
         processed_by: user.email ?? user.id,
       })
       .eq("id", id)
+      .eq("status", "requested")
       .select()
       .single();
 

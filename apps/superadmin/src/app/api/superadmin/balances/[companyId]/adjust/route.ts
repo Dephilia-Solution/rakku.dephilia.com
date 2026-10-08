@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@rakku/supabase-clients/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { adjustBalance, getBalance } from "@rakku/ledger";
-
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-  });
-}
+import { requireSuperadmin } from "@/lib/auth/require-superadmin";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   try {
-    await requireSuperadmin();
+    const user = await requireSuperadmin();
 
     const { companyId } = await params;
     if (!companyId) {
@@ -40,7 +33,7 @@ export async function POST(
     }
 
     const admin = createAdminClient();
-    const result = await adjustBalance(admin, { companyId, amount, note });
+    const result = await adjustBalance(admin, { companyId, amount, note, createdBy: user.email ?? user.id });
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { deductStockForOrder } from "@rakku/inventory";
+import { sql } from "@rakku/db";
 
 export async function GET() {
   const session = await getTenantSessionFromCookies();
@@ -30,16 +31,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { items, customerName, note, tableId, companyId, outletId, cashierId, pricingTierId } = body;
+  const { items, customerName, note, tableId, pricingTierId } = body;
 
   if (!customerName || !customerName.trim()) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
   }
 
   const session = await getTenantSessionFromCookies();
-  const cashierName = session?.user_name ?? null;
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!Array.isArray(items) || !items.length) return NextResponse.json({ error: "Items wajib diisi" }, { status: 400 });
+  const cashierName = session.user_name ?? null;
 
-  const supabase = createAdminClient();
+  try {
+  return await createAdminClient().transaction(async supabase => {
 
   const subtotal = items.reduce((sum: number, item: { unit_price: number; quantity: number }) => sum + (item.unit_price * item.quantity), 0);
   const total = subtotal;
@@ -61,9 +65,9 @@ export async function POST(request: NextRequest) {
       note: note || null,
       status: "draft",
       payment_status: "unpaid",
-      company_id: companyId || null,
-      outlet_id: outletId || null,
-      cashier_id: cashierId || null,
+      company_id: session.company_id,
+      outlet_id: session.outlet_id,
+      cashier_id: session.user_id,
       cashier_name: cashierName,
       pricing_tier_id: pricingTierId || null,
       reserved_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h expiry
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (orderError || !order) {
-    return NextResponse.json({ error: orderError?.message ?? "Gagal membuat draft" }, { status: 500 });
+    throw new Error(orderError?.message ?? "Gagal membuat draft");
   }
 
   const orderItems = items.map((item: { product: { id: string; name: string }; modifier_label?: string | null; note?: string | null; unit_price: number; quantity: number; subtotal: number }) => ({
@@ -91,14 +95,19 @@ export async function POST(request: NextRequest) {
     .insert(orderItems);
 
   if (itemsError) {
-    await supabase.from("orders").delete().eq("id", order.id);
-    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    throw new Error(itemsError.message);
   }
 
   return NextResponse.json(order, { status: 201 });
+  });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal membuat draft" }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: NextRequest) {
+  const session = await getTenantSessionFromCookies();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   const body = await request.json();
@@ -123,8 +132,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "id wajib diisi" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-
+  try {
+  return await createAdminClient().transaction(async supabase => {
+  await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${session.company_id},0))`);
+  const locked = await supabase.execute(sql`select * from public.orders where id=${id} for update`);
+  if (!locked[0]) return NextResponse.json({ error: "Draft tidak ditemukan" }, { status: 404 });
+  if (locked[0].status === "completed") return NextResponse.json(locked[0]);
+  if (locked[0].status !== "draft") return NextResponse.json({ error: "Order bukan draft" }, { status: 400 });
   if (status === "completed") {
     const { data: existing } = await supabase
       .from("orders")
@@ -167,11 +181,12 @@ export async function PATCH(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    throw new Error(error.message);
   }
 
   if (items && Array.isArray(items)) {
-    await supabase.from("order_items").delete().eq("order_id", id);
+    const deleted = await supabase.from("order_items").delete().eq("order_id", id);
+    if (deleted.error) throw new Error(deleted.error.message);
 
     if (items.length > 0) {
       const orderItems = items.map(
@@ -200,14 +215,12 @@ export async function PATCH(request: NextRequest) {
         .insert(orderItems);
 
       if (itemsError) {
-        return NextResponse.json({ error: itemsError.message }, { status: 500 });
+        throw new Error(itemsError.message);
       }
     }
   }
 
-  // Draft dibayar (status -> completed): potong stok otomatis (best-effort),
-  // dijalankan SETELAH items ter-replace agar deduksi memakai item terbaru.
-  // Idempotency guard di helper mencegah double-deduct jika PATCH di-retry.
+  // Deduksi stok memakai item terbaru dan berada dalam transaksi completion.
   if (status === "completed") {
     await deductStockForOrder(
       supabase,
@@ -216,17 +229,22 @@ export async function PATCH(request: NextRequest) {
       (data?.outlet_id as string | null) ?? null
     );
 
-    // Tandai meja occupied (best-effort) — sejajar dengan alur order langsung.
+    // Tandai meja occupied dalam transaksi yang sama.
     const resolvedTableId = table_id ?? data?.table_id ?? null;
     if (resolvedTableId) {
-      await supabase
+      const tableResult = await supabase
         .from("dining_tables")
         .update({ status: "occupied" })
         .eq("id", resolvedTableId);
+      if (tableResult.error) throw new Error(tableResult.error.message);
     }
   }
 
   return NextResponse.json(data);
+  });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal memperbarui draft" }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: NextRequest) {

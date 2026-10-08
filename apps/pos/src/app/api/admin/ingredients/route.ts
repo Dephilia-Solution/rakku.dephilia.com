@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 

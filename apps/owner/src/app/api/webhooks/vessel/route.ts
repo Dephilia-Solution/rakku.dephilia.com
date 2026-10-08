@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { processOrderPayment } from "@rakku/payments";
 import { processInvoice } from "@/lib/billing/subscription";
 import type { PaymentIntent, SubscriptionInvoice } from "@rakku/shared-types";

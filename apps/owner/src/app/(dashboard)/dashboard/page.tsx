@@ -3,7 +3,7 @@ import {
   getOwnerOutlets,
   getOwnerEmployees,
 } from "@/lib/supabase/queries.owner";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import Link from "next/link";
 import {
   Building2,
@@ -83,7 +83,6 @@ export default async function OwnerDashboardPage() {
             Berikut ringkasan bisnis Anda hari ini.
           </p>
         </div>
-        
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -212,7 +211,6 @@ export default async function OwnerDashboardPage() {
         </div>
       </div>
 
-      
     </div>
   );
 }

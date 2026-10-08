@@ -1,0 +1,11 @@
+{
+  "name": "@rakku/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts", "./schema": "./src/schema.ts", "./query": "./src/query.ts", "./invitations": "./src/invitations.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "tsx --wasm-num-compilation-tasks=1 --test --test-isolation=none src/*.test.ts" },
+  "dependencies": { "drizzle-orm": "0.45.1", "postgres": "3.4.8" },
+  "devDependencies": { "@electric-sql/pglite": "0.3.14", "tsx": "4.22.4", "typescript": "^5", "@types/node": "^24" }
+}

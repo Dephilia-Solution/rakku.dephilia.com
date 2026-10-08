@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { sql, type DatabaseClient } from "@rakku/db";
 import type {
   BalanceTransaction,
   BalanceTransactionType,
@@ -45,10 +45,10 @@ interface RpcRow {
 
 /**
  * Mutasi saldo atomic + idempotent (RPC `apply_balance_transaction`).
- * Satu (reference_type, reference_id, type) hanya tercatat sekali.
+ * Satu (company_id, reference_type, reference_id, type) hanya tercatat sekali.
  */
 export async function applyBalanceTransaction(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: BalanceMutationInput
 ): Promise<BalanceMutationResult> {
   const { data, error } = await supabase.rpc("apply_balance_transaction", {
@@ -85,7 +85,7 @@ export async function applyBalanceTransaction(
 
 /** Kredit saldo dari pembayaran QRIS: net = gross − MDR 0,7%. */
 export async function creditBalance(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: {
     companyId: string;
     outletId?: string | null;
@@ -115,7 +115,7 @@ export async function creditBalance(
 
 /** Hold saldo untuk pengajuan withdrawal: available → pending. */
 export async function holdBalance(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: {
     companyId: string;
     amount: number;
@@ -139,7 +139,7 @@ export async function holdBalance(
 
 /** Kembalikan saldo saat withdrawal ditolak: pending → available. */
 export async function releaseBalance(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: {
     companyId: string;
     amount: number;
@@ -163,7 +163,7 @@ export async function releaseBalance(
 
 /** Selesaikan withdrawal: pending keluar, total_withdrawn naik. */
 export async function settleWithdrawal(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: {
     companyId: string;
     amount: number;
@@ -189,7 +189,7 @@ export async function settleWithdrawal(
 
 /** Koreksi manual superadmin (wajib note). */
 export async function adjustBalance(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: {
     companyId: string;
     amount: number;
@@ -209,7 +209,7 @@ export async function adjustBalance(
 }
 
 export async function getBalance(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string
 ): Promise<MerchantBalance> {
   const { data } = await supabase
@@ -232,7 +232,7 @@ export async function getBalance(
 }
 
 export async function listBalanceTransactions(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   options: { limit?: number; offset?: number } = {}
 ): Promise<BalanceTransaction[]> {
@@ -247,4 +247,30 @@ export async function listBalanceTransactions(
     .range(offset, offset + limit - 1);
 
   return (data ?? []) as BalanceTransaction[];
+}
+
+/** Lock the withdrawal before applying exactly one final ledger transition. */
+export async function finalizeWithdrawal(db: DatabaseClient, id: string, input: {
+  outcome: "completed" | "rejected"; actor: string; reason?: string;
+  referenceNumber?: string; proofUrl?: string | null;
+}) {
+  return db.transaction(async tx => {
+    const rows = await tx.execute(sql`select * from public.withdrawals where id=${id} for update`);
+    const withdrawal = rows[0];
+    if (!withdrawal) throw new Error("Pengajuan tidak ditemukan");
+    if (withdrawal.status === input.outcome) return withdrawal;
+    if (!["requested", "processing"].includes(withdrawal.status)) throw new Error("Pengajuan sudah final");
+    const common = { companyId: withdrawal.company_id, amount: Number(withdrawal.amount),
+      referenceType: "withdrawal", referenceId: id, createdBy: input.actor };
+    const mutation = input.outcome === "completed"
+      ? await settleWithdrawal(tx, { ...common, fee: Number(withdrawal.fee), note: `Pencairan selesai (ref ${input.referenceNumber})` })
+      : await releaseBalance(tx, { ...common, note: `Pencairan ditolak: ${input.reason}` });
+    if (!mutation.ok) throw new Error(mutation.error ?? "Gagal memperbarui ledger");
+    const result = await tx.from("withdrawals").update({ status: input.outcome, processed_by: input.actor,
+      processed_at: new Date().toISOString(), ...(input.outcome === "completed"
+        ? { reference_number: input.referenceNumber, transfer_proof_url: input.proofUrl ?? null }
+        : { reject_reason: input.reason }) }).eq("id", id).select().single();
+    if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal menyimpan status");
+    return result.data;
+  });
 }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { getBalance, listBalanceTransactions } from "@rakku/ledger";
 import BalanceClient from "@/components/billing/BalanceClient";
 import type { MerchantBankAccount, Withdrawal } from "@rakku/shared-types";

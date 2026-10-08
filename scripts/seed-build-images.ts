@@ -13,7 +13,7 @@
  * Jalankan: npx tsx scripts/seed-build-images.ts [--force]
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient, closeDatabase } from "@rakku/db";
 import { uploadFile, deleteFile } from "@rakku/silos-client";
 import sharp from "sharp";
 import * as dotenv from "dotenv";
@@ -29,17 +29,7 @@ for (const envPath of [
   if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Error: NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY harus diisi di .env.local");
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const supabase = createAdminClient();
 
 const FORCE = process.argv.includes("--force");
 const DOWNLOAD_DELAY_MS = 400;
@@ -259,4 +249,4 @@ async function seedProductImages() {
 seedProductImages().catch((err) => {
   console.error("❌ Seed foto gagal:", err);
   process.exit(1);
-});
+}).finally(closeDatabase);

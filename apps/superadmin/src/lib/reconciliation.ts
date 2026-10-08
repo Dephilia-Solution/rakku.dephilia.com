@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@rakku/db";
 
 export interface ReconciliationSummary {
   systemBalance: number;
@@ -15,7 +15,7 @@ export interface ReconciliationSummary {
  * `periodStart`/`periodEnd` format `YYYY-MM-DD` (inklusif).
  */
 export async function computeExpectedNet(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   periodStart: string,
   periodEnd: string
 ): Promise<number> {
@@ -36,7 +36,7 @@ export async function computeExpectedNet(
 
 /** Ringkasan posisi dana: saldo sistem vs posisi kas. */
 export async function getReconciliationSummary(
-  supabase: SupabaseClient
+  supabase: DatabaseClient
 ): Promise<ReconciliationSummary> {
   const [balancesResult, ledgerResult, withdrawalsResult, reportsResult] =
     await Promise.all([

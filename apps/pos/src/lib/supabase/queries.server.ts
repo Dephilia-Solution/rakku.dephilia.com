@@ -1,4 +1,5 @@
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
+import { createAdminClient as createPublicMenuClient } from "@rakku/db";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { OrderType, PaymentMethod, OrderStatus, PaymentStatus, AppliedTax, AppliedDiscount, PublicMenu } from "@rakku/shared-types";
 
@@ -569,7 +570,7 @@ export async function getAllPurchases() {
 }
 
 export async function getPublicMenuBySlug(slug: string): Promise<PublicMenu | null> {
-  const supabase = createAdminClient();
+  const supabase = createPublicMenuClient();
 
   const { data: outlet } = await supabase
     .from("outlets")

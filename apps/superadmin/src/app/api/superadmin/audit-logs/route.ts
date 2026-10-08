@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@rakku/supabase-clients/server";
+import { createClient } from "@/lib/auth/database";
 
 async function requireSuperadmin() {
   const supabase = await createClient();

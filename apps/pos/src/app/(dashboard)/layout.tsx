@@ -6,7 +6,9 @@ import LimitBanner from "@/components/billing/LimitBanner";
 import { ToastContainer } from "@rakku/ui";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { getAllowedMenus } from "@/lib/auth/menus";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 import { getUsageSummary } from "@rakku/plans";
 import type { Menu } from "@rakku/shared-types";
 

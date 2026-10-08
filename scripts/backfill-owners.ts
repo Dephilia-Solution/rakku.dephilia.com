@@ -12,26 +12,14 @@
  *   - TOKOKO company → owner ali@rakku.test (password: ali12345)
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient, closeDatabase } from "@rakku/db";
 import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error(
-    "Error: NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY harus diisi di .env.local"
-  );
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createAdminClient();
 
 const OWNER_BACKFILL: {
   companyCode: string;
@@ -163,4 +151,4 @@ async function backfill() {
 backfill().catch((err) => {
   console.error("❌ Backfill gagal:", err);
   process.exit(1);
-});
+}).finally(closeDatabase);

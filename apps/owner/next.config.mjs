@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: { cpus: 2 },
   async redirects() {
     return [
       { source: "/pricing-tiers", destination: "/products", permanent: false },
@@ -11,17 +12,13 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.supabase.co",
-      },
-      {
-        protocol: "https",
         hostname: "cdn.dephilia.com",
       },
     ],
   },
   transpilePackages: [
     "@rakku/shared-types",
-    "@rakku/supabase-clients",
+    "@rakku/db",
     "@rakku/auth-utils",
     "@rakku/ui",
     "@rakku/emails",

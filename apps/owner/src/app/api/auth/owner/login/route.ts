@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail } from "@/lib/supabase/queries.owner";
 import { signOwnerSession, setOwnerSessionCookie } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import bcrypt from "bcryptjs";
 import type { OwnerSession } from "@rakku/shared-types";
 

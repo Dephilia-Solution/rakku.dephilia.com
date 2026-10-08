@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@rakku/db";
 import { sendEmail } from "@rakku/echo-client";
 
 export interface RakkuEmailInput {
@@ -131,7 +131,7 @@ interface OwnerContact {
 }
 
 async function getOwnerContact(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string
 ): Promise<OwnerContact | null> {
   const { data } = await supabase
@@ -155,7 +155,7 @@ async function getOwnerContact(
  * Return true bila email terkirim.
  */
 export async function sendBillingEmail(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: BillingEmailInput
 ): Promise<boolean> {
   const { data: claimed } = await supabase

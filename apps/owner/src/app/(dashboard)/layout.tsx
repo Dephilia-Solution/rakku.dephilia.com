@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { getUsageSummary } from "@rakku/plans";
 import ResponsiveNav from "@/components/layout/ResponsiveNav";
 import DashboardContent from "@/components/layout/DashboardContent";
 import PlanProvider from "@/components/billing/PlanProvider";
 import PlanBanner from "@/components/billing/PlanBanner";
 import { ToastContainer } from "@rakku/ui";
+
+export const dynamic = "force-dynamic";
 
 export default async function OwnerDashboardLayout({
   children,

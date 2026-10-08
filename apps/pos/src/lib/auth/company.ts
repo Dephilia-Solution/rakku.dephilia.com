@@ -1,4 +1,4 @@
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import bcrypt from "bcryptjs";
 import { signPendingLogin } from "./pending-login";
 import { logAuthEvent, FailureReasons, computeLockedUntil, getRemainingAttempts } from "@rakku/auth-utils";

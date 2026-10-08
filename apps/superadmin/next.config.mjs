@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: { cpus: 2 },
   images: {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.supabase.co",
+        hostname: "cdn.dephilia.com",
       },
     ],
   },
@@ -13,7 +14,7 @@ const nextConfig = {
     "@rakku/ledger",
     "@rakku/pricing",
     "@rakku/shared-types",
-    "@rakku/supabase-clients",
+    "@rakku/db",
     "@rakku/ui",
   ],
 };

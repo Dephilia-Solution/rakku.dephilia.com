@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@rakku/db";
 
 export const DEFAULT_TIERS = [
   { name: "Dine In", slug: "dine-in", sort_order: 1 },
@@ -6,7 +6,7 @@ export const DEFAULT_TIERS = [
 ] as const;
 
 export async function seedDefaultTiers(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   outletId: string
 ): Promise<void> {
@@ -34,7 +34,7 @@ export async function seedDefaultTiers(
 }
 
 export async function syncProductTierPrices(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   productId: string,
   companyId: string,
   outletId: string,

@@ -5,6 +5,7 @@ dist/
 *.tsbuildinfo
 .env.local
 .env*.local
+.env.neon
 
 # Next.js
 apps/*/next-env.d.ts
@@ -29,18 +30,20 @@ Thumbs.db
 # Backup
 .package-lock.json.bak
 
-# Dokumentasi & file non-sistem
-DOCS.md
+# Dokumen historis dan file non-sistem
 PRD.md
 PRD_V5_CAFE.md
 PROMPT_RAKKU_*.md
 prompt-*.md
-PANDUAN.md
 *.pdf
 *_reference.html
 rakku_login_signup.html
 supabase_full_export.sql
 supabase/.temp/
+
+# Database snapshots contain application/customer data
+*.dump
+*.backup
 
 # Artefak lokal / legacy (tidak ikut push)
 .temp/

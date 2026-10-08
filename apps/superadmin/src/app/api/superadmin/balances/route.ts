@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@rakku/supabase-clients/server";
+import { createClient } from "@/lib/auth/database";
 import { listBalanceTransactions } from "@rakku/ledger";
 
 function requireSuperadmin() {

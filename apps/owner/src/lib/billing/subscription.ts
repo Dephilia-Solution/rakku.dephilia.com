@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { sql, type DatabaseClient } from "@rakku/db";
 import {
   getPaymentStatus,
   type VesselPaymentDetail,
@@ -22,15 +22,20 @@ function addPeriod(base: Date, cycle: string): Date {
 }
 
 async function activateSubscription(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   invoice: SubscriptionInvoice,
   detail: VesselPaymentDetail
 ): Promise<boolean> {
   const paidAt = detail.paid_at ? new Date(detail.paid_at) : new Date();
+  if (detail.invoice_number !== invoice.invoice_number || Number(detail.amount) !== Number(invoice.amount)) {
+    throw new Error("Provider payment does not match the subscription invoice");
+  }
+  const activation = await supabase.transaction(async supabase => {
+  await supabase.execute(sql`select id from public.companies where id=${invoice.company_id} for update`);
 
   // Atomic claim: hanya invoice berstatus pending yang boleh diaktifkan.
   // Webhook & polling yang berjalan bersamaan tidak akan double-aktivasi.
-  const { data: claimed } = await supabase
+  const { data: claimed, error: claimError } = await supabase
     .from("subscription_invoices")
     .update({
       status: "success",
@@ -42,7 +47,8 @@ async function activateSubscription(
     .select()
     .maybeSingle();
 
-  if (!claimed) return false;
+  if (claimError) throw new Error(claimError.message);
+  if (!claimed) return null;
 
   const { data: company } = await supabase
     .from("companies")
@@ -65,7 +71,7 @@ async function activateSubscription(
 
   const periodEnd = addPeriod(base, invoice.billing_cycle);
 
-  await supabase.from("subscriptions").insert({
+  const subscription = await supabase.from("subscriptions").insert({
     company_id: invoice.company_id,
     plan_id: invoice.plan_id,
     status: "active",
@@ -73,8 +79,9 @@ async function activateSubscription(
     current_period_start: base.toISOString(),
     current_period_end: periodEnd.toISOString(),
   });
+  if (subscription.error) throw new Error(subscription.error.message);
 
-  await supabase
+  const companyUpdate = await supabase
     .from("companies")
     .update({
       plan_id: invoice.plan_id,
@@ -83,26 +90,33 @@ async function activateSubscription(
       billing_cycle: invoice.billing_cycle,
     })
     .eq("id", invoice.company_id);
+  if (companyUpdate.error) throw new Error(companyUpdate.error.message);
 
   const { data: plan } = await supabase
     .from("plans")
     .select("name")
     .eq("id", invoice.plan_id)
     .maybeSingle();
+  return { periodEnd, planName: plan?.name ?? "langganan" };
+  });
+  if (!activation) return false;
+  const { periodEnd, planName } = activation;
 
+  try {
   await sendBillingEmail(supabase, {
     companyId: invoice.company_id,
     type: "payment_success",
     period: invoice.invoice_number,
-    subject: `Pembayaran diterima — Paket ${plan?.name ?? "langganan"} aktif`,
+    subject: `Pembayaran diterima — Paket ${planName} aktif`,
     eyebrow: "Langganan",
     title: "Pembayaran diterima.",
     paragraphs: [
-      `Paket ${plan?.name ?? "langganan"} Anda aktif sampai ${periodEnd.toLocaleDateString("id-ID")}.`,
+      `Paket ${planName} Anda aktif sampai ${periodEnd.toLocaleDateString("id-ID")}.`,
       `Invoice ${invoice.invoice_number} sebesar Rp${Number(invoice.amount).toLocaleString("id-ID")} sudah kami terima.`,
     ],
     note: "Terima kasih. Langganan dapat diperpanjang kapan saja dari halaman Langganan.",
   });
+  } catch (error) { console.error("[billing] post-commit email failed", error); }
 
   return true;
 }
@@ -113,7 +127,7 @@ async function activateSubscription(
  * `statusFetcher` dapat di-inject untuk pengujian.
  */
 export async function processInvoice(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   invoice: SubscriptionInvoice,
   statusFetcher: (
     transactionId: string

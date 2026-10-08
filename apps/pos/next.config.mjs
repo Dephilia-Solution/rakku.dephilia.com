@@ -31,6 +31,7 @@ const MODERN_SYNTAX_REGEX = /\?\?=?|\|\|=\??|&&=\??|\?\.(?:[a-zA-Z_$])/;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: { cpus: 2, webpackBuildWorker: true },
   async redirects() {
     return [
       { source: "/categories", destination: "/products", permanent: false },
@@ -43,17 +44,13 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.supabase.co",
-      },
-      {
-        protocol: "https",
         hostname: "cdn.dephilia.com",
       },
     ],
   },
   transpilePackages: [
     "@rakku/shared-types",
-    "@rakku/supabase-clients",
+    "@rakku/db",
     "@rakku/auth-utils",
     "@rakku/ui",
     "@rakku/pricing",

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@rakku/db";
 
 export type AuthEventType =
   | "company_login"
@@ -22,7 +22,7 @@ interface LogAuthEventParams {
 }
 
 export async function logAuthEvent(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   params: LogAuthEventParams
 ): Promise<void> {
   try {

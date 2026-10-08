@@ -1,12 +1,28 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { verifySession } from "@/lib/auth/tenant-session";
+import { verifySession } from "@/lib/auth/session-token";
 
 const tenantAuthPaths = ["/login", "/login/select-outlet", "/login/select-user", "/login/enter-pin"];
 const dashboardPaths = ["/register", "/orders", "/reports", "/products", "/tax-discounts"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  let supabaseResponse = NextResponse.next({ request });
+  const headers = new Headers(request.headers);
+  headers.set("x-rakku-path", pathname);
+  // Always overwrite client-supplied route metadata before server capability checks.
+  headers.delete("x-rakku-api-path");
+  headers.delete("x-rakku-api-method");
+  if (pathname.startsWith("/api/admin/") || pathname.startsWith("/api/reports/")) {
+    const token = request.cookies.get("session")?.value;
+    if (!token || !await verifySession(token)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && request.headers.get("origin") !== request.nextUrl.origin) {
+      return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+    }
+    headers.set("x-rakku-api-path", pathname);
+    headers.set("x-rakku-api-method", request.method);
+  }
+  const supabaseResponse = NextResponse.next({ request: { headers } });
 
   if (
     pathname.startsWith("/_next") ||
