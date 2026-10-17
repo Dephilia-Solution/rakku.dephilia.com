@@ -2,11 +2,7 @@ import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
 import { getUsageSummary } from "@rakku/plans";
-import ResponsiveNav from "@/components/layout/ResponsiveNav";
-import DashboardContent from "@/components/layout/DashboardContent";
-import PlanProvider from "@/components/billing/PlanProvider";
-import PlanBanner from "@/components/billing/PlanBanner";
-import { ToastContainer } from "@rakku/ui";
+import OwnerShell from "@/components/layout/OwnerShell";
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +37,5 @@ export default async function OwnerDashboardLayout({
 
   const summary = await getUsageSummary(supabase, company.id);
 
-  return (
-    <PlanProvider summary={summary}>
-      <div className="flex min-h-dvh overflow-hidden bg-neutral-50">
-        <ResponsiveNav owner={ownerData} />
-        <DashboardContent>
-          <PlanBanner />
-          {children}
-        </DashboardContent>
-        <ToastContainer />
-      </div>
-    </PlanProvider>
-  );
+  return <OwnerShell owner={ownerData} summary={summary}>{children}</OwnerShell>;
 }

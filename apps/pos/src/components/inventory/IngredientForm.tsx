@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, MerchantLink as Link, useMerchantToast } from "@pos/lib/merchant-runtime";
 import { IngredientUnit } from "@rakku/shared-types";
 import {
   PageHeader,
@@ -10,10 +9,9 @@ import {
   fieldInputClass,
   fieldSelectClass,
   Toggle,
-  showToast,
 } from "@rakku/ui";
-import { createIngredient, updateIngredient } from "@/lib/supabase/queries.client";
-import { useNavMode } from "@/hooks/useNavMode";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useNavMode } from "@pos/hooks/useNavMode";
 import { ArrowLeft, Check, Boxes, Info } from "lucide-react";
 
 const UNIT_OPTIONS: { value: IngredientUnit; label: string }[] = [
@@ -42,6 +40,8 @@ export default function IngredientForm({
   ingredientId,
   initialIngredient,
 }: IngredientFormProps) {
+  const showToast = useMerchantToast();
+  const { createIngredient, updateIngredient } = useClientQueries();
   const router = useRouter();
   const navMode = useNavMode();
   const isMobileBottom = navMode === "bottom";

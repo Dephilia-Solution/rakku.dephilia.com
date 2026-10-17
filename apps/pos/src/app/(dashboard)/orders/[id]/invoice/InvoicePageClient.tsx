@@ -2,10 +2,10 @@
 
 import { useCallback } from "react";
 import Image from "next/image";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate } from "@pos/lib/format";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
 import { Printer, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
 
 interface OrderItem {
   id: string;
@@ -37,6 +37,12 @@ interface OrderData {
   discount_amount: number;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[character]!));
+}
+
 function buildReceiptHtml(order: OrderData) {
   const paymentLabel =
     order.payment_method === "cash" ? "Tunai" :
@@ -47,26 +53,26 @@ function buildReceiptHtml(order: OrderData) {
     .map((item) => `
     <tr>
       <td colspan="2" style="font-size:9px;padding:2px 0;">
-        <strong>${item.product_name}</strong>
+        <strong>${escapeHtml(item.product_name)}</strong>
       </td>
     </tr>
     <tr>
       <td style="font-size:8px;color:#555;padding:0 0 4px 8px;">
-        ${item.quantity}x ${formatCurrency(item.unit_price)}
-        ${item.modifier_label ? ` — ${item.modifier_label}` : ""}
+        ${escapeHtml(item.quantity)}x ${formatCurrency(item.unit_price)}
+        ${item.modifier_label ? ` — ${escapeHtml(item.modifier_label)}` : ""}
       </td>
       <td style="font-size:8px;color:#555;text-align:right;padding:0 0 4px 0;">
         ${formatCurrency(item.subtotal)}
       </td>
     </tr>
-    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`)
+    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${escapeHtml(item.note)}</td></tr>` : ""}`)
     .join("");
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Invoice #${order.order_number}</title>
+  <title>Invoice #${escapeHtml(order.order_number)}</title>
   <style>
     @page { margin: 0; size: 58mm auto; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -97,18 +103,18 @@ function buildReceiptHtml(order: OrderData) {
 <body>
   <div class="header">
     <h1>RAKKU</h1>
-    <p>Invoice #${order.order_number}</p>
+    <p>Invoice #${escapeHtml(order.order_number)}</p>
   </div>
 
   <div class="divider"></div>
 
   <table class="info-table">
-    <tr><td>Tanggal</td><td>${formatDate(order.created_at)}</td></tr>
-    <tr><td>Customer</td><td>${order.customer_name}</td></tr>
-    ${order.table_name ? `<tr><td>Meja</td><td>${order.table_name}</td></tr>` : ""}
-    ${order.cashier_name ? `<tr><td>Kasir</td><td>${order.cashier_name}</td></tr>` : ""}
-    <tr><td>Tipe</td><td style="text-transform:capitalize">${order.order_type.replace(/_/g, " ")}</td></tr>
-    <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
+    <tr><td>Tanggal</td><td>${escapeHtml(formatDate(order.created_at))}</td></tr>
+    <tr><td>Customer</td><td>${escapeHtml(order.customer_name)}</td></tr>
+    ${order.table_name ? `<tr><td>Meja</td><td>${escapeHtml(order.table_name)}</td></tr>` : ""}
+    ${order.cashier_name ? `<tr><td>Kasir</td><td>${escapeHtml(order.cashier_name)}</td></tr>` : ""}
+    <tr><td>Tipe</td><td style="text-transform:capitalize">${escapeHtml(order.order_type.replace(/_/g, " "))}</td></tr>
+    <tr><td>Pembayaran</td><td>${escapeHtml(paymentLabel)}</td></tr>
   </table>
 
   <div class="divider"></div>
@@ -121,8 +127,8 @@ function buildReceiptHtml(order: OrderData) {
 
   <table class="totals-table">
     <tr><td>Subtotal</td><td>${formatCurrency(order.subtotal)}</td></tr>
-    ${(order.discounts ?? []).map((d) => `<tr><td>${d.name}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
-    ${(order.taxes ?? []).map((t) => `<tr><td>${t.name}${t.type === 'percentage' ? ` (${t.value}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
+    ${(order.discounts ?? []).map((d) => `<tr><td>${escapeHtml(d.name)}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
+    ${(order.taxes ?? []).map((t) => `<tr><td>${escapeHtml(t.name)}${t.type === 'percentage' ? ` (${escapeHtml(t.value)}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
     <tr class="grand-total">
       <td>Total</td>
       <td>${formatCurrency(order.total_price)}</td>

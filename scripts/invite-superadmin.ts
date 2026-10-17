@@ -17,5 +17,6 @@ async function main() {
   await sendEmail({ to: invite.email, subject: "Aktivasi Superadmin Rakku",
     html: `<p>Anda diundang sebagai Superadmin Rakku.</p><p><a href="${activation.href}">Aktifkan akun dan buat password baru</a></p><p>Link berlaku 24 jam dan hanya dapat digunakan satu kali.</p>` });
   console.log(`Invitation sent to ${invite.email}`);
+  console.log(`Activation origin: ${activation.origin} (token is only sent by email)`);
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; }).finally(closeDatabase);

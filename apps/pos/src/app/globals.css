@@ -72,6 +72,13 @@ html:not([data-sidebar-ready]) .pos-main {
   transition: none !important;
 }
 
+@media (max-width: 767px) {
+  .pos-main[data-nav-mode="rail"] {
+    margin-left: 64px;
+    padding-bottom: 0;
+  }
+}
+
 @layer base {
   html {
     -webkit-overflow-scrolling: touch;

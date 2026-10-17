@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency } from "@pos/lib/format";
 import { AppliedTax, AppliedDiscount } from "@rakku/shared-types";
 import { Printer, X } from "lucide-react";
 
@@ -32,6 +32,12 @@ interface InvoiceReceiptProps {
   change?: number;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[character]!));
+}
+
 function buildReceiptHtml(props: InvoiceReceiptProps) {
   const {
     orderNumber, customerName, cashierName, tableName, items,
@@ -49,19 +55,19 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
       (item) => `
     <tr>
       <td colspan="2" style="font-size:9px;padding:2px 0;">
-        <strong>${item.product_name}</strong>
+        <strong>${escapeHtml(item.product_name)}</strong>
       </td>
     </tr>
     <tr>
       <td style="font-size:8px;color:#555;padding:0 0 4px 8px;">
-        ${item.quantity}x ${formatCurrency(item.unit_price)}
-        ${item.modifier_label ? ` — ${item.modifier_label}` : ""}
+        ${escapeHtml(item.quantity)}x ${formatCurrency(item.unit_price)}
+        ${item.modifier_label ? ` — ${escapeHtml(item.modifier_label)}` : ""}
       </td>
       <td style="font-size:8px;color:#555;text-align:right;padding:0 0 4px 0;">
         ${formatCurrency(item.subtotal)}
       </td>
     </tr>
-    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${item.note}</td></tr>` : ""}`
+    ${item.note ? `<tr><td colspan="2" style="font-size:8px;color:#888;font-style:italic;padding:0 0 4px 12px;">Catatan: ${escapeHtml(item.note)}</td></tr>` : ""}`
     )
     .join("");
 
@@ -69,7 +75,7 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Invoice #${orderNumber}</title>
+  <title>Invoice #${escapeHtml(orderNumber)}</title>
   <style>
     @page { margin: 0; size: 58mm auto; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -100,18 +106,18 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
 <body>
   <div class="header">
     <h1>RAKKU</h1>
-    <p>Invoice #${orderNumber}</p>
+    <p>Invoice #${escapeHtml(orderNumber)}</p>
   </div>
 
   <div class="divider"></div>
 
   <table class="info-table">
-    <tr><td>Tanggal</td><td>${createdAt}</td></tr>
-    <tr><td>Customer</td><td>${customerName}</td></tr>
-    ${tableName ? `<tr><td>Meja</td><td>${tableName}</td></tr>` : ""}
-    ${cashierName ? `<tr><td>Kasir</td><td>${cashierName}</td></tr>` : ""}
-    <tr><td>Tipe</td><td style="text-transform:capitalize">${orderType.replace(/_/g, " ")}</td></tr>
-    <tr><td>Pembayaran</td><td>${paymentLabel}</td></tr>
+    <tr><td>Tanggal</td><td>${escapeHtml(createdAt)}</td></tr>
+    <tr><td>Customer</td><td>${escapeHtml(customerName)}</td></tr>
+    ${tableName ? `<tr><td>Meja</td><td>${escapeHtml(tableName)}</td></tr>` : ""}
+    ${cashierName ? `<tr><td>Kasir</td><td>${escapeHtml(cashierName)}</td></tr>` : ""}
+    <tr><td>Tipe</td><td style="text-transform:capitalize">${escapeHtml(orderType.replace(/_/g, " "))}</td></tr>
+    <tr><td>Pembayaran</td><td>${escapeHtml(paymentLabel)}</td></tr>
   </table>
 
   <div class="divider"></div>
@@ -124,8 +130,8 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
 
   <table class="totals-table">
     <tr><td>Subtotal</td><td>${formatCurrency(subtotal)}</td></tr>
-    ${appliedDiscounts.map((d) => `<tr><td>${d.name}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
-    ${appliedTaxes.map((t) => `<tr><td>${t.name}${t.type === 'percentage' ? ` (${t.value}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
+    ${appliedDiscounts.map((d) => `<tr><td>${escapeHtml(d.name)}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
+    ${appliedTaxes.map((t) => `<tr><td>${escapeHtml(t.name)}${t.type === 'percentage' ? ` (${escapeHtml(t.value)}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
     ${cashAmount != null ? `<tr><td>Uang Tunai</td><td>${formatCurrency(cashAmount)}</td></tr>` : ""}
     ${change != null ? `<tr><td>Kembalian</td><td>${formatCurrency(change)}</td></tr>` : ""}
     <tr class="grand-total">
@@ -207,6 +213,7 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
           {onClose && (
             <button
               onClick={onClose}
+              aria-label="Tutup invoice"
               className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-600"
             >
               <X size={16} />

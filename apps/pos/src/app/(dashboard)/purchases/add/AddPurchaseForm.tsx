@@ -1,18 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, MerchantLink as Link, useMerchantToast } from "@pos/lib/merchant-runtime";
 import { Ingredient } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency } from "@pos/lib/format";
 import {
-  showToast,
   PageHeader,
   FormField,
   fieldInputClass,
   fieldSelectClass,
 } from "@rakku/ui";
-import { createPurchase } from "@/lib/supabase/queries.client";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
 import {
   ArrowLeft,
   Check,
@@ -44,6 +42,8 @@ function newRow(): ItemRow {
 }
 
 export default function AddPurchaseForm({ ingredients }: Props) {
+  const showToast = useMerchantToast();
+  const { createPurchase } = useClientQueries();
   const router = useRouter();
   const [supplierName, setSupplierName] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");

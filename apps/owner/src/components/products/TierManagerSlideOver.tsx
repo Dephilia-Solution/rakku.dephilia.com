@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { PricingTier } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass, Toggle } from "@rakku/ui";
+import { SlideOver, fieldInputClass, Toggle } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   DndContext,
@@ -161,6 +162,9 @@ export default function TierManagerSlideOver({
   outletId,
   onTiersChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [tiers, setTiers] = useState<PricingTier[]>([]);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState("");
@@ -187,35 +191,41 @@ export default function TierManagerSlideOver({
     onTiersChangeRef.current?.(next);
   }, []);
 
-  const fetchTiers = useCallback(async () => {
-    if (!outletId) return;
+  const fetchTiers = useCallback(async (signal?: AbortSignal) => {
+    if (!outletId || signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/owner/pricing-tiers?outlet_id=${encodeURIComponent(outletId)}`
+      const res = await request(
+        `/api/owner/pricing-tiers?outlet_id=${encodeURIComponent(outletId)}`,
+        { signal }
       );
       if (res.ok) {
         const data = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
         applyTiers(data.tiers ?? []);
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       showToast("error", "Gagal memuat data tier");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId, applyTiers]);
+  }, [outletId, applyTiers, request, showToast, isActive]);
 
   useEffect(() => {
-    if (open) fetchTiers();
+    const controller = new AbortController();
+    if (open) void fetchTiers(controller.signal);
+    return () => controller.abort();
   }, [open, fetchTiers]);
 
   const handleAdd = async () => {
+    if (isActive?.() === false) return;
     const name = newName.trim();
     if (!name || saving) return;
     setSaving(true);
     try {
       const maxSort = tiers.reduce((m, t) => Math.max(m, t.sort_order), 0);
-      const res = await fetch("/api/owner/pricing-tiers", {
+      const res = await request("/api/owner/pricing-tiers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -225,6 +235,7 @@ export default function TierManagerSlideOver({
           sort_order: maxSort + 1,
         }),
       });
+      if (isActive?.() === false) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Gagal menambah tier");
@@ -233,17 +244,18 @@ export default function TierManagerSlideOver({
       showToast("success", "Tier berhasil ditambahkan");
       await fetchTiers();
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menambah tier";
       showToast("error", msg);
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!editId || !editName.trim()) return;
+    if (!editId || !editName.trim() || isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/pricing-tiers/${editId}`, {
+      const res = await request(`/api/owner/pricing-tiers/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -251,6 +263,7 @@ export default function TierManagerSlideOver({
           slug: slugify(editName),
         }),
       });
+      if (isActive?.() === false) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Gagal mengupdate tier");
@@ -260,18 +273,21 @@ export default function TierManagerSlideOver({
       showToast("success", "Tier berhasil diupdate");
       await fetchTiers();
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal mengupdate tier";
       showToast("error", msg);
     }
   };
 
   const handleToggleActive = async (tier: PricingTier) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/pricing-tiers/${tier.id}`, {
+      const res = await request(`/api/owner/pricing-tiers/${tier.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !tier.is_active }),
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         applyTiers(
           tiers.map((t) =>
@@ -284,29 +300,35 @@ export default function TierManagerSlideOver({
         );
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal mengubah status tier");
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/pricing-tiers/${id}`, {
+      const res = await request(`/api/owner/pricing-tiers/${id}`, {
         method: "DELETE",
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         showToast("success", "Tier berhasil dihapus");
         await fetchTiers();
       } else {
         const data = await res.json();
+        if (isActive?.() === false) return;
         showToast("error", data.error ?? "Gagal menghapus");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal menghapus");
     }
   };
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      if (isActive?.() === false) return;
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
@@ -320,21 +342,23 @@ export default function TierManagerSlideOver({
       applyTiers(updated);
 
       try {
-        const res = await fetch("/api/owner/pricing-tiers", {
+        const res = await request("/api/owner/pricing-tiers", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orders: updated.map((t) => ({ id: t.id, sort_order: t.sort_order })),
           }),
         });
+        if (isActive?.() === false) return;
         if (!res.ok) throw new Error("Gagal menyimpan urutan");
       } catch (err) {
+        if (isActive?.() === false) return;
         const msg = err instanceof Error ? err.message : "Gagal menyimpan urutan";
         showToast("error", msg);
         applyTiers(tiers);
       }
     },
-    [items, tiers, applyTiers]
+    [items, tiers, applyTiers, request, showToast, isActive]
   );
 
   return (

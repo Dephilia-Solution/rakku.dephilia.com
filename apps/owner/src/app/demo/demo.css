@@ -1,0 +1,19 @@
+/* Same POS layout rules as its document stylesheet, scoped to the demo host. */
+.demo-pos {
+  --cart-bar-height: 120px;
+  --content-bottom-offset: calc(var(--nav-bottom-safe) + var(--cart-bar-height));
+}
+.demo-pos .font-sans { font-family: "DM Sans", sans-serif; }
+
+@media (min-width: 768px) {
+  .demo-pos .pos-main { margin-left: 240px; }
+  html[data-pos-sidebar="collapsed"] .demo-pos .pos-main { margin-left: 64px; }
+}
+@media (max-width: 767px) {
+  .pos-main[data-nav-mode="rail"] { margin-left: 64px; padding-bottom: 0; }
+}
+html:not([data-sidebar-ready]) .demo-pos .pos-main { transition: none !important; }
+
+@media (max-width: 639px) {
+  .demo-pos .mobile-slide-up { animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+}

@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { SplitPayment, PaymentMethod, CartItem } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency } from "@pos/lib/format";
 import { X, Plus, Minus } from "lucide-react";
 
 interface SplitBillPanelProps {
   items: CartItem[];
-  total: number;
+  total?: number;
   onSplitChange: (payments: SplitPayment[]) => void;
 }
 
@@ -42,7 +42,7 @@ function generateId() {
   return `split-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export default function SplitBillPanel({ items, total, onSplitChange }: SplitBillPanelProps) {
+export default function SplitBillPanel({ items, total = items.reduce((sum, item) => sum + item.subtotal, 0), onSplitChange }: SplitBillPanelProps) {
   const [persons, setPersons] = useState<SplitPerson[]>(() => [
     { id: generateId(), name: "", method: "cash", items: [] },
     { id: generateId(), name: "", method: "cash", items: [] },
@@ -58,13 +58,31 @@ export default function SplitBillPanel({ items, total, onSplitChange }: SplitBil
     return cartItem.quantity - assigned;
   };
 
-  const getPersonTotal = useCallback((person: SplitPerson): number => {
-    return person.items.reduce((sum, pi) => {
+  const personTotals = useMemo(() => {
+    const weights = persons.map((person) => person.items.reduce((sum, pi) => {
       const cartItem = items.find((i) => i.id === pi.cartItemId);
       if (!cartItem) return sum;
-      return sum + pi.quantity * cartItem.unit_price;
-    }, 0);
-  }, [items]);
+      return sum + pi.quantity * (cartItem.subtotal / cartItem.quantity);
+    }, 0));
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    let allocated = 0;
+    let cumulative = 0;
+    return weights.map((weight, index) => {
+      cumulative += subtotal > 0 ? weight / subtotal : quantity > 0
+        ? persons[index].items.reduce((sum, item) => sum + item.quantity, 0) / quantity : 0;
+      const target = cumulative >= 1 - Number.EPSILON * persons.length
+        ? total
+        : Math.round(total * Math.min(1, cumulative));
+      const amount = target - allocated;
+      allocated = target;
+      return amount;
+    });
+  }, [items, persons, total]);
+
+  const getPersonTotal = useCallback((person: SplitPerson): number => {
+    return personTotals[persons.findIndex((entry) => entry.id === person.id)] ?? 0;
+  }, [persons, personTotals]);
 
   const allAssigned = useMemo(() => {
     return items.every((item) => {

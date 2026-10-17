@@ -30,10 +30,14 @@
     "db:check": "tsx scripts/neon-check.ts",
     "db:smoke": "tsx scripts/neon-smoke.ts",
     "smoke:http": "tsx scripts/neon-http-smoke.ts",
+    "smoke:production": "tsx scripts/neon-production-smoke.ts",
+    "admin:status": "tsx scripts/neon-admin-status.ts",
     "auth:check": "tsx scripts/neon-auth-check.ts",
     "env:check": "tsx scripts/neon-env-check.ts",
     "admin:invite": "tsx scripts/invite-superadmin.ts",
-    "test:db": "pnpm --filter @rakku/db test"
+    "test:db": "pnpm --filter @rakku/db test",
+    "test:demo": "pnpm --filter @rakku/demo test",
+    "test:demo:browser": "node packages/demo/e2e/run-production.mjs --routed"
   },
   "devDependencies": {
     "@rakku/silos-client": "workspace:*",

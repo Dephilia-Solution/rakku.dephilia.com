@@ -6,8 +6,8 @@ import {
   SlideOver,
   FormField,
   fieldInputClass,
-  showToast,
 } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 
 interface Props {
   open: boolean;
@@ -24,6 +24,9 @@ export default function TaxFormSlideOver({
   tax,
   onSuccess,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [name, setName] = useState("");
   const [type, setType] = useState<"percentage" | "fixed">("percentage");
   const [value, setValue] = useState(0);
@@ -41,6 +44,7 @@ export default function TaxFormSlideOver({
   }, [open, tax]);
 
   const handleSubmit = async () => {
+    if (isActive?.() === false) return;
     if (!name.trim()) {
       showToast("error", "Nama pajak wajib diisi");
       return;
@@ -53,16 +57,17 @@ export default function TaxFormSlideOver({
     try {
       const payload = { name: name.trim(), type, value, sort_order: sortOrder };
       const res = tax
-        ? await fetch(`/api/owner/taxes/${tax.id}`, {
+        ? await request(`/api/owner/taxes/${tax.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch("/api/owner/taxes", {
+        : await request("/api/owner/taxes", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ outlet_id: outletId, ...payload }),
           });
+      if (isActive?.() === false) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Gagal menyimpan pajak");
@@ -70,10 +75,11 @@ export default function TaxFormSlideOver({
       showToast("success", tax ? "Pajak berhasil diperbarui" : "Pajak berhasil ditambahkan");
       onSuccess();
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menyimpan pajak";
       showToast("error", msg);
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 

@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Category } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass } from "@rakku/ui";
+import { SlideOver, fieldInputClass } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   DndContext,
@@ -144,6 +145,9 @@ export default function CategoryManagerSlideOver({
   categories,
   onCategoriesChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [newName, setNewName] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -161,11 +165,12 @@ export default function CategoryManagerSlideOver({
   );
 
   const handleAdd = async () => {
+    if (isActive?.() === false) return;
     const name = newName.trim();
     if (!name || saving) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/owner/categories", {
+      const res = await request("/api/owner/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ outlet_id: outletId, name }),
@@ -175,6 +180,7 @@ export default function CategoryManagerSlideOver({
         throw new Error(data.error ?? "Gagal menambah kategori");
       }
       const data = await res.json();
+      if (isActive?.() === false) return;
       onCategoriesChange([
         ...categories,
         { id: data.id, name: data.name, sort_order: data.sort_order },
@@ -182,21 +188,23 @@ export default function CategoryManagerSlideOver({
       setNewName("");
       showToast("success", "Kategori berhasil ditambahkan");
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menambah kategori";
       showToast("error", msg);
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!editId || !editName.trim()) return;
+    if (!editId || !editName.trim() || isActive?.() === false) return;
     try {
-      const res = await fetch("/api/owner/categories", {
+      const res = await request("/api/owner/categories", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editId, name: editName.trim() }),
       });
+      if (isActive?.() === false) return;
       if (!res.ok) throw new Error("Gagal mengupdate kategori");
       onCategoriesChange(
         categories.map((c) =>
@@ -207,20 +215,24 @@ export default function CategoryManagerSlideOver({
       setEditName("");
       showToast("success", "Kategori berhasil diupdate");
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal mengupdate kategori";
       showToast("error", msg);
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/categories?id=${id}`, {
+      const res = await request(`/api/owner/categories?id=${id}`, {
         method: "DELETE",
       });
+      if (isActive?.() === false) return;
       if (!res.ok) throw new Error("Gagal menghapus kategori");
       onCategoriesChange(categories.filter((c) => c.id !== id));
       showToast("success", "Kategori berhasil dihapus");
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menghapus kategori";
       showToast("error", msg);
     }
@@ -228,6 +240,7 @@ export default function CategoryManagerSlideOver({
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      if (isActive?.() === false) return;
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
@@ -241,21 +254,23 @@ export default function CategoryManagerSlideOver({
       onCategoriesChange(updated);
 
       try {
-        const res = await fetch("/api/owner/categories", {
+        const res = await request("/api/owner/categories", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orders: updated.map((cat) => ({ id: cat.id, sort_order: cat.sort_order })),
           }),
         });
+        if (isActive?.() === false) return;
         if (!res.ok) throw new Error("Gagal menyimpan urutan");
       } catch (err) {
+        if (isActive?.() === false) return;
         const msg = err instanceof Error ? err.message : "Gagal menyimpan urutan";
         showToast("error", msg);
         onCategoriesChange(categories);
       }
     },
-    [items, categories, onCategoriesChange]
+    [items, categories, onCategoriesChange, request, showToast, isActive]
   );
 
   return (

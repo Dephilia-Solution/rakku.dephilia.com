@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { MerchantLink as Link, useMerchantToast } from "@pos/lib/merchant-runtime";
 import { Ingredient } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
-import { showToast, Badge, EmptyState, PageHeader, FormField, fieldInputClass } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { usePlan } from "@/components/billing/PlanProvider";
-import { updateIngredient, deleteIngredient, adjustIngredientStock } from "@/lib/supabase/queries.client";
+import { formatCurrency } from "@pos/lib/format";
+import { Badge, EmptyState, PageHeader, FormField, fieldInputClass } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { usePlan } from "@pos/components/billing/PlanProvider";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
 import {
   Plus,
   Search,
@@ -33,6 +33,8 @@ function formatStock(value: number): string {
 }
 
 export default function IngredientsClient({ ingredients: initialIngredients }: Props) {
+  const showToast = useMerchantToast();
+  const { updateIngredient, deleteIngredient, adjustIngredientStock } = useClientQueries();
   const { hasFeature, openUpgrade } = usePlan();
   const [ingredientList, setIngredientList] = useState(initialIngredients);
   const [search, setSearch] = useState("");

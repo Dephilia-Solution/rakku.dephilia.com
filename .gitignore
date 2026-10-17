@@ -30,6 +30,19 @@ Thumbs.db
 # Backup
 .package-lock.json.bak
 
+# Demo e2e: harness standalone lama (UI dihapus, digantikan suite routed)
+packages/demo/e2e/acceptance.mjs
+packages/demo/e2e/billing.mjs
+packages/demo/e2e/browser.mjs
+packages/demo/e2e/chrome.mjs
+packages/demo/e2e/commerce.mjs
+packages/demo/e2e/lifecycle.mjs
+packages/demo/e2e/management.mjs
+packages/demo/e2e/production.mjs
+packages/demo/e2e/email-contract-update.md
+packages/demo/e2e/first-run-findings.md
+packages/demo/e2e/lifecycle-audit-findings.md
+
 # Dokumen historis dan file non-sistem
 PRD.md
 PRD_V5_CAFE.md

@@ -1,4 +1,5 @@
 "use client";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
 
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import { usePlan } from "./PlanProvider";
@@ -37,14 +38,14 @@ export default function LimitBanner() {
                   : ""
               }.`}
         </div>
-        <a
+        <Link
           href={upgradeUrl}
           target="_blank"
           rel="noreferrer"
           className="shrink-0 rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-amber-700 text-center"
         >
           Upgrade
-        </a>
+        </Link>
       </div>
     );
   }
@@ -56,14 +57,14 @@ export default function LimitBanner() {
         <div className="flex-1">
           <b>Kuota transaksi hampir penuh:</b> {used}/{max} bulan ini.
         </div>
-        <a
+        <Link
           href={upgradeUrl}
           target="_blank"
           rel="noreferrer"
           className="shrink-0 rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-amber-700 text-center"
         >
           Upgrade
-        </a>
+        </Link>
       </div>
     );
   }

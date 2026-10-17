@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 export type NavMode = "bottom" | "rail" | "sidebar";
 
-const PHONE_MAX_WIDTH = 767;
+const PHONE_MAX_WIDTH = 768;
 const TABLET_MIN_WIDTH = 768;
 
 export function useNavMode(): NavMode {
@@ -13,7 +13,7 @@ export function useNavMode(): NavMode {
   useEffect(() => {
     function getMode(): NavMode {
       const width = window.innerWidth;
-      const orientationType = window.screen.orientation?.type;
+      const orientationType = window.matchMedia("(pointer: coarse)").matches ? window.screen.orientation?.type : undefined;
       let isPortrait: boolean;
       let isLandscape: boolean;
 
@@ -58,7 +58,7 @@ export function useIsPhoneLandscape(): boolean {
 
   useEffect(() => {
     function getLandscape(): boolean {
-      const orientationType = window.screen.orientation?.type;
+      const orientationType = window.matchMedia("(pointer: coarse)").matches ? window.screen.orientation?.type : undefined;
       if (orientationType) {
         return orientationType.includes("landscape");
       }

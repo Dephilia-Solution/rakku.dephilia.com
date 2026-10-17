@@ -1,6 +1,6 @@
 "use client";
 
-import { useModalHistory } from "@/hooks/useModalHistory";
+import { useModalHistory } from "@pos/hooks/useModalHistory";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 
 interface ConfirmDialogProps {

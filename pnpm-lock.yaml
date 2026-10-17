@@ -111,6 +111,9 @@ importers:
       '@rakku/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@rakku/demo':
+        specifier: workspace:*
+        version: link:../../packages/demo
       '@rakku/echo-client':
         specifier: workspace:*
         version: link:../../packages/echo-client
@@ -417,6 +420,49 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/demo:
+    dependencies:
+      '@rakku/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@rakku/ui':
+        specifier: workspace:*
+        version: link:../ui
+      lucide-react:
+        specifier: ^0.460.0
+        version: 0.460.0(react@18.3.1)
+      qrcode.react:
+        specifier: ^4.2.0
+        version: 4.2.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      '@types/react':
+        specifier: ^18
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18
+        version: 18.3.7(@types/react@18.3.31)
+      eslint:
+        specifier: ^8
+        version: 8.57.1
+      eslint-config-next:
+        specifier: 14.2.35
+        version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/echo-client: {}
 
   packages/emails:
@@ -482,6 +528,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@rakku/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       lucide-react:
         specifier: ^0.460.0
         version: 0.460.0(react@18.3.1)

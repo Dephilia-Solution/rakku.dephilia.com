@@ -5,6 +5,8 @@ const config: Config = {
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx}",
+    "../../packages/demo/src/ui/**/*.{js,ts,jsx,tsx}",
+    "../pos/src/**/*.{js,ts,jsx,tsx}",
   ],
   presets: [rakkuPreset],
   plugins: [],

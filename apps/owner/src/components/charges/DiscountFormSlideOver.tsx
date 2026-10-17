@@ -11,8 +11,8 @@ import {
   FormField,
   fieldInputClass,
   fieldSelectClass,
-  showToast,
 } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 
 interface Props {
   open: boolean;
@@ -31,6 +31,9 @@ export default function DiscountFormSlideOver({
   scope,
   onSuccess,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [name, setName] = useState("");
   const [type, setType] = useState<"percentage" | "fixed">("percentage");
   const [value, setValue] = useState(0);
@@ -54,17 +57,24 @@ export default function DiscountFormSlideOver({
   }, [open, discount]);
 
   useEffect(() => {
+    const controller = new AbortController();
     if (open && scope === "product" && outletId) {
       setLoadingProducts(true);
-      fetch(`/api/owner/products?outlet_id=${encodeURIComponent(outletId)}`)
+      request(`/api/owner/products?outlet_id=${encodeURIComponent(outletId)}`, { signal: controller.signal })
         .then((res) => (res.ok ? res.json() : { products: [] }))
-        .then((data) => setProducts(data.products ?? []))
+        .then((data) => {
+          if (!controller.signal.aborted && isActive?.() !== false) setProducts(data.products ?? []);
+        })
         .catch(() => {})
-        .finally(() => setLoadingProducts(false));
+        .finally(() => {
+          if (!controller.signal.aborted && isActive?.() !== false) setLoadingProducts(false);
+        });
     }
-  }, [open, scope, outletId]);
+    return () => controller.abort();
+  }, [open, scope, outletId, request, isActive]);
 
   const handleSubmit = async () => {
+    if (isActive?.() === false) return;
     if (!name.trim()) {
       showToast("error", "Nama diskon wajib diisi");
       return;
@@ -97,16 +107,17 @@ export default function DiscountFormSlideOver({
         end_date: new Date(endDate).toISOString(),
       };
       const res = discount
-        ? await fetch(`/api/owner/discounts/${discount.id}?scope=${scope}`, {
+        ? await request(`/api/owner/discounts/${discount.id}?scope=${scope}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch("/api/owner/discounts", {
+        : await request("/api/owner/discounts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ outlet_id: outletId, ...payload }),
           });
+      if (isActive?.() === false) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Gagal menyimpan diskon");
@@ -117,10 +128,11 @@ export default function DiscountFormSlideOver({
       );
       onSuccess();
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menyimpan diskon";
       showToast("error", msg);
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 

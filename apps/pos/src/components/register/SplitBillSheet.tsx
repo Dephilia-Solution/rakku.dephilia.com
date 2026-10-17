@@ -2,14 +2,14 @@
 
 import { useEffect } from "react";
 import { SplitPayment, CartItem } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
-import { useIsMobile } from "@/hooks/useMediaQuery";
-import SplitBillPanel from "@/components/register/SplitBillPanel";
+import { formatCurrency } from "@pos/lib/format";
+import { useIsMobile } from "@pos/hooks/useMediaQuery";
+import SplitBillPanel from "@pos/components/register/SplitBillPanel";
 import { X, ChevronLeft } from "lucide-react";
 
 interface SplitBillSheetProps {
   items: CartItem[];
-  total: number;
+  total?: number;
   splitPayments: SplitPayment[];
   onSplitChange: (payments: SplitPayment[]) => void;
   onCancel: () => void;
@@ -18,7 +18,7 @@ interface SplitBillSheetProps {
 
 export default function SplitBillSheet({
   items,
-  total,
+  total = items.reduce((sum, item) => sum + item.subtotal, 0),
   splitPayments,
   onSplitChange,
   onCancel,

@@ -22,6 +22,7 @@
     "@rakku/shared-types": "workspace:*",
     "@rakku/silos-client": "workspace:*",
     "@rakku/db": "workspace:*",
+    "@rakku/demo": "workspace:*",
     "@rakku/ui": "workspace:*",
     "@rakku/vessel-client": "workspace:*",
     "bcryptjs": "^3.0.3",

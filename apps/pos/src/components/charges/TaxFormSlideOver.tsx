@@ -6,8 +6,8 @@ import {
   SlideOver,
   FormField,
   fieldInputClass,
-  showToast,
 } from "@rakku/ui";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 
 interface Props {
   open: boolean;
@@ -17,6 +17,8 @@ interface Props {
 }
 
 export default function TaxFormSlideOver({ open, onClose, tax, onSuccess }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [name, setName] = useState("");
   const [type, setType] = useState<"percentage" | "fixed">("percentage");
   const [value, setValue] = useState(0);
@@ -45,7 +47,7 @@ export default function TaxFormSlideOver({ open, onClose, tax, onSuccess }: Prop
     setSaving(true);
     try {
       const payload = { name: name.trim(), type, value, sort_order: sortOrder };
-      const res = await fetch("/api/admin/taxes", {
+      const res = await request("/api/admin/taxes", {
         method: tax ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(tax ? { id: tax.id, ...payload } : payload),

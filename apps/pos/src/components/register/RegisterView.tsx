@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useCartStore } from "@/lib/store/cartStore";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useCartStore, useCartStoreApi } from "@pos/lib/store/cartStore";
+import { useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import { ProductWithCategory, Category, Modifier, PricingTier, CartItem } from "@rakku/shared-types";
-import CategoryTabs from "@/components/register/CategoryTabs";
-import ProductGrid from "@/components/register/ProductGrid";
-import OrderSidebar from "@/components/register/OrderSidebar";
-import MobileCartBar from "@/components/register/MobileCartBar";
-import PaymentModal from "@/components/register/PaymentModal";
-import DraftOrdersPanel from "@/components/register/DraftOrdersPanel";
+import CategoryTabs from "@pos/components/register/CategoryTabs";
+import ProductGrid from "@pos/components/register/ProductGrid";
+import OrderSidebar from "@pos/components/register/OrderSidebar";
+import MobileCartBar from "@pos/components/register/MobileCartBar";
+import PaymentModal from "@pos/components/register/PaymentModal";
+import DraftOrdersPanel, { type DraftOrder } from "@pos/components/register/DraftOrdersPanel";
 import { Search, Command, X } from "lucide-react";
-import { useModalHistory } from "@/hooks/useModalHistory";
+import { useModalHistory } from "@pos/hooks/useModalHistory";
 
 type ModifierWithTierPrices = Modifier & { tier_prices?: { modifier_id: string; tier_id: string; price_delta: number }[] };
 
@@ -37,6 +38,9 @@ export default function RegisterView({
   initialActiveOrderDiscounts,
   initialDraftCount,
 }: RegisterViewProps) {
+  const runtime = useMerchantRuntime();
+  const cartStore = useCartStoreApi();
+  const hydrated = useRef<{ store: typeof cartStore; content: string } | null>(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showPayment, setShowPayment] = useState(false);
@@ -66,9 +70,21 @@ export default function RegisterView({
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [itemNote, setItemNote] = useState("");
 
-  const [pricingTiers] = useState<PricingTier[]>(initialPricingTiers);
+  const [productionPricingTiers] = useState<PricingTier[]>(initialPricingTiers);
+  const pricingTiers = runtime ? initialPricingTiers : productionPricingTiers;
+  const scopedProducts = runtime ? products : null;
 
   useEffect(() => {
+    const content = JSON.stringify([scopedProducts, initialPricingTiers, initialProductTierPrices, modifiers, initialActiveTaxes, initialActiveProductDiscounts, initialActiveOrderDiscounts]);
+    if (runtime && hydrated.current?.store === cartStore && hydrated.current.content === content) return;
+    if (scopedProducts) {
+      cartStore.setState((state) => ({
+        items: state.items.map((item) => ({
+          ...item,
+          product: scopedProducts.find((product) => product.id === item.product.id) ?? item.product,
+        })),
+      }));
+    }
     const tierPriceMap: Record<string, Record<string, number>> = {};
     for (const ptp of initialProductTierPrices) {
       if (!tierPriceMap[ptp.product_id]) {
@@ -91,7 +107,8 @@ export default function RegisterView({
     setActiveTaxes(initialActiveTaxes);
     setActiveProductDiscounts(initialActiveProductDiscounts);
     setActiveOrderDiscounts(initialActiveOrderDiscounts);
-  }, [setPricingTiers, setActiveTaxes, setActiveProductDiscounts, setActiveOrderDiscounts, initialPricingTiers, initialProductTierPrices, initialActiveTaxes, initialActiveProductDiscounts, initialActiveOrderDiscounts, modifiers]);
+    hydrated.current = { store: cartStore, content };
+  }, [runtime, cartStore, scopedProducts, setPricingTiers, setActiveTaxes, setActiveProductDiscounts, setActiveOrderDiscounts, initialPricingTiers, initialProductTierPrices, initialActiveTaxes, initialActiveProductDiscounts, initialActiveOrderDiscounts, modifiers]);
 
   const modifierTierDeltaMap = useCartStore((s) => s.modifierTierDeltaMap);
 
@@ -220,15 +237,17 @@ export default function RegisterView({
     setShowPayment(true);
   };
 
-  const handleSelectDraft = async (draft: { id: string; customer_name: string; pricing_tier_id: string | null; order_items: Array<{ product_id: string; product_name: string; quantity: number; unit_price: number; subtotal: number; modifier_label: string | null; note: string | null }> }) => {
-    const clear = useCartStore.getState().clear;
-    const setDraftOrderId = useCartStore.getState().setDraftOrderId;
-    const setCustomerName = useCartStore.getState().setCustomerName;
-    const restoreDraftItem = useCartStore.getState().restoreDraftItem;
+  const handleSelectDraft = async (draft: DraftOrder) => {
+    const { clear, setDraftOrderId, setCustomerName, restoreDraftItem, setPricingTier, setTableId, setTableName, setNote, setOrderType } = cartStore.getState();
 
     clear();
     setDraftOrderId(draft.id);
     setCustomerName(draft.customer_name);
+    setPricingTier(draft.pricing_tier_id);
+    setTableId(draft.table_id ?? null);
+    setTableName(draft.table_name ?? draft.tables?.name ?? null);
+    setNote(draft.note ?? "");
+    if (draft.order_type) setOrderType(draft.order_type);
 
     for (const item of draft.order_items) {
       const product = products.find((p) => p.id === item.product_id)
@@ -239,7 +258,13 @@ export default function RegisterView({
         id: "",
         product,
         quantity: item.quantity,
-        modifiers: [],
+        modifiers: item.modifiers ?? [
+          ...(item.modifier_ids ?? []).flatMap((id) => {
+            const modifier = modifiers.find((entry) => entry.id === id && entry.product_id === product.id);
+            return modifier ? [modifier] : [];
+          }),
+          ...(item.custom_modifiers ?? []),
+        ],
         modifier_label: item.modifier_label,
         unit_price: item.unit_price,
         subtotal: item.subtotal,
@@ -253,7 +278,7 @@ export default function RegisterView({
   };
 
   const handleSelectTier = (tierId: string | null) => {
-    useCartStore.getState().setPricingTier(tierId);
+    cartStore.getState().setPricingTier(tierId);
   };
 
   return (
@@ -341,7 +366,7 @@ export default function RegisterView({
         onOpenDraft={() => setShowDraftPanel(true)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
-        initialDraftCount={draftCount}
+        initialDraftCount={runtime ? initialDraftCount : draftCount}
       />
 
       {/* Mobile: Cart Drawer */}
@@ -356,7 +381,7 @@ export default function RegisterView({
         onOpenDraft={() => setShowDraftPanel(true)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
-        initialDraftCount={draftCount}
+        initialDraftCount={runtime ? initialDraftCount : draftCount}
       />
 
       {/* Mobile: Persistent Cart Bar */}

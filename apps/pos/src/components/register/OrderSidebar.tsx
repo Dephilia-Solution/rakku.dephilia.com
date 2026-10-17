@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCartStore, useCartTotals, useCartGroupedByProduct } from "@/lib/store/cartStore";
-import { formatCurrency } from "@/lib/format";
-import { showToast, EmptyState } from "@rakku/ui";
-import ItemDetailModal from "@/components/register/ItemDetailModal";
+import { useCartStore, useCartTotals, useCartGroupedByProduct } from "@pos/lib/store/cartStore";
+import { formatCurrency } from "@pos/lib/format";
+import { EmptyState } from "@rakku/ui";
+import ItemDetailModal from "@pos/components/register/ItemDetailModal";
 import { Product, CartItem, DiningTable } from "@rakku/shared-types";
-import { getTables } from "@/lib/supabase/queries.client";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useMerchantRequest, useMerchantToast, useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import { Trash2, ShoppingBag, X, Clock, Send, Pencil, ChevronRight, Minus, Plus, Grid3X3 } from "lucide-react";
 
 interface OrderSidebarProps {
@@ -30,6 +31,10 @@ export default function OrderSidebar({
   refreshKey,
   initialDraftCount = 0,
 }: OrderSidebarProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const scoped = Boolean(useMerchantRuntime());
+  const { getTables } = useClientQueries();
   const items = useCartStore((s) => s.items);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
@@ -44,6 +49,9 @@ export default function OrderSidebar({
   const groupedCart = useCartGroupedByProduct();
 
   const [draftCount, setDraftCount] = useState(initialDraftCount);
+  useEffect(() => {
+    if (scoped) setDraftCount(initialDraftCount);
+  }, [scoped, initialDraftCount]);
   const [detailItem, setDetailItem] = useState<{ product: Product; variants: CartItem[] } | null>(null);
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyVal, setEditingQtyVal] = useState<string>("");
@@ -71,7 +79,7 @@ export default function OrderSidebar({
   useEffect(() => {
     const fetchDraftCount = async () => {
       try {
-        const res = await fetch("/api/admin/orders/draft");
+        const res = await request("/api/admin/orders/draft");
         if (res.ok) {
           const data = await res.json();
           setDraftCount(data.length);
@@ -81,7 +89,7 @@ export default function OrderSidebar({
     fetchDraftCount();
     const interval = setInterval(fetchDraftCount, 30000);
     return () => clearInterval(interval);
-  }, [refreshKey]);
+  }, [refreshKey, request]);
 
   useEffect(() => {
     const fetchTables = async () => {
@@ -92,7 +100,7 @@ export default function OrderSidebar({
       setTablesLoaded(true);
     };
     fetchTables();
-  }, [refreshKey]);
+  }, [refreshKey, getTables]);
 
   const content = (
     <>

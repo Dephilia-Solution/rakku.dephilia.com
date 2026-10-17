@@ -11,8 +11,8 @@ import {
   FormField,
   fieldInputClass,
   fieldSelectClass,
-  showToast,
 } from "@rakku/ui";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 
 interface Props {
   open: boolean;
@@ -29,6 +29,8 @@ export default function DiscountFormSlideOver({
   scope,
   onSuccess,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [name, setName] = useState("");
   const [type, setType] = useState<"percentage" | "fixed">("percentage");
   const [value, setValue] = useState(0);
@@ -54,13 +56,13 @@ export default function DiscountFormSlideOver({
   useEffect(() => {
     if (open && scope === "product") {
       setLoadingProducts(true);
-      fetch("/api/admin/products")
+      request("/api/admin/products")
         .then((res) => (res.ok ? res.json() : []))
         .then(setProducts)
         .catch(() => {})
         .finally(() => setLoadingProducts(false));
     }
-  }, [open, scope]);
+  }, [open, scope, request]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -94,7 +96,7 @@ export default function DiscountFormSlideOver({
         start_date: new Date(startDate).toISOString(),
         end_date: new Date(endDate).toISOString(),
       };
-      const res = await fetch("/api/admin/discounts", {
+      const res = await request("/api/admin/discounts", {
         method: discount ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(

@@ -1,6 +1,7 @@
 "use client";
 
 import { Sparkles, X } from "lucide-react";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
 
 interface UpgradeModalProps {
   message: string;
@@ -47,14 +48,14 @@ export default function UpgradeModal({
           >
             Nanti
           </button>
-          <a
+          <Link
             href={upgradeUrl}
             target="_blank"
             rel="noreferrer"
             className="flex-1 bg-forest text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-forest-dark text-center"
           >
             Buka dashboard owner
-          </a>
+          </Link>
         </div>
       </div>
     </div>

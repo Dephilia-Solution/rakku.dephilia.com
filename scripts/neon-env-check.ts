@@ -29,6 +29,8 @@ const tracked = execFileSync("git", ["ls-files", "--", ".env*", "apps/*/.env*"],
 for (const path of tracked) {
   if (!existsSync(path)) continue;
   const env = parse(readFileSync(path));
-  assert.ok(!Object.keys(env).some(key => /SECRET|PASSWORD|API_KEY|DATABASE_URL|SUPABASE/.test(key)), `${path}: tracked secret variable`);
+  // Tracked .env.example files intentionally declare empty secret keys.
+  // Reject actual values, not the empty placeholders needed for configuration.
+  assert.ok(!Object.entries(env).some(([key, value]) => /SECRET|PASSWORD|API_KEY|DATABASE_URL|SUPABASE/.test(key) && value.trim() !== ""), `${path}: tracked secret value`);
 }
 console.log("Environment audit passed; no credential values printed.");

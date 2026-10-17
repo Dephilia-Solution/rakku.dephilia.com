@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { DiningTable } from "@rakku/shared-types";
-import { showToast, Badge, EmptyState, PageHeader, FormField, fieldInputClass } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { createTable, updateTable, deleteTable, generateTables } from "@/lib/supabase/queries.client";
+import { Badge, EmptyState, PageHeader, FormField, fieldInputClass } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useMerchantToast } from "@pos/lib/merchant-runtime";
 import { Plus, Search, Grid3X3, Pencil, Trash2, X, Check, Wand2 } from "lucide-react";
 
 interface Props {
@@ -18,6 +19,8 @@ interface FormState {
 const emptyForm: FormState = { name: "" };
 
 export default function TablesClient({ tables: initialTables }: Props) {
+  const showToast = useMerchantToast();
+  const { createTable, updateTable, deleteTable, generateTables } = useClientQueries();
   const [tableList, setTableList] = useState(initialTables);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);

@@ -10,6 +10,10 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@rakku/demo": ["./packages/demo/index.ts"],
+      "@rakku/demo/ui": ["./packages/demo/src/ui/index.tsx"]
+    }
   }
 }

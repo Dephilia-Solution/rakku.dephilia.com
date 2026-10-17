@@ -1,4 +1,7 @@
-import { create } from "zustand";
+"use client";
+
+import { createStore, useStore } from "zustand";
+import { useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import { Product, Modifier, CartItem, OrderType, PricingTier, SplitPayment, Tax, ProductDiscount, OrderDiscount, AppliedTax, AppliedDiscount } from "@rakku/shared-types";
 
 export function getTierPrice(
@@ -21,8 +24,9 @@ export function getTierModifierDelta(
   return deltaMap[modifierId]?.[tierId] ?? fallback;
 }
 
-function applyDiscount(price: number, discount: { type: "percentage" | "fixed"; value: number }): number {
+function applyDiscount(price: number, discount: { type: "percentage" | "fixed"; value: number }, rounded = false): number {
   if (discount.type === "percentage") {
+    if (rounded) return price - Math.min(price, Math.round(price * discount.value / 100));
     return price * (1 - discount.value / 100);
   }
   return Math.max(0, price - discount.value);
@@ -49,7 +53,7 @@ function categorySortKey(category: string): number {
   return CATEGORY_PRIORITY[category] ?? 99;
 }
 
-interface CartState {
+export interface CartState {
   items: CartItem[];
   orderType: OrderType;
   customerName: string;
@@ -91,7 +95,9 @@ interface CartState {
   clear: () => void;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
+export function createCartStore(request: typeof fetch = globalThis.fetch) {
+  const scoped = request !== globalThis.fetch;
+  return createStore<CartState>((set, get) => ({
   items: [],
   orderType: "dine_in",
   customerName: "",
@@ -141,7 +147,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               ? {
                   ...item,
                   quantity: item.quantity + 1,
-                  subtotal: (item.quantity + 1) * item.unit_price,
+                  subtotal: (item.quantity + 1) * (scoped ? item.discounted_unit_price ?? item.unit_price : item.unit_price),
                 }
               : item
           ),
@@ -156,7 +162,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? { name: productDiscount.name, type: productDiscount.type, value: productDiscount.value, amount: 0 }
         : null;
       const discountedUnitPrice = productDiscount
-        ? applyDiscount(unitPrice, productDiscount)
+        ? applyDiscount(unitPrice, productDiscount, scoped)
         : unitPrice;
 
       const newItem: CartItem = {
@@ -178,6 +184,10 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   restoreDraftItem: (item, tierId) =>
     set((state) => {
+      const unitPrice = scoped
+        ? getTierPrice(item.product.id, tierId, state.productTierPriceMap, item.product.price)
+          + item.modifiers.reduce((sum, modifier) => sum + getTierModifierDelta(modifier.id, tierId, state.modifierTierDeltaMap, modifier.price_delta ?? 0), 0)
+        : item.unit_price;
       const productDiscount = state.activeProductDiscounts.find(
         (d) => d.product_id === item.product.id
       );
@@ -185,8 +195,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? { name: productDiscount.name, type: productDiscount.type as "percentage" | "fixed", value: productDiscount.value, amount: 0 }
         : null;
       const discountedUnitPrice = productDiscount
-        ? applyDiscount(item.unit_price, productDiscount)
-        : item.unit_price;
+        ? applyDiscount(unitPrice, productDiscount, scoped)
+        : unitPrice;
 
       return {
         pricingTierId: tierId,
@@ -199,6 +209,7 @@ export const useCartStore = create<CartState>((set, get) => ({
             source: "draft",
             discount: discount,
             discounted_unit_price: discountedUnitPrice,
+            ...(scoped ? { unit_price: unitPrice, subtotal: item.quantity * discountedUnitPrice } : {}),
           },
         ],
       };
@@ -261,7 +272,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? { name: productDiscount.name, type: productDiscount.type, value: productDiscount.value, amount: 0 }
         : null;
       const discountedUnitPrice = productDiscount
-        ? applyDiscount(unitPrice, productDiscount)
+        ? applyDiscount(unitPrice, productDiscount, scoped)
         : unitPrice;
 
       return {
@@ -301,7 +312,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           ? { name: productDiscount.name, type: productDiscount.type, value: productDiscount.value, amount: 0 }
           : null;
         const discountedUnitPrice = productDiscount
-          ? applyDiscount(unitPrice, productDiscount)
+          ? applyDiscount(unitPrice, productDiscount, scoped)
           : unitPrice;
 
         return {
@@ -318,7 +329,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   setPricingTiers: (tiers, tierPriceMap, modifierDeltaMap) => {
     const state = get();
     const defaultTier = tiers.find((t) => t.is_active) ?? tiers[0];
-    const tierId = defaultTier?.id ?? null;
+    const tierId = scoped && tiers.some((tier) => tier.id === state.pricingTierId)
+      ? state.pricingTierId
+      : defaultTier?.id ?? null;
     set({
       pricingTiers: tiers,
       productTierPriceMap: tierPriceMap,
@@ -338,7 +351,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           ? { name: productDiscount.name, type: productDiscount.type, value: productDiscount.value, amount: 0 }
           : null;
         const discountedUnitPrice = productDiscount
-          ? applyDiscount(unitPrice, productDiscount)
+          ? applyDiscount(unitPrice, productDiscount, scoped)
           : unitPrice;
 
         return {
@@ -358,14 +371,28 @@ export const useCartStore = create<CartState>((set, get) => ({
   setSplitPayments: (splitPayments) => set({ splitPayments }),
 
   setActiveTaxes: (activeTaxes) => set({ activeTaxes }),
-  setActiveProductDiscounts: (activeProductDiscounts) => set({ activeProductDiscounts }),
+  setActiveProductDiscounts: (activeProductDiscounts) => set((state) => ({
+    activeProductDiscounts,
+    ...(scoped ? {
+      items: state.items.map((item) => {
+        const discount = activeProductDiscounts.find((entry) => entry.product_id === item.product.id);
+        const discountedUnitPrice = discount ? applyDiscount(item.unit_price, discount, true) : item.unit_price;
+        return {
+          ...item,
+          discount: discount ? { name: discount.name, type: discount.type, value: discount.value, amount: 0 } : null,
+          discounted_unit_price: discountedUnitPrice,
+          subtotal: item.quantity * discountedUnitPrice,
+        };
+      }),
+    } : {}),
+  })),
   setActiveOrderDiscounts: (activeOrderDiscounts) => set({ activeOrderDiscounts }),
 
   fetchActiveTaxesAndDiscounts: async () => {
     try {
       const [taxesRes, discountsRes] = await Promise.all([
-        fetch("/api/admin/taxes/active"),
-        fetch("/api/admin/discounts/active"),
+        request("/api/admin/taxes/active"),
+        request("/api/admin/discounts/active"),
       ]);
       if (taxesRes.ok) {
         const taxes = await taxesRes.json();
@@ -377,6 +404,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           activeProductDiscounts: data.productDiscounts ?? [],
           activeOrderDiscounts: data.orderDiscounts ?? [],
         });
+        if (scoped) get().setActiveProductDiscounts(data.productDiscounts ?? []);
       }
     } catch {
       // silently fail - taxes/discounts will just be empty
@@ -391,7 +419,7 @@ export const useCartStore = create<CartState>((set, get) => ({
 
     set({ savingDraft: true });
     try {
-      const sessionRes = await fetch("/api/auth/tenant/session");
+      const sessionRes = await request("/api/auth/tenant/session");
       let companyId: string | undefined;
       let outletId: string | undefined;
       let cashierId: string | undefined;
@@ -402,13 +430,14 @@ export const useCartStore = create<CartState>((set, get) => ({
         cashierId = s.user_id;
       }
 
-      const res = await fetch("/api/admin/orders/draft", {
+      const res = await request("/api/admin/orders/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: state.items,
           customerName: state.customerName.trim(),
-          note: "",
+          note: scoped ? state.note : "",
+          ...(scoped ? { orderType: state.orderType, tableName: state.tableName } : {}),
           tableId: state.tableId,
           companyId,
           outletId,
@@ -439,13 +468,29 @@ export const useCartStore = create<CartState>((set, get) => ({
       tableName: null,
       note: "",
       draftOrderId: null,
-      pricingTierId: null,
       splitPayments: [],
-      activeTaxes: [],
-      activeProductDiscounts: [],
-      activeOrderDiscounts: [],
+      ...(!scoped ? {
+        pricingTierId: null,
+        activeTaxes: [],
+        activeProductDiscounts: [],
+        activeOrderDiscounts: [],
+      } : {}),
     }),
 }));
+}
+
+const productionCartStore = createCartStore();
+
+export function useCartStoreApi() {
+  const runtime = useMerchantRuntime();
+  return runtime
+    ? runtime.getStore("pos:cart", () => createCartStore(runtime.request))
+    : productionCartStore;
+}
+
+export function useCartStore<T>(selector: (state: CartState) => T): T {
+  return useStore(useCartStoreApi(), selector);
+}
 
 export const useCartGroupedArray = () => {
   const items = useCartStore((s) => s.items);
@@ -501,9 +546,13 @@ export const useCartGroupedByProduct = () => {
 };
 
 export const useCartTotals = () => {
+  const runtime = useMerchantRuntime();
   const items = useCartStore((s) => s.items);
+  const tierId = useCartStore((s) => s.pricingTierId);
   const activeTaxes = useCartStore((s) => s.activeTaxes);
   const activeOrderDiscounts = useCartStore((s) => s.activeOrderDiscounts);
+
+  if (runtime?.cartTotals) return runtime.cartTotals(items, tierId);
 
   const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
 

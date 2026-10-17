@@ -8,8 +8,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./tailwind.preset": "./src/tailwind.preset.ts"
+    ,"./merchant-runtime": "./src/merchant-runtime.tsx"
   },
   "dependencies": {
+    "@rakku/shared-types": "workspace:*",
     "lucide-react": "^0.460.0"
   },
   "peerDependencies": {

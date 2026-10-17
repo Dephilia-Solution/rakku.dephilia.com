@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { MerchantLink as Link, MerchantForm } from "@/lib/merchant-runtime";
+import { usePathname } from "@/lib/merchant-runtime";
 import { LogOut, X } from "lucide-react";
 
 interface MenuItem {
@@ -75,7 +75,7 @@ export default function MoreMenuSheet({
 
             if (item.external) {
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   target="_blank"
@@ -88,7 +88,7 @@ export default function MoreMenuSheet({
                     className={active ? "text-primary" : "text-on-surface-variant"}
                   />
                   <span className="font-medium text-sm">{item.label}</span>
-                </a>
+                </Link>
               );
             }
 
@@ -114,7 +114,7 @@ export default function MoreMenuSheet({
 
           <div className="h-px bg-surface-container my-3" />
 
-          <form action="/api/auth/owner/logout" method="POST">
+          <MerchantForm action="/api/auth/owner/logout" method="POST">
             <button
               type="submit"
               className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-left text-error hover:bg-error-container/20 transition-colors active:scale-[0.98]"
@@ -122,7 +122,7 @@ export default function MoreMenuSheet({
               <LogOut size={20} />
               <span className="font-medium text-sm">Keluar</span>
             </button>
-          </form>
+          </MerchantForm>
         </div>
       </div>
     </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { PricingOption } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency } from "@pos/lib/format";
 import { Check } from "lucide-react";
 
 interface Props {

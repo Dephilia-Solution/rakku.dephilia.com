@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate } from "@pos/lib/format";
 import { OrderWithItems } from "@rakku/shared-types";
 import { Badge, EmptyState } from "@rakku/ui";
 import { Search, ClipboardList, ChevronDown, ChevronUp, Printer, ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
 
 const paymentLabels: Record<string, string> = {
   cash: "Tunai",

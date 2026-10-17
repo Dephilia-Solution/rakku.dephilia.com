@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
+import { usePathname } from "@pos/lib/merchant-runtime";
 import { MoreHorizontal, ShoppingCart, ClipboardList, BarChart3, Package, Lock } from "lucide-react";
-import { useDraftCount } from "@/hooks/useDraftCount";
-import { useLowStockCount } from "@/hooks/useLowStockCount";
-import { usePlan } from "@/components/billing/PlanProvider";
+import { useDraftCount } from "@pos/hooks/useDraftCount";
+import { useLowStockCount } from "@pos/hooks/useLowStockCount";
+import { usePlan } from "@pos/components/billing/PlanProvider";
 import MoreMenuSheet from "./MoreMenuSheet";
 import type { Menu } from "@rakku/shared-types";
 

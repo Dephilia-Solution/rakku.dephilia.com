@@ -1,6 +1,7 @@
 "use client";
 
 import { useModalHistory } from "@/hooks/useModalHistory";
+import { useMerchantRuntime } from "@/lib/merchant-runtime";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 
 interface ConfirmDialogProps {
@@ -26,6 +27,7 @@ export default function ConfirmDialog({
   variant = "danger",
   loading = false,
 }: ConfirmDialogProps) {
+  const runtime = useMerchantRuntime();
   const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
 
   if (!isOpen) return null;
@@ -71,7 +73,7 @@ export default function ConfirmDialog({
               {cancelText}
             </button>
             <button
-              onClick={onConfirm}
+              onClick={() => { if (runtime?.active() !== false) onConfirm(); }}
               disabled={loading}
               className={`flex-1 rounded-xl py-3 text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${confirmStyle}`}
             >

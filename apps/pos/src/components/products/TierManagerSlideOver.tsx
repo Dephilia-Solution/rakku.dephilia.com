@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { PricingTier } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass, Toggle } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { SlideOver, fieldInputClass, Toggle } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 import {
   DndContext,
   closestCenter,
@@ -159,6 +160,8 @@ export default function TierManagerSlideOver({
   onClose,
   onTiersChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [tiers, setTiers] = useState<PricingTier[]>([]);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState("");
@@ -188,7 +191,7 @@ export default function TierManagerSlideOver({
   const fetchTiers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/pricing-tiers");
+      const res = await request("/api/admin/pricing-tiers");
       if (res.ok) {
         const data = await res.json();
         applyTiers(data.tiers ?? []);
@@ -198,7 +201,7 @@ export default function TierManagerSlideOver({
     } finally {
       setLoading(false);
     }
-  }, [applyTiers]);
+  }, [applyTiers, request, showToast]);
 
   useEffect(() => {
     if (open) fetchTiers();
@@ -210,7 +213,7 @@ export default function TierManagerSlideOver({
     setSaving(true);
     try {
       const maxSort = tiers.reduce((m, t) => Math.max(m, t.sort_order), 0);
-      const res = await fetch("/api/admin/pricing-tiers", {
+      const res = await request("/api/admin/pricing-tiers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -237,7 +240,7 @@ export default function TierManagerSlideOver({
   const handleSaveEdit = async () => {
     if (!editId || !editName.trim()) return;
     try {
-      const res = await fetch("/api/admin/pricing-tiers", {
+      const res = await request("/api/admin/pricing-tiers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -262,7 +265,7 @@ export default function TierManagerSlideOver({
 
   const handleToggleActive = async (tier: PricingTier) => {
     try {
-      const res = await fetch("/api/admin/pricing-tiers", {
+      const res = await request("/api/admin/pricing-tiers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: tier.id, is_active: !tier.is_active }),
@@ -285,7 +288,7 @@ export default function TierManagerSlideOver({
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/pricing-tiers?id=${id}`, {
+      const res = await request(`/api/admin/pricing-tiers?id=${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -315,7 +318,7 @@ export default function TierManagerSlideOver({
       applyTiers(updated);
 
       try {
-        const res = await fetch("/api/admin/pricing-tiers", {
+        const res = await request("/api/admin/pricing-tiers", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -329,7 +332,7 @@ export default function TierManagerSlideOver({
         applyTiers(tiers);
       }
     },
-    [items, tiers, applyTiers]
+    [items, tiers, applyTiers, request, showToast]
   );
 
   return (
