@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { formatCurrency } from "@/lib/format";
+import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
+import { formatCurrency } from "@pos/lib/format";
 import {
   EmptyState,
   PageHeader,

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@rakku/shared-types": ["packages/shared-types/src/index.ts"],
+      "@rakku/ui": ["packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["src/ui/**/*.tsx"],
+  "exclude": ["node_modules"]
+}

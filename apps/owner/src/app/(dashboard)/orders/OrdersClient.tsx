@@ -13,7 +13,7 @@ import {
   ChevronRight,
   Building2,
 } from "lucide-react";
-import Link from "next/link";
+import { MerchantLink as Link, useMerchantRequest, useMerchantRuntime } from "@/lib/merchant-runtime";
 
 const paymentLabels: Record<string, string> = {
   cash: "Tunai",
@@ -65,6 +65,8 @@ interface OrdersClientProps {
 }
 
 export default function OrdersClient({ outlets }: OrdersClientProps) {
+  const request = useMerchantRequest();
+  const isActive = useMerchantRuntime()?.active;
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
@@ -74,26 +76,31 @@ export default function OrdersClient({ outlets }: OrdersClientProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
       const url = outletId
         ? `/api/owner/orders?outlet_id=${encodeURIComponent(outletId)}`
         : "/api/owner/orders";
-      const res = await fetch(url);
+      const res = await request(url, { signal });
       if (res.ok) {
         const data = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setOrders(data.orders ?? []);
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       setOrders([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId]);
+  }, [outletId, request, isActive]);
 
   useEffect(() => {
-    fetchOrders();
+    const controller = new AbortController();
+    void fetchOrders(controller.signal);
+    return () => controller.abort();
   }, [fetchOrders]);
 
   const filtered = orders.filter((o) => {

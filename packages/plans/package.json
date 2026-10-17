@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@rakku/shared-types": "workspace:*",
-    "@supabase/supabase-js": "^2.106.1"
+    "@rakku/db": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 export async function GET() {

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import {
   OrderType,
   PaymentMethod,

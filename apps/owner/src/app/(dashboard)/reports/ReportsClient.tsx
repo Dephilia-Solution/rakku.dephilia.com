@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Tabs } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime } from "@/lib/merchant-runtime";
 import EmailReportModal from "@/components/reports/EmailReportModal";
 import ProfitLossClient from "@/components/reports/ProfitLossClient";
 import { usePlan } from "@/components/billing/PlanProvider";
@@ -37,6 +38,8 @@ interface ReportsClientProps {
 }
 
 export default function ReportsClient({ outlets, companyName }: ReportsClientProps) {
+  const request = useMerchantRequest();
+  const isActive = useMerchantRuntime()?.active;
   const { hasFeature, openUpgrade } = usePlan();
   const [activeTab, setActiveTab] = useState("penjualan");
   const [dateRange, setDateRange] = useState("today");
@@ -45,26 +48,31 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
   const [loading, setLoading] = useState(true);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
       const url = outletId
         ? `/api/owner/orders?outlet_id=${encodeURIComponent(outletId)}`
         : "/api/owner/orders";
-      const res = await fetch(url);
+      const res = await request(url, { signal });
       if (res.ok) {
         const data = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setOrders(data.orders ?? []);
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       setOrders([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId]);
+  }, [outletId, request, isActive]);
 
   useEffect(() => {
-    fetchOrders();
+    const controller = new AbortController();
+    void fetchOrders(controller.signal);
+    return () => controller.abort();
   }, [fetchOrders]);
 
   const today = new Date();

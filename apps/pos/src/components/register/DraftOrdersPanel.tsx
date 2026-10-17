@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { formatCurrency } from "@/lib/format";
-import { useModalHistory } from "@/hooks/useModalHistory";
+import { useState, useEffect, useCallback } from "react";
+import { formatCurrency } from "@pos/lib/format";
+import { useModalHistory } from "@pos/hooks/useModalHistory";
+import { useMerchantRequest } from "@pos/lib/merchant-runtime";
+import type { Modifier, OrderType } from "@rakku/shared-types";
 import { Clock, ShoppingBag, X } from "lucide-react";
 
-interface DraftOrder {
+export interface DraftOrder {
   id: string;
   customer_name: string;
   total_price: number;
   created_at: string;
   pricing_tier_id: string | null;
+  table_id?: string | null;
+  table_name?: string | null;
+  tables?: { name: string } | null;
+  note?: string | null;
+  order_type?: OrderType;
   order_items: Array<{
     id: string;
     product_id: string;
@@ -20,6 +27,9 @@ interface DraftOrder {
     subtotal: number;
     modifier_label: string | null;
     note: string | null;
+    modifiers?: Modifier[];
+    modifier_ids?: string[];
+    custom_modifiers?: Modifier[];
   }>;
 }
 
@@ -31,14 +41,15 @@ interface Props {
 }
 
 export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft, onDraftChange }: Props) {
+  const request = useMerchantRequest();
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const { handleCloseAndPop } = useModalHistory(isOpen, onClose || (() => {}));
 
-  const fetchDrafts = async () => {
+  const fetchDrafts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/orders/draft");
+      const res = await request("/api/admin/orders/draft");
       if (res.ok) {
         const data = await res.json();
         setDrafts(data);
@@ -46,15 +57,15 @@ export default function DraftOrdersPanel({ isOpen, onClose, onSelectDraft, onDra
     } catch {} finally {
       setLoading(false);
     }
-  };
+  }, [request]);
 
   useEffect(() => {
     if (isOpen) fetchDrafts();
-  }, [isOpen]);
+  }, [isOpen, fetchDrafts]);
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/orders/draft?id=${id}`, {
+      const res = await request(`/api/admin/orders/draft?id=${id}`, {
         method: "DELETE",
       });
       if (res.ok) {

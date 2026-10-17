@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@rakku/supabase-clients/server";
+import { createClient } from "@/lib/auth/database";
 
 async function requireSuperadmin() {
   const supabase = await createClient();
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         .delete()
         .eq("role_id", role_id)
         .eq("menu_id", menu_id);
-      if (error && error.code !== "PGRST116")
+      if (error && error.code !== "DB_CARDINALITY")
         return NextResponse.json({ error: error.message }, { status: 400 });
     }
 

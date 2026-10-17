@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPendingLoginFromCookies, clearPendingLoginCookie } from "@/lib/auth/pending-login";
 import { verifyPin, isLocked, getLockoutConfig, computeLockedUntil, logAuthEvent } from "@rakku/auth-utils";
 import { signSession, setSessionCookie } from "@/lib/auth/tenant-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");

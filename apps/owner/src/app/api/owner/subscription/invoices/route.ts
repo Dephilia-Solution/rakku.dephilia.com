@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 
 export async function GET() {
   const session = await getOwnerSessionFromCookies();

@@ -2,7 +2,7 @@ import { ArrowDownIcon, ArrowRightIcon } from "./icons";
 import { HeroProductMenu } from "./hero-product-menu";
 import { ButtonLink, HeroCopy, HeroVisual, MotionLink } from "./motion";
 import { Container } from "./primitives";
-import { ownerUrl } from "./site";
+import { demoUrl, ownerUrl } from "./site";
 
 export function HeroPreview() {
   return <HeroProductMenu />;
@@ -22,10 +22,11 @@ export function Hero() {
           <p className="max-w-[30rem] text-balance text-[clamp(1rem,1.6vw,1.15rem)] leading-[1.65] text-muted">
             Rakku menghubungkan kasir, resep, stok, dan laporan dalam satu alur kerja.
           </p>
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap items-center gap-3">
             <ButtonLink href={`${ownerUrl}/register`} className="min-h-[3.25rem] bg-green-800 px-6 text-ivory shadow-[0_12px_26px_rgba(29,91,56,0.18)] hover:bg-green-950">
               Mulai gratis <ArrowRightIcon className="h-4 w-4" />
             </ButtonLink>
+            <ButtonLink href={demoUrl} className="min-h-[3.25rem] border border-green-800 px-6 text-green-800 hover:bg-green-50">Coba Demo</ButtonLink>
             <MotionLink href="#alur" className="landing-link-underline inline-flex min-h-12 items-center gap-2 px-1 text-[0.8125rem] font-bold text-green-800 hover:text-green-950">
               Lihat cara kerja <ArrowDownIcon className="h-4 w-4" />
             </MotionLink>

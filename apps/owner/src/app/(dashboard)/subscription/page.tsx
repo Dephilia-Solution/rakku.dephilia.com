@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { getUsageSummary } from "@rakku/plans";
 import SubscriptionClient from "@/components/billing/SubscriptionClient";
 import type { Plan, SubscriptionInvoice } from "@rakku/shared-types";

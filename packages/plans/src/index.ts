@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "@rakku/db";
 import type {
   Plan,
   PlanCheck,
@@ -118,7 +118,7 @@ function fallbackResolved(): ResolvedPlan {
 }
 
 export async function getCompanyPlan(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string
 ): Promise<ResolvedPlan> {
   const { data, error } = await supabase
@@ -194,7 +194,7 @@ function startOfMonth(): Date {
 }
 
 export async function countMonthlyTransactions(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string
 ): Promise<number> {
   const { count } = await supabase
@@ -212,7 +212,7 @@ export async function countMonthlyTransactions(
  * (order yang membuat kuota penuh). Dipakai untuk batas grace 3 hari.
  */
 async function getTransactionGraceStartedAt(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   max: number
 ): Promise<Date | null> {
@@ -242,7 +242,7 @@ function getTransactionGraceEndsAt(
 }
 
 async function countResource(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   key: PlanLimitKey
 ): Promise<number> {
@@ -259,7 +259,7 @@ async function countResource(
 }
 
 export async function checkLimit(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   key: PlanLimitKey,
   delta = 1
@@ -329,7 +329,7 @@ export async function checkLimit(
 }
 
 export async function checkFeature(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string,
   feature: PlanFeatureKey
 ): Promise<PlanCheck> {
@@ -346,7 +346,7 @@ export async function checkFeature(
 }
 
 export async function getUsageSummary(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   companyId: string
 ): Promise<UsageSummary> {
   const resolved = await getCompanyPlan(supabase, companyId);

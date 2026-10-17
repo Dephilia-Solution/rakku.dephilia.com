@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { getOwnerOutlets, generateSlug } from "@/lib/supabase/queries.owner";
 

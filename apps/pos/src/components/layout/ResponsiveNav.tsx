@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavMode } from "@/hooks/useNavMode";
+import { useNavMode } from "@pos/hooks/useNavMode";
 import BottomNav from "./BottomNav";
 import SideRail from "./SideRail";
 import AppSidebar from "./AppSidebar";

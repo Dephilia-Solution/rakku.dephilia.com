@@ -2,27 +2,19 @@
  * Seed script untuk inisialisasi data awal Rakku.
  *
  * Cara pakai:
- *   1. Pastikan migration 001_init.sql dan 002_multi_tenant.sql sudah dijalankan
- *   2. Pastikan .env.local sudah berisi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY
+ *   1. Jalankan pnpm db:migrate dan pnpm db:seed untuk Neon
+ *   2. Pastikan .env.local sudah berisi DATABASE_URL
  *   3. Jalankan: npx tsx scripts/seed.ts
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient, closeDatabase } from "@rakku/db";
 import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Error: NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY harus diisi di .env.local");
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createAdminClient();
 
 async function seed() {
   console.log("🌱 Mulai seeding...\n");
@@ -93,8 +85,8 @@ async function seed() {
     ])
     .select();
 
-  if (rolesError) {
-    console.error("❌ Gagal membuat role:", rolesError.message);
+  if (rolesError || !roles) {
+    console.error("❌ Gagal membuat role:", rolesError?.message);
     process.exit(1);
   }
   console.log("✅ 4 Role default dibuat");
@@ -103,7 +95,7 @@ async function seed() {
   const { data: menus } = await supabase.from("menus").select("id, slug");
 
   if (!menus || menus.length === 0) {
-    console.error("❌ Menu tidak ditemukan. Jalankan migration 002_multi_tenant.sql dulu.");
+    console.error("❌ Menu tidak ditemukan. Jalankan pnpm db:seed dulu.");
     process.exit(1);
   }
 
@@ -182,8 +174,8 @@ async function seed() {
     ])
     .select();
 
-  if (usersError) {
-    console.error("❌ Gagal membuat user:", usersError.message);
+  if (usersError || !users) {
+    console.error("❌ Gagal membuat user:", usersError?.message);
     process.exit(1);
   }
   console.log("✅ 3 User dibuat (PIN: 123456 untuk semua)");
@@ -240,11 +232,11 @@ async function seed() {
   console.log("   │ User (Admin)          │ Username: siti  | PIN: 123456│");
   console.log("   │ User (Kasir)          │ Username: ahmad | PIN: 123456│");
   console.log("   └──────────────────────┴──────────────────────────────┘");
-  console.log("\n   Superadmin: daftarkan via Supabase Auth (email/password)");
-  console.log("   lalu login di /superadmin/login\n");
+  console.log("\n   Superadmin: pnpm admin:invite <email>");
+  console.log("   lalu aktivasi akun Neon dan login di aplikasi Superadmin /login\n");
 }
 
 seed().catch((err) => {
   console.error("❌ Seed gagal:", err);
   process.exit(1);
-});
+}).finally(closeDatabase);

@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useCartStore, useCartTotals, useCartGroupedArray } from "@/lib/store/cartStore";
-import { formatCurrency } from "@/lib/format";
-import { showToast } from "@rakku/ui";
-import { createOrder } from "@/lib/supabase/queries.client";
-import InvoiceReceipt from "@/components/register/InvoiceReceipt";
+import { useCartStore, useCartTotals, useCartGroupedArray } from "@pos/lib/store/cartStore";
+import { formatCurrency } from "@pos/lib/format";
+import { useMerchantRequest, useMerchantToast, useMerchantRuntime } from "@pos/lib/merchant-runtime";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import InvoiceReceipt from "@pos/components/register/InvoiceReceipt";
 import { PaymentMethod, SplitPayment } from "@rakku/shared-types";
-import { useIsMobile } from "@/hooks/useMediaQuery";
-import { useModalHistory } from "@/hooks/useModalHistory";
-import { usePlan } from "@/components/billing/PlanProvider";
-import SplitBillSheet from "@/components/register/SplitBillSheet";
+import { useIsMobile } from "@pos/hooks/useMediaQuery";
+import { useModalHistory } from "@pos/hooks/useModalHistory";
+import { usePlan } from "@pos/components/billing/PlanProvider";
+import SplitBillSheet from "@pos/components/register/SplitBillSheet";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Banknote,
@@ -40,6 +40,10 @@ const paymentMethods: {
 ];
 
 export default function PaymentModal({ isOpen, onClose, onOrderComplete }: PaymentModalProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const runtime = useMerchantRuntime();
+  const { createOrder } = useClientQueries();
   const { openUpgrade } = usePlan();
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState("");
@@ -54,6 +58,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const [qrisStep, setQrisStep] = useState<"form" | "qr" | "expired">("form");
   const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
   const [qrisData, setQrisData] = useState<{
+    id?: string;
     qr_string: string;
     expired_at: string | null;
     amount: number;
@@ -67,6 +72,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
 
   const items = useCartStore((s) => s.items);
   const orderType = useCartStore((s) => s.orderType);
+  const cartNote = useCartStore((s) => s.note);
   const customerName = useCartStore((s) => s.customerName);
   const setCustomerName = useCartStore((s) => s.setCustomerName);
   const tableId = useCartStore((s) => s.tableId);
@@ -80,7 +86,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const groupedCart = useCartGroupedArray();
 
   const isMobile = useIsMobile();
-  const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
+  const { handleCloseAndPop } = useModalHistory(isOpen, onClose, !showSplit);
 
   useEffect(() => {
     if (!isOpen) {
@@ -102,14 +108,14 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
 
   useEffect(() => {
     if (isOpen) {
-      fetch("/api/auth/tenant/session")
+      request("/api/auth/tenant/session")
         .then((res) => res.ok ? res.json() : null)
         .then((s) => {
           if (s) setCashierName(s.user_name);
         })
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, request]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -218,7 +224,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const pollQris = useCallback(async () => {
     if (!qrisOrderId) return;
     try {
-      const res = await fetch(`/api/admin/orders/qris/${qrisOrderId}`, {
+      const res = await request(`/api/admin/orders/qris/${qrisOrderId}`, {
         cache: "no-store",
       });
       if (!res.ok) return;
@@ -240,7 +246,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     } catch {
       // diamkan, coba lagi di polling berikutnya
     }
-  }, [qrisOrderId, finishQrisSuccess]);
+  }, [qrisOrderId, finishQrisSuccess, request]);
 
   useEffect(() => {
     if (!isOpen || qrisStep !== "qr") return;
@@ -256,7 +262,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const handleDynamicQris = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/admin/orders/qris", {
+      const res = await request("/api/admin/orders/qris", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -279,6 +285,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             amount: d.amount,
           })),
           pricingTierId,
+          ...(runtime ? { note: cartNote } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -291,6 +298,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       }
       setQrisOrderId(data.order.id);
       setQrisData({
+        id: data.intent.id,
         qr_string: data.intent.qr_string,
         expired_at: data.intent.expired_at,
         amount: Number(data.intent.amount),
@@ -318,7 +326,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     if (!qrisOrderId) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(
+      const res = await request(
         `/api/admin/orders/qris/${qrisOrderId}/retry`,
         { method: "POST" }
       );
@@ -328,6 +336,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
         return;
       }
       setQrisData({
+        id: data.intent.id,
         qr_string: data.intent.qr_string,
         expired_at: data.intent.expired_at,
         amount: Number(data.intent.amount),
@@ -344,7 +353,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const handleQrisCancel = async () => {
     if (qrisOrderId) {
       try {
-        await fetch(`/api/admin/orders/qris/${qrisOrderId}/cancel`, {
+        await request(`/api/admin/orders/qris/${qrisOrderId}/cancel`, {
           method: "POST",
         });
       } catch {
@@ -379,7 +388,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     let cashierId: string | undefined;
     let cashierNameFromSession: string | null = null;
     try {
-      const res = await fetch("/api/auth/tenant/session");
+      const res = await request("/api/auth/tenant/session");
       if (res.ok) {
         const s = await res.json();
         companyId = s.company_id;
@@ -405,9 +414,10 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           modifier_label: i.modifier_label,
           note: i.note,
           subtotal: i.subtotal,
+          ...(runtime ? { modifiers: i.modifiers, cart_item_id: i.id } : {}),
         }));
 
-        const res = await fetch(`/api/admin/orders/draft?id=${draftOrderId}`, {
+        const res = await request(`/api/admin/orders/draft?id=${draftOrderId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -425,6 +435,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             total_price: total,
             order_type: orderType,
             items: mappedItems,
+            ...(runtime ? { split_payments: finalSplitPayments, customer_name: customerName.trim(), note: cartNote } : {}),
+            ...(runtime && method === "cash" && !finalSplitPayments.length ? { amount_paid: Number(cashAmount) } : {}),
           }),
         });
 
@@ -450,6 +462,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           discounts: appliedDiscounts.map(d => ({ name: d.name, type: d.type, value: d.value, amount: d.amount })),
           customerName: customerName.trim(),
           tableId,
+          ...(runtime ? { note: cartNote } : {}),
           status: "completed",
           paymentStatus,
           companyId,
@@ -457,6 +470,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           cashierId,
           pricingTierId,
           splitPayments: finalSplitPayments,
+          ...(runtime && method === "cash" && !finalSplitPayments.length ? { amountPaid: Number(cashAmount) } : {}),
         });
       }
 
@@ -615,6 +629,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
                   <CheckCircle2 size={12} />
                   Stok & meja baru diproses setelah pembayaran sukses.
                 </p>
+                {runtime?.simulation?.("order-payment", qrisData?.id ?? null)}
               </>
             )}
           </div>

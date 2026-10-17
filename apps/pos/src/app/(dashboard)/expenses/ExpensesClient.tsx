@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Expense } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency } from "@pos/lib/format";
 import {
-  showToast,
   Badge,
   EmptyState,
   PageHeader,
@@ -12,8 +11,9 @@ import {
   fieldInputClass,
   fieldSelectClass,
 } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { createExpense, updateExpense, deleteExpense } from "@/lib/supabase/queries.client";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useMerchantToast } from "@pos/lib/merchant-runtime";
 import {
   Plus,
   Search,
@@ -64,6 +64,8 @@ function toInputDate(iso: string): string {
 }
 
 export default function ExpensesClient({ expenses: initialExpenses }: Props) {
+  const showToast = useMerchantToast();
+  const { createExpense, updateExpense, deleteExpense } = useClientQueries();
   const [expenseList, setExpenseList] = useState(initialExpenses);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);

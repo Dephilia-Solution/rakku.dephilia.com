@@ -1,11 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@rakku/supabase-clients/server";
+import { getAuthorizedUser } from "@/lib/auth/require-superadmin";
 
 export default async function SuperadminRoot() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-
-  if (!data?.user) {
+  if (!await getAuthorizedUser()) {
     redirect("/login");
   }
 

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { MerchantLink as Link, MerchantForm } from "@/lib/merchant-runtime";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/lib/merchant-runtime";
 import { ChevronLeft, LogOut, PanelLeftOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -181,7 +181,7 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
 
         <div className="my-3 border-t border-surface-container" />
 
-        <a
+        <Link
           href={loginKasirItem.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -201,7 +201,7 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
           >
             {loginKasirItem.label}
           </motion.span>
-        </a>
+        </Link>
       </nav>
 
       <div className="px-2.5 py-3 border-t border-surface-container space-y-1">
@@ -226,7 +226,7 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
             <p className="text-xs text-on-surface-variant truncate leading-none mt-0.5">{owner.email}</p>
           </motion.div>
         </div>
-        <form action="/api/auth/owner/logout" method="POST">
+        <MerchantForm action="/api/auth/owner/logout" method="POST">
           <button
             type="submit"
             title={isCollapsed ? "Keluar" : undefined}
@@ -246,7 +246,7 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
               Keluar
             </motion.span>
           </button>
-        </form>
+        </MerchantForm>
       </div>
     </motion.aside>
   );

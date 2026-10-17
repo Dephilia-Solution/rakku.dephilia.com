@@ -4,16 +4,18 @@ import type { PendingLogin } from "@rakku/shared-types";
 
 const PENDING_COOKIE = "pending_login";
 const PENDING_DURATION = 10 * 60;
-const SECRET = new TextEncoder().encode(
-  process.env.POS_JWT_SECRET || "dev-secret-change-in-production-min-32-chars!!"
-);
+function secret() {
+  const value = process.env.POS_JWT_SECRET;
+  if (!value || value.length < 32) throw new Error("POS_JWT_SECRET must contain at least 32 characters");
+  return new TextEncoder().encode(value);
+}
 
 export async function signPendingLogin(data: PendingLogin, expiresInSeconds: number = PENDING_DURATION): Promise<string> {
-  return signJwt(SECRET, { ...data }, expiresInSeconds);
+  return signJwt(secret(), { ...data }, expiresInSeconds);
 }
 
 export async function verifyPendingLogin(token: string): Promise<PendingLogin | null> {
-  const payload = await verifyJwt<PendingLogin>(SECRET, token);
+  const payload = await verifyJwt<PendingLogin>(secret(), token);
   if (!payload) return null;
   return {
     company_id: payload.company_id,

@@ -4,7 +4,7 @@ import { ArrowRightIcon } from "./icons";
 import { MobileMenu } from "./mobile-menu";
 import { ButtonLink, HeaderFrame, MotionLink } from "./motion";
 import { Container } from "./primitives";
-import { ownerUrl } from "./site";
+import { demoUrl, ownerUrl } from "./site";
 
 const links = [
   ["Kasir", "#kasir"],
@@ -32,6 +32,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-5">
+          <MotionLink href={demoUrl} className="hidden min-h-12 items-center text-[0.8125rem] font-bold text-green-800 sm:inline-flex">Coba Demo</MotionLink>
           <MotionLink href={`${ownerUrl}/login`} className="landing-link-underline hidden min-h-12 items-center text-[0.8125rem] font-bold text-green-800 transition-colors duration-200 hover:text-green-950 lg:inline-flex">
             Masuk
           </MotionLink>

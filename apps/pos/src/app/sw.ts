@@ -1,7 +1,7 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
-import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from "serwist";
+import { CacheFirst, NetworkFirst, NetworkOnly, StaleWhileRevalidate } from "serwist";
 import { ExpirationPlugin } from "serwist";
 import { CacheableResponsePlugin } from "serwist";
 
@@ -19,6 +19,11 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
+    // Public demo lives on the Owner origin. Never cache this redirect or demo RSC.
+    {
+      matcher: ({ url }) => url.pathname === "/demo" || url.pathname.startsWith("/demo/"),
+      handler: new NetworkOnly(),
+    },
     // App shell navigations: network first, fallback to offline page
     {
       matcher: ({ request }) => request.mode === "navigate",

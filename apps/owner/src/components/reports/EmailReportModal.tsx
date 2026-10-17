@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, Send, Mail } from "lucide-react";
-import { showToast } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { useModalHistory } from "@/hooks/useModalHistory";
 
 interface EmailReportModalProps {
@@ -13,6 +13,9 @@ interface EmailReportModalProps {
 }
 
 export default function EmailReportModal({ isOpen, onClose, dateRange, outletId }: EmailReportModalProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const runtime = useMerchantRuntime();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
@@ -20,25 +23,29 @@ export default function EmailReportModal({ isOpen, onClose, dateRange, outletId 
   if (!isOpen) return null;
 
   const handleSend = async () => {
+    if (runtime?.active() === false) return;
     if (!email.includes("@")) {
       showToast("error", "Email tidak valid");
       return;
     }
     setSending(true);
     try {
-      const res = await fetch("/api/owner/reports/send-email", {
+      const res = await request("/api/owner/reports/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, dateRange, outlet_id: outletId }),
       });
-      if (!res.ok) throw new Error();
-      showToast("success", "Laporan berhasil dikirim!");
+      const data = await res.json().catch(() => ({}));
+      if (runtime?.active() === false) return;
+      if (!res.ok) throw new Error(data.error || "Gagal mengirim email. Periksa konfigurasi email.");
+      showToast("success", data.message || (runtime ? "Preview laporan dibuat · simulasi, email tidak dikirim." : "Laporan berhasil dikirim!"));
       setEmail("");
-      handleCloseAndPop();
-    } catch {
-      showToast("error", "Gagal mengirim email. Periksa konfigurasi email.");
+      if (!runtime?.simulation) handleCloseAndPop();
+    } catch (error) {
+      if (runtime?.active() === false) return;
+      showToast("error", error instanceof Error ? error.message : "Gagal mengirim email. Periksa konfigurasi email.");
     } finally {
-      setSending(false);
+      if (runtime?.active() !== false) setSending(false);
     }
   };
 
@@ -61,6 +68,7 @@ export default function EmailReportModal({ isOpen, onClose, dateRange, outletId 
               <Mail size={18} className="text-neutral-500" />
               <h3 className="font-display font-semibold text-base text-neutral-900">
                 Kirim Laporan
+                {runtime?.simulation ? " · Simulasi" : ""}
               </h3>
             </div>
             <button
@@ -83,6 +91,7 @@ export default function EmailReportModal({ isOpen, onClose, dateRange, outletId 
               placeholder="contoh@email.com"
               className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest mb-4"
             />
+            {runtime?.simulation?.("email", null)}
           </div>
 
           <div className="px-4 sm:px-6 py-4 border-t border-neutral-200 bg-white">

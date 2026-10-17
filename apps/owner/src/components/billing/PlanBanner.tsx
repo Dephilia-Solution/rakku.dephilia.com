@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { MerchantLink as Link } from "@/lib/merchant-runtime";
 import { AlertTriangle, Clock } from "lucide-react";
 import { usePlan } from "./PlanProvider";
 import type { PlanLimitKey } from "@rakku/shared-types";

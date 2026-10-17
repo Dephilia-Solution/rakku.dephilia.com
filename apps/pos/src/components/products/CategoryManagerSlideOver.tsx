@@ -2,14 +2,10 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Category } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import {
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  reorderCategories,
-} from "@/lib/supabase/queries.client";
+import { SlideOver, fieldInputClass } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 import {
   DndContext,
   closestCenter,
@@ -148,6 +144,9 @@ export default function CategoryManagerSlideOver({
   categories,
   onCategoriesChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const { createCategory, updateCategory, deleteCategory, reorderCategories } = useClientQueries();
   const [newName, setNewName] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -169,7 +168,7 @@ export default function CategoryManagerSlideOver({
     if (!name || saving) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/auth/tenant/session");
+      const res = await request("/api/auth/tenant/session");
       let companyId = "";
       let outletId = "";
       if (res.ok) {
@@ -245,7 +244,7 @@ export default function CategoryManagerSlideOver({
         onCategoriesChange(categories);
       }
     },
-    [items, categories, onCategoriesChange]
+    [items, categories, onCategoriesChange, reorderCategories, showToast]
   );
 
   return (

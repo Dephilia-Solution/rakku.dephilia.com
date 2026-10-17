@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import type { OwnerSession } from "@rakku/shared-types";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { checkFeature } from "@rakku/plans";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };

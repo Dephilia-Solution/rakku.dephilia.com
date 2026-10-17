@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient, sql, type DatabaseClient } from "@rakku/db";
 import {
   createQrisPayment,
   getPaymentStatus,
@@ -33,7 +33,7 @@ export type CreateQrisIntentResult =
 
 /** Buat QRIS dinamis Vessel + simpan payment intent (pending). */
 export async function createQrisIntent(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: CreateQrisIntentInput
 ): Promise<CreateQrisIntentResult> {
   const invoiceNumber = generateOrderInvoiceNumber();
@@ -81,7 +81,7 @@ export async function createQrisIntent(
 
 /** Batalkan semua intent pending untuk satu order (retry/cancel). */
 export async function expirePendingIntents(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   orderId: string
 ): Promise<void> {
   await supabase
@@ -103,11 +103,12 @@ export interface ProcessOrderPaymentResult {
  * di-inject untuk pengujian.
  */
 export async function processOrderPayment(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   intent: PaymentIntent,
   statusFetcher: (
     transactionId: string
-  ) => Promise<VesselPaymentDetail> = getPaymentStatus
+  ) => Promise<VesselPaymentDetail> = getPaymentStatus,
+  finalizationDatabase: () => DatabaseClient = createAdminClient
 ): Promise<ProcessOrderPaymentResult> {
   if (intent.status !== "pending" || !intent.provider_transaction_id) {
     return { intent, finalized: false };
@@ -121,73 +122,37 @@ export async function processOrderPayment(
   }
 
   if (detail.payment_status === "success") {
-    // Atomic claim: hanya satu proses yang boleh finalisasi.
-    const { data: claimed } = await supabase
-      .from("payment_intents")
-      .update({
-        status: "success",
-        paid_at: detail.paid_at ?? new Date().toISOString(),
-        raw_payload: detail as unknown as Record<string, unknown>,
-      })
-      .eq("id", intent.id)
-      .eq("status", "pending")
-      .select()
-      .maybeSingle();
-
-    if (!claimed) {
-      return {
-        intent: { ...intent, status: "success", paid_at: detail.paid_at },
-        finalized: false,
-      };
+    if (detail.invoice_number !== intent.invoice_number || Number(detail.amount) !== Number(intent.amount)) {
+      throw new Error("Provider payment does not match the stored invoice/amount");
     }
-
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, company_id, outlet_id, table_id, status")
-      .eq("id", intent.order_id)
-      .maybeSingle();
-
-    if (order) {
-      await supabase
-        .from("orders")
-        .update({ status: "completed", payment_status: "paid" })
-        .eq("id", order.id)
-        .eq("status", "pending_payment");
-
-      await deductStockForOrder(
-        supabase,
-        order.id as string,
-        order.company_id as string | null,
-        order.outlet_id as string | null,
-        intent.created_by
-      );
-
-      if (order.table_id) {
-        await supabase
-          .from("dining_tables")
-          .update({ status: "occupied" })
-          .eq("id", order.table_id as string);
+    // Trusted server-only finalization after provider verification. Merchant
+    // ledger writes use platform scope, while POS callers cannot mutate balances.
+    return finalizationDatabase().transaction(async tx => {
+      const locked = await tx.execute(sql`select * from public.payment_intents where id=${intent.id}
+        and company_id=${intent.company_id} and provider_transaction_id=${intent.provider_transaction_id} for update`);
+      const current = locked[0];
+      if (!current) throw new Error("Payment intent not found");
+      if (current.status !== "pending") return { intent: current as PaymentIntent, finalized: false };
+      const orders = await tx.execute(sql`select * from public.orders where id=${current.order_id}
+        and company_id=${current.company_id} and outlet_id is not distinct from ${current.outlet_id} for update`);
+      const order = orders[0];
+      if (!order || order.status !== "pending_payment" || Number(order.total_price) !== Number(current.amount)) {
+        throw new Error("Order cannot be finalized for this payment");
       }
-
-      await creditBalance(supabase, {
-        companyId: intent.company_id,
-        outletId: intent.outlet_id,
-        grossAmount: Number(intent.amount),
-        referenceType: "payment_intent",
-        referenceId: intent.id,
-        note: `Pembayaran QRIS order ${order.id}`,
-        createdBy: "system",
-      });
-    }
-
-    return {
-      intent: {
-        ...intent,
-        status: "success",
-        paid_at: detail.paid_at ?? new Date().toISOString(),
-      },
-      finalized: true,
-    };
+      const paidAt = detail.paid_at ?? new Date().toISOString();
+      await tx.execute(sql`update public.orders set status='completed', payment_status='paid' where id=${order.id}`);
+      await deductStockForOrder(tx, order.id, order.company_id, order.outlet_id, current.created_by);
+      if (order.table_id) await tx.execute(sql`update public.dining_tables set status='occupied' where id=${order.table_id}
+        and company_id=${order.company_id} and outlet_id=${order.outlet_id}`);
+      const credit = await creditBalance(tx, { companyId: current.company_id, outletId: current.outlet_id,
+        grossAmount: Number(current.amount), referenceType: "payment_intent", referenceId: current.id,
+        note: `Pembayaran QRIS order ${order.id}`, createdBy: "system" });
+      if (!credit.ok) throw new Error(credit.error ?? "Ledger credit failed");
+      const updated = await tx.from("payment_intents").update({ status: "success", paid_at: paidAt, raw_payload: detail })
+        .eq("id", current.id).select().single();
+      if (updated.error || !updated.data) throw new Error(updated.error?.message ?? "Payment update failed");
+      return { intent: updated.data as PaymentIntent, finalized: true };
+    });
   }
 
   if (

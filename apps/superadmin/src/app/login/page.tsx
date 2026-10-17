@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { showToast, ToastContainer } from "@rakku/ui";
-import { createClient } from "@rakku/supabase-clients/client";
+import { authClient } from "@/lib/auth/client";
 
 export default function SuperadminLoginPage() {
   const [email, setEmail] = useState("");
@@ -22,20 +23,20 @@ export default function SuperadminLoginPage() {
     }
     setIsLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      showToast("error", error.message);
+    try {
+      const { error } = await authClient.signIn.email({ email, password });
+      if (error) {
+        showToast("error", error.message ?? "Login gagal");
+        return;
+      }
+      showToast("success", "Login berhasil");
+      router.push("/companies");
+      router.refresh();
+    } catch {
+      showToast("error", "Layanan autentikasi tidak dapat dihubungi");
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    showToast("success", "Login berhasil");
-    router.push("/companies");
   };
 
   return (
@@ -106,6 +107,7 @@ export default function SuperadminLoginPage() {
             )}
           </button>
         </form>
+        <Link href="/reset-password" className="block mt-4 text-center text-sm text-forest">Lupa password?</Link>
       </div>
       <ToastContainer />
     </div>

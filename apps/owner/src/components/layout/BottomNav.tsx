@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { MerchantLink as Link } from "@/lib/merchant-runtime";
+import { usePathname } from "@/lib/merchant-runtime";
 import { MoreHorizontal } from "lucide-react";
 import MoreMenuSheet from "./MoreMenuSheet";
 import { ownerPrimaryItems, ownerOverflowItems } from "./nav-config";

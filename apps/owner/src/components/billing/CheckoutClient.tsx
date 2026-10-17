@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { QRCodeSVG } from "qrcode.react";
-import { showToast } from "@rakku/ui";
 import { ArrowLeft, CheckCircle2, Clock, RefreshCw, XCircle } from "lucide-react";
 
 interface CheckoutInvoice {
@@ -36,64 +34,105 @@ export default function CheckoutClient({
   invoice: CheckoutInvoice;
   planName: string;
 }) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const runtime = useMerchantRuntime();
+  const isActive = runtime?.active;
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const lifetime = useRef<AbortController | null>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifiedSuccess = useRef(false);
   const [status, setStatus] = useState(invoice.status);
   const [now, setNow] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    setNow(Date.now());
-    const ticker = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(ticker);
-  }, []);
+    const controller = new AbortController();
+    lifetime.current = controller;
+    notifiedSuccess.current = false;
+    return () => {
+      controller.abort();
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, [request, isActive, invoice.id]);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    if (isActive?.() === false) return;
+    setNow(Date.now());
+    const ticker = setInterval(() => {
+      if (isActive?.() !== false) setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, [isActive]);
+
+  const paymentSucceeded = useCallback((signal: AbortSignal) => {
+    if (signal.aborted || isActive?.() === false || notifiedSuccess.current) return;
+    const lifetimeSignal = lifetime.current?.signal;
+    if (!lifetimeSignal || lifetimeSignal.aborted) return;
+    notifiedSuccess.current = true;
+    showToast("success", "Pembayaran berhasil! Paket diaktifkan.");
+    redirectTimer.current = setTimeout(() => {
+      if (!lifetimeSignal.aborted && isActive?.() !== false) routerRef.current.push("/subscription");
+    }, 1200);
+  }, [showToast, isActive]);
+
+  const refresh = useCallback(async (signal: AbortSignal) => {
+    if (signal.aborted || isActive?.() === false) return;
     try {
-      const res = await fetch(
+      const res = await request(
         `/api/owner/subscription/invoices/${invoice.id}`,
-        { cache: "no-store" }
+        { cache: "no-store", signal }
       );
       if (!res.ok) return;
       const data = await res.json();
+      if (signal.aborted || isActive?.() === false) return;
       setStatus(data.invoice?.status ?? "pending");
       if (data.invoice?.status === "success") {
-        showToast("success", "Pembayaran berhasil! Paket diaktifkan.");
-        setTimeout(() => router.push("/subscription"), 1200);
+        paymentSucceeded(signal);
       }
     } catch {
       // diamkan, coba lagi di polling berikutnya
     }
-  }, [invoice.id, router]);
+  }, [invoice.id, request, isActive, paymentSucceeded]);
 
   useEffect(() => {
-    if (status !== "pending") return;
-    const poll = setInterval(refresh, 5000);
-    return () => clearInterval(poll);
-  }, [status, refresh]);
+    if (status !== "pending" || isActive?.() === false) return;
+    const controller = new AbortController();
+    const poll = setInterval(() => { void refresh(controller.signal); }, 5000);
+    return () => {
+      clearInterval(poll);
+      controller.abort();
+    };
+  }, [status, refresh, isActive]);
 
   const handleSync = async () => {
+    const signal = lifetime.current?.signal;
+    if (!signal || signal.aborted || isActive?.() === false) return;
     setSyncing(true);
     try {
-      const res = await fetch(
+      const res = await request(
         `/api/owner/subscription/invoices/${invoice.id}/sync`,
-        { method: "POST" }
+        { method: "POST", signal }
       );
       const data = await res.json().catch(() => ({}));
+      if (signal.aborted || isActive?.() === false) return;
       if (!res.ok) {
         showToast("error", data.error || "Gagal cek status");
         return;
       }
       setStatus(data.invoice?.status ?? "pending");
       if (data.invoice?.status === "success") {
-        showToast("success", "Pembayaran berhasil! Paket diaktifkan.");
-        setTimeout(() => router.push("/subscription"), 1200);
+        paymentSucceeded(signal);
       } else {
         showToast("info", "Pembayaran belum terdeteksi. Coba lagi sebentar.");
       }
     } catch {
+      if (signal.aborted || isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan, coba lagi");
     } finally {
-      setSyncing(false);
+      if (!signal.aborted && isActive?.() !== false) setSyncing(false);
     }
   };
 
@@ -208,6 +247,7 @@ export default function CheckoutClient({
             </button>
           </>
         )}
+        {runtime?.simulation?.("subscription", invoice.id)}
       </div>
     </div>
   );

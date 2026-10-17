@@ -4,22 +4,22 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start -p 3002",
-    "lint": "next lint"
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@rakku/emails": "workspace:*",
     "@rakku/ledger": "workspace:*",
     "@rakku/pricing": "workspace:*",
     "@rakku/shared-types": "workspace:*",
-    "@rakku/supabase-clients": "workspace:*",
+    "@rakku/db": "workspace:*",
     "@rakku/ui": "workspace:*",
-    "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.106.1",
+    "@neondatabase/auth": "0.5.0-beta",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.460.0",
-    "next": "14.2.35",
+    "next": "16.4.0",
     "react": "^18",
     "react-dom": "^18"
   },

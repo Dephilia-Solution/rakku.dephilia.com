@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { uploadFile } from "@rakku/silos-client";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import sharp from "sharp";
@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
+    const { data: product, error: accessError } = await supabase.from("products").select("id").eq("id", productId).maybeSingle();
+    if (accessError || !product) return NextResponse.json({ error: "Produk tidak tersedia atau akses ditolak" }, { status: 403 });
     const uploadedFile = await uploadFile({
       file: compressedBuffer,
       filename: `${productId}-${Date.now()}.webp`,

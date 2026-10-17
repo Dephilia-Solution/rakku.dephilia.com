@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { X, Send, Mail } from "lucide-react";
-import { showToast } from "@rakku/ui";
-import { useModalHistory } from "@/hooks/useModalHistory";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
+import { useModalHistory } from "@pos/hooks/useModalHistory";
 
 interface EmailReportModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface EmailReportModalProps {
 }
 
 export default function EmailReportModal({ isOpen, onClose, dateRange }: EmailReportModalProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const { handleCloseAndPop } = useModalHistory(isOpen, onClose);
@@ -25,7 +27,7 @@ export default function EmailReportModal({ isOpen, onClose, dateRange }: EmailRe
     }
     setSending(true);
     try {
-      const res = await fetch("/api/reports/send-email", {
+      const res = await request("/api/reports/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, dateRange }),

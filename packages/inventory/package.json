@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.106.1"
+    "@rakku/db": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

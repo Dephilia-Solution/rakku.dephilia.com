@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import { createQrisPayment } from "@rakku/vessel-client";
 import { generateInvoiceNumber } from "@/lib/billing/subscription";
 import type { OwnerSession } from "@rakku/shared-types";

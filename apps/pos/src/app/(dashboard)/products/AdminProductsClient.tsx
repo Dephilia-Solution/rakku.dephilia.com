@@ -1,19 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, MerchantLink as Link, useMerchantToast } from "@pos/lib/merchant-runtime";
 import Image from "next/image";
-import Link from "next/link";
 import { ProductWithCategory, Category } from "@rakku/shared-types";
-import { formatCurrency } from "@/lib/format";
-import { showToast, Badge, EmptyState, PageHeader, fieldSelectClass } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import CategoryManagerSlideOver from "@/components/products/CategoryManagerSlideOver";
-import TierManagerSlideOver from "@/components/products/TierManagerSlideOver";
-import {
-  toggleProductActive,
-  deleteProduct,
-} from "@/lib/supabase/queries.client";
+import { formatCurrency } from "@pos/lib/format";
+import { Badge, EmptyState, PageHeader, fieldSelectClass } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import CategoryManagerSlideOver from "@pos/components/products/CategoryManagerSlideOver";
+import TierManagerSlideOver from "@pos/components/products/TierManagerSlideOver";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
 import {
   Plus,
   Search,
@@ -40,6 +36,8 @@ export default function AdminProductsClient({
   categories: initialCategories,
   productTierPrices,
 }: Props) {
+  const showToast = useMerchantToast();
+  const { toggleProductActive, deleteProduct } = useClientQueries();
   const router = useRouter();
   const [productList, setProductList] = useState(initialProducts);
   const [catList, setCatList] = useState(initialCategories);

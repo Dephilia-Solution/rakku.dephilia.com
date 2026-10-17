@@ -192,6 +192,10 @@ function LoginForm() {
           </button>
         </form>
 
+        <Link href="/demo" prefetch={false} className="mt-3 flex min-h-11 items-center justify-center rounded-xl border border-leaf/25 text-sm font-semibold text-leaf hover:bg-moss/20">
+          Coba Demo
+        </Link>
+
         <p className="mt-3 text-center text-[12.5px] text-muted sm:mt-4 sm:text-[13px]">
           Belum punya akun?{" "}
           <Link href="/register" className="text-leaf font-semibold no-underline hover:underline">

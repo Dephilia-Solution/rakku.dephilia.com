@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { showToast } from "@rakku/ui";
+import { useRouter, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -63,6 +62,9 @@ export default function BalanceClient({
   bankAccounts: MerchantBankAccount[];
   withdrawals: Withdrawal[];
 }) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const runtime = useMerchantRuntime();
   const router = useRouter();
 
   const defaultAccount =
@@ -107,6 +109,7 @@ export default function BalanceClient({
   };
 
   const handleWithdraw = async () => {
+    if (runtime?.active() === false) return;
     const amount = Number(withdrawAmount);
     if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
       showToast("error", `Minimal pencairan ${formatRupiah(MIN_WITHDRAWAL)}`);
@@ -119,7 +122,7 @@ export default function BalanceClient({
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/owner/withdrawals", {
+      const res = await request("/api/owner/withdrawals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -129,6 +132,7 @@ export default function BalanceClient({
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (runtime?.active() === false) return;
       if (!res.ok) {
         showToast("error", data.error || "Gagal mengajukan pencairan");
         return;
@@ -137,9 +141,10 @@ export default function BalanceClient({
       setShowWithdraw(false);
       router.refresh();
     } catch {
+      if (runtime?.active() === false) return;
       showToast("error", "Terjadi kesalahan, coba lagi");
     } finally {
-      setSubmitting(false);
+      if (runtime?.active() !== false) setSubmitting(false);
     }
   };
 
@@ -153,6 +158,7 @@ export default function BalanceClient({
   };
 
   const handleSaveAccount = async () => {
+    if (runtime?.active() === false) return;
     if (!accountBankName.trim() || !accountNumber.trim() || !accountHolder.trim()) {
       showToast("error", "Lengkapi data rekening");
       return;
@@ -166,17 +172,18 @@ export default function BalanceClient({
         is_default: accountDefault,
       };
       const res = editingAccount
-        ? await fetch(`/api/owner/bank-accounts/${editingAccount.id}`, {
+        ? await request(`/api/owner/bank-accounts/${editingAccount.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch("/api/owner/bank-accounts", {
+        : await request("/api/owner/bank-accounts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
       const data = await res.json().catch(() => ({}));
+      if (runtime?.active() === false) return;
       if (!res.ok) {
         showToast("error", data.error || "Gagal menyimpan rekening");
         return;
@@ -185,38 +192,44 @@ export default function BalanceClient({
       setShowAccountForm(false);
       router.refresh();
     } catch {
+      if (runtime?.active() === false) return;
       showToast("error", "Terjadi kesalahan, coba lagi");
     } finally {
-      setSavingAccount(false);
+      if (runtime?.active() !== false) setSavingAccount(false);
     }
   };
 
   const handleSetDefault = async (account: MerchantBankAccount) => {
+    if (runtime?.active() === false) return;
     try {
-      const res = await fetch(`/api/owner/bank-accounts/${account.id}`, {
+      const res = await request(`/api/owner/bank-accounts/${account.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_default: true }),
       });
+      if (runtime?.active() === false) return;
       if (!res.ok) {
         showToast("error", "Gagal menjadikan rekening utama");
         return;
       }
       router.refresh();
     } catch {
+      if (runtime?.active() === false) return;
       showToast("error", "Terjadi kesalahan");
     }
   };
 
   const handleDeleteAccount = async (account: MerchantBankAccount) => {
+    if (runtime?.active() === false) return;
     if (!confirm(`Hapus rekening ${account.bank_name} ${account.account_number}?`)) {
       return;
     }
     try {
-      const res = await fetch(`/api/owner/bank-accounts/${account.id}`, {
+      const res = await request(`/api/owner/bank-accounts/${account.id}`, {
         method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));
+      if (runtime?.active() === false) return;
       if (!res.ok) {
         showToast("error", data.error || "Gagal menghapus rekening");
         return;
@@ -224,6 +237,7 @@ export default function BalanceClient({
       showToast("success", "Rekening dihapus");
       router.refresh();
     } catch {
+      if (runtime?.active() === false) return;
       showToast("error", "Terjadi kesalahan");
     }
   };
@@ -389,6 +403,7 @@ export default function BalanceClient({
                       >
                         {WITHDRAWAL_STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
                       </span>
+                      {runtime?.simulation?.("withdrawal", withdrawal.id)}
                     </td>
                     <td className="px-5 py-3 text-neutral-500 text-xs max-w-[220px] truncate">
                       {withdrawal.status === "rejected" && withdrawal.reject_reason

@@ -2,15 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { MerchantLink as Link, useRouter, useSearchParams, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { ProductWithCategory, Category } from "@rakku/shared-types";
 import {
   PageHeader,
   Badge,
   EmptyState,
   fieldSelectClass,
-  showToast,
 } from "@rakku/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CategoryManagerSlideOver from "@/components/products/CategoryManagerSlideOver";
@@ -44,6 +42,9 @@ function formatRupiah(value: number) {
 }
 
 export default function OwnerProductsClient({ outlets }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const router = useRouter();
   const searchParams = useSearchParams();
   const outletParam = searchParams.get("outlet");
@@ -65,7 +66,8 @@ export default function OwnerProductsClient({ outlets }: Props) {
   const [showTierManager, setShowTierManager] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     if (!outletId) {
       setLoading(false);
       return;
@@ -73,31 +75,37 @@ export default function OwnerProductsClient({ outlets }: Props) {
     setLoading(true);
     try {
       const [prodRes, catRes, priceRes] = await Promise.all([
-        fetch(`/api/owner/products?outlet_id=${encodeURIComponent(outletId)}`),
-        fetch(`/api/owner/categories?outlet_id=${encodeURIComponent(outletId)}`),
-        fetch(`/api/owner/product-tier-prices?outlet_id=${encodeURIComponent(outletId)}`),
+        request(`/api/owner/products?outlet_id=${encodeURIComponent(outletId)}`, { signal }),
+        request(`/api/owner/categories?outlet_id=${encodeURIComponent(outletId)}`, { signal }),
+        request(`/api/owner/product-tier-prices?outlet_id=${encodeURIComponent(outletId)}`, { signal }),
       ]);
       if (prodRes.ok) {
         const data = await prodRes.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setProductList(data.products ?? []);
       }
       if (catRes.ok) {
         const data = await catRes.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setCatList(data.categories ?? []);
       }
       if (priceRes.ok) {
         const data = await priceRes.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setTierPrices(data.prices ?? []);
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       showToast("error", "Gagal memuat data produk");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId]);
+  }, [outletId, request, showToast, isActive]);
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    void fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
 
   const handleOutletChange = (id: string) => {
@@ -123,12 +131,14 @@ export default function OwnerProductsClient({ outlets }: Props) {
   });
 
   const handleToggleActive = async (product: ProductWithCategory) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch("/api/owner/products", {
+      const res = await request("/api/owner/products", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: product.id, is_active: !product.is_active }),
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         setProductList((prev) =>
           prev.map((p) =>
@@ -141,23 +151,28 @@ export default function OwnerProductsClient({ outlets }: Props) {
         );
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal mengubah status produk");
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/products?id=${id}`, {
+      const res = await request(`/api/owner/products?id=${id}`, {
         method: "DELETE",
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         setProductList((prev) => prev.filter((p) => p.id !== id));
         showToast("success", "Produk berhasil dihapus");
       } else {
         const data = await res.json();
+        if (isActive?.() === false) return;
         showToast("error", data.error ?? "Gagal menghapus");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal menghapus produk");
     }
   };

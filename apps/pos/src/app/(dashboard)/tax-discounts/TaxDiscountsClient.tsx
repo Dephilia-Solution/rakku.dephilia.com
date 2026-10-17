@@ -11,11 +11,11 @@ import {
   Tabs,
   Badge,
   Toggle,
-  showToast,
 } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import TaxFormSlideOver from "@/components/charges/TaxFormSlideOver";
-import DiscountFormSlideOver from "@/components/charges/DiscountFormSlideOver";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import TaxFormSlideOver from "@pos/components/charges/TaxFormSlideOver";
+import DiscountFormSlideOver from "@pos/components/charges/DiscountFormSlideOver";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 import { Plus, Pencil, Trash2, Percent, Landmark } from "lucide-react";
 
 type TabKey = "pajak" | "produk" | "order";
@@ -41,6 +41,8 @@ export default function TaxDiscountsClient({
   productNames,
   initialTab = "pajak",
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [taxes, setTaxes] = useState(initialTaxes);
   const [productDiscounts, setProductDiscounts] = useState(
@@ -61,7 +63,7 @@ export default function TaxDiscountsClient({
 
   const fetchTaxes = async () => {
     try {
-      const res = await fetch("/api/admin/taxes");
+      const res = await request("/api/admin/taxes");
       if (res.ok) setTaxes((await res.json()) ?? []);
     } catch {
       showToast("error", "Gagal memuat data pajak");
@@ -70,7 +72,7 @@ export default function TaxDiscountsClient({
 
   const fetchDiscounts = async () => {
     try {
-      const res = await fetch("/api/admin/discounts");
+      const res = await request("/api/admin/discounts");
       if (res.ok) {
         const data = await res.json();
         setProductDiscounts(data.productDiscounts ?? []);
@@ -93,7 +95,7 @@ export default function TaxDiscountsClient({
 
   const handleToggleTax = async (tax: Tax) => {
     try {
-      const res = await fetch("/api/admin/taxes", {
+      const res = await request("/api/admin/taxes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: tax.id, is_active: !tax.is_active }),
@@ -119,7 +121,7 @@ export default function TaxDiscountsClient({
     scope: "product" | "order"
   ) => {
     try {
-      const res = await fetch("/api/admin/discounts", {
+      const res = await request("/api/admin/discounts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -160,7 +162,7 @@ export default function TaxDiscountsClient({
         kind === "tax"
           ? `/api/admin/taxes?id=${id}`
           : `/api/admin/discounts?id=${id}&scope=${kind}`;
-      const res = await fetch(url, { method: "DELETE" });
+      const res = await request(url, { method: "DELETE" });
       if (res.ok) {
         showToast("success", "Berhasil dihapus");
         if (kind === "tax") fetchTaxes();

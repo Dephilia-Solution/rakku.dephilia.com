@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient, sql } from "@rakku/db";
 import { hashPin } from "@rakku/auth-utils";
 import type {
   Owner,
@@ -338,6 +338,10 @@ export async function createCompanyWithOnboarding(params: {
   const supabase = createAdminClient();
   const { ownerId, companyName, companyPassword, outletName, outletAddress } =
     params;
+  const passwordHash = await bcrypt.hash(companyPassword, 10);
+  return supabase.transaction(async supabase => {
+  const owners = await supabase.execute(sql`select id from public.owners where id=${ownerId} and is_active=true for update`);
+  if (!owners.length) throw new Error("Owner tidak aktif");
 
   // Cek owner belum punya company
   const { data: existingCompany } = await supabase
@@ -356,8 +360,6 @@ export async function createCompanyWithOnboarding(params: {
   const baseSlug = generateSlug(companyName);
   const slug = await ensureUniqueSlug(baseSlug);
 
-  const passwordHash = await bcrypt.hash(companyPassword, 10);
-
   // 1. Buat company
   const { data: company, error: companyError } = await supabase
     .from("companies")
@@ -373,7 +375,7 @@ export async function createCompanyWithOnboarding(params: {
     .single();
 
   if (companyError || !company) {
-    return { company: null, error: "Gagal membuat perusahaan" };
+    throw new Error("Gagal membuat perusahaan");
   }
 
   // 2. Buat outlet pertama
@@ -385,9 +387,7 @@ export async function createCompanyWithOnboarding(params: {
   });
 
   if (outletError) {
-    // Rollback company
-    await supabase.from("companies").delete().eq("id", company.id);
-    return { company: null, error: "Gagal membuat outlet" };
+    throw new Error("Gagal membuat outlet");
   }
 
   // 3. Seed default pricing tiers (Dine In & Take Away)
@@ -401,7 +401,7 @@ export async function createCompanyWithOnboarding(params: {
     .maybeSingle();
 
   if (outlet) {
-    await supabase.from("pricing_tiers").insert([
+    const tiers = await supabase.from("pricing_tiers").insert([
       {
         company_id: company.id,
         outlet_id: outlet.id,
@@ -419,17 +419,19 @@ export async function createCompanyWithOnboarding(params: {
         sort_order: 1,
       },
     ]);
+    if (tiers.error) throw new Error(tiers.error.message);
   }
 
   // 4. Seed role default (paket Free = role tetap): Owner (semua menu) + Kasir.
   //    Role custom tambahan hanya untuk paket Pro/Business (v6).
-  const { data: roles } = await supabase
+  const { data: roles, error: rolesError } = await supabase
     .from("roles")
     .insert([
       { company_id: company.id, name: "Owner" },
       { company_id: company.id, name: "Kasir" },
     ])
     .select("id, name");
+  if (rolesError || !roles) throw new Error("Gagal membuat role");
 
   const { data: menus } = await supabase.from("menus").select("id, slug");
 
@@ -458,7 +460,8 @@ export async function createCompanyWithOnboarding(params: {
     }
 
     if (accessRows.length > 0) {
-      await supabase.from("role_menu_access").insert(accessRows);
+      const access = await supabase.from("role_menu_access").insert(accessRows);
+      if (access.error) throw new Error(access.error.message);
     }
   }
 
@@ -471,7 +474,7 @@ export async function createCompanyWithOnboarding(params: {
     .maybeSingle();
 
   if (proPlan) {
-    await supabase
+    const trial = await supabase
       .from("companies")
       .update({
         plan_id: proPlan.id,
@@ -481,12 +484,14 @@ export async function createCompanyWithOnboarding(params: {
         ).toISOString(),
       })
       .eq("id", company.id);
+    if (trial.error) throw new Error(trial.error.message);
   }
 
   return {
     company: { id: company.id, name: company.name, slug, code },
     error: null,
   };
+  }).catch(error => ({ company: null, error: error instanceof Error ? error.message : "Gagal onboarding" }));
 }
 
 // ============================================================

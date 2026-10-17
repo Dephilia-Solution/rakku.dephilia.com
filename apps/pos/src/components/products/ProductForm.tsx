@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useMemo, useEffect } from "react";
+import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantToast, useMerchantImages, useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import Image from "next/image";
-import Link from "next/link";
 import {
   Category,
   Modifier,
@@ -15,15 +14,10 @@ import {
   fieldInputClass,
   fieldSelectClass,
   Toggle,
-  showToast,
 } from "@rakku/ui";
-import {
-  createProduct,
-  updateProduct,
-  deleteModifier,
-} from "@/lib/supabase/queries.client";
-import { uploadProductImage } from "@/lib/supabase/storage";
-import { useNavMode } from "@/hooks/useNavMode";
+import { useClientQueries } from "@pos/lib/supabase/queries.client";
+import { useProductStorage } from "@pos/lib/supabase/storage";
+import { useNavMode } from "@pos/hooks/useNavMode";
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
 import RecipeManagerSlideOver, { RecipeRow } from "./RecipeManagerSlideOver";
@@ -75,6 +69,16 @@ export default function ProductForm({
   initialModifiers = [],
   initialRecipes = [],
 }: ProductFormProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const images = useMerchantImages();
+  const runtime = useMerchantRuntime();
+  const { createProduct, updateProduct, deleteModifier } = useClientQueries();
+  const { uploadProductImage } = useProductStorage();
+  const localPreview = useRef<{ url: string; revoke: (url: string) => void } | null>(null);
+  useEffect(() => () => {
+    if (localPreview.current) localPreview.current.revoke(localPreview.current.url);
+  }, []);
   const router = useRouter();
   const [form, setForm] = useState({
     name: initialProduct?.name ?? "",
@@ -148,10 +152,15 @@ export default function ProductForm({
       return;
     }
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    if (localPreview.current) localPreview.current.revoke(localPreview.current.url);
+    const url = images.create(file);
+    localPreview.current = { url, revoke: (preview) => images.revoke(preview) };
+    setPreviewUrl(url);
   };
 
   const handleRemoveImage = () => {
+    if (localPreview.current) localPreview.current.revoke(localPreview.current.url);
+    localPreview.current = null;
     setSelectedFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -213,7 +222,7 @@ export default function ProductForm({
           tier_id: tierId,
           price_delta: delta,
         }));
-        const res = await fetch("/api/admin/modifiers", {
+        const res = await request("/api/admin/modifiers", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editModId, name, group_name: group_name || null, prices }),
@@ -241,7 +250,7 @@ export default function ProductForm({
           tier_id: tierId,
           price_delta: delta,
         }));
-        const res = await fetch("/api/admin/modifiers", {
+        const res = await request("/api/admin/modifiers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -317,7 +326,7 @@ export default function ProductForm({
       let companyId: string | undefined;
       let outletId: string | undefined;
       try {
-        const res = await fetch("/api/auth/tenant/session");
+        const res = await request("/api/auth/tenant/session");
         if (res.ok) {
           const s = await res.json();
           companyId = s.company_id;
@@ -344,9 +353,11 @@ export default function ProductForm({
         if (selectedFile) {
           const imageUrl = await uploadProductImage(productId, selectedFile);
           updates.image_url = imageUrl;
+        } else if (runtime && !previewUrl) {
+          updates.image_url = null;
         }
         await updateProduct(productId, updates);
-        await fetch("/api/admin/product-tier-prices", {
+        await request("/api/admin/product-tier-prices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productId, prices: tierPriceArray }),
@@ -369,7 +380,7 @@ export default function ProductForm({
         }
 
         if (tierPriceArray.length > 0) {
-          await fetch("/api/admin/product-tier-prices", {
+          await request("/api/admin/product-tier-prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ productId: data.id, prices: tierPriceArray }),
@@ -381,7 +392,7 @@ export default function ProductForm({
             const prices = Object.entries(mod.tierDeltas).map(
               ([tierId, delta]) => ({ tier_id: tierId, price_delta: delta })
             );
-            await fetch("/api/admin/modifiers", {
+            await request("/api/admin/modifiers", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -398,7 +409,7 @@ export default function ProductForm({
         for (const recipe of recipeRows) {
           if (recipe.id) continue;
           try {
-            await fetch("/api/admin/recipes", {
+            await request("/api/admin/recipes", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

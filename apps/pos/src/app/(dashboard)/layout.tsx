@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
-import ResponsiveNav from "@/components/layout/ResponsiveNav";
-import DashboardContent from "@/components/layout/DashboardContent";
-import PlanProvider from "@/components/billing/PlanProvider";
-import LimitBanner from "@/components/billing/LimitBanner";
-import { ToastContainer } from "@rakku/ui";
+import PosShell from "@pos/components/layout/PosShell";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { getAllowedMenus } from "@/lib/auth/menus";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 import { getUsageSummary } from "@rakku/plans";
 import type { Menu } from "@rakku/shared-types";
 
@@ -37,20 +35,5 @@ export default async function DashboardLayout({
     process.env.NEXT_PUBLIC_OWNER_URL || "http://localhost:3000"
   }/subscription`;
 
-  const lockedPaths = summary.features?.inventory_advanced
-    ? []
-    : ["/purchases"];
-
-  return (
-    <PlanProvider summary={summary} upgradeUrl={upgradeUrl}>
-      <div className="flex min-h-dvh overflow-hidden">
-        <ResponsiveNav menus={menus} lockedPaths={lockedPaths} />
-        <DashboardContent>
-          <LimitBanner />
-          {children}
-        </DashboardContent>
-        <ToastContainer />
-      </div>
-    </PlanProvider>
-  );
+  return <PosShell menus={menus} summary={summary} upgradeUrl={upgradeUrl}>{children}</PosShell>;
 }

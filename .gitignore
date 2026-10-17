@@ -5,6 +5,7 @@ dist/
 *.tsbuildinfo
 .env.local
 .env*.local
+.env.neon
 
 # Next.js
 apps/*/next-env.d.ts
@@ -29,18 +30,33 @@ Thumbs.db
 # Backup
 .package-lock.json.bak
 
-# Dokumentasi & file non-sistem
-DOCS.md
+# Demo e2e: harness standalone lama (UI dihapus, digantikan suite routed)
+packages/demo/e2e/acceptance.mjs
+packages/demo/e2e/billing.mjs
+packages/demo/e2e/browser.mjs
+packages/demo/e2e/chrome.mjs
+packages/demo/e2e/commerce.mjs
+packages/demo/e2e/lifecycle.mjs
+packages/demo/e2e/management.mjs
+packages/demo/e2e/production.mjs
+packages/demo/e2e/email-contract-update.md
+packages/demo/e2e/first-run-findings.md
+packages/demo/e2e/lifecycle-audit-findings.md
+
+# Dokumen historis dan file non-sistem
 PRD.md
 PRD_V5_CAFE.md
 PROMPT_RAKKU_*.md
 prompt-*.md
-PANDUAN.md
 *.pdf
 *_reference.html
 rakku_login_signup.html
 supabase_full_export.sql
 supabase/.temp/
+
+# Database snapshots contain application/customer data
+*.dump
+*.backup
 
 # Artefak lokal / legacy (tidak ikut push)
 .temp/

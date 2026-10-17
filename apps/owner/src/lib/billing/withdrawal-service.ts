@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { sql, type DatabaseClient } from "@rakku/db";
 import { getBalance, holdBalance } from "@rakku/ledger";
 import { sendBillingEmail } from "@rakku/emails";
 import type { Withdrawal } from "@rakku/shared-types";
@@ -28,7 +28,7 @@ export type CreateWithdrawalResult =
  * limit harian, dan saldo tersedia cukup.
  */
 export async function createWithdrawalRequest(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   input: CreateWithdrawalInput
 ): Promise<CreateWithdrawalResult> {
   const { companyId, ownerId, bankAccountId, amount, note } = input;
@@ -40,6 +40,8 @@ export async function createWithdrawalRequest(
     return { error: `Minimal pencairan ${formatRupiah(MIN_WITHDRAWAL)}` };
   }
 
+  const creation = await supabase.transaction(async supabase => {
+  await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId},0))`);
   const { data: account } = await supabase
     .from("merchant_bank_accounts")
     .select("*")
@@ -125,13 +127,12 @@ export async function createWithdrawalRequest(
   });
 
   if (!hold.ok) {
-    await supabase
-      .from("withdrawals")
-      .update({ status: "failed", reject_reason: hold.error ?? "Gagal hold saldo" })
-      .eq("id", withdrawal.id);
-
-    return { error: hold.error ?? "Gagal mengunci saldo" };
+    throw new Error(hold.error ?? "Gagal mengunci saldo");
   }
+  return { withdrawal, account };
+  }).catch(error => ({ error: error instanceof Error ? error.message : "Gagal membuat pengajuan" }));
+  if ("error" in creation) return { error: creation.error ?? "Gagal membuat pengajuan" };
+  const { withdrawal, account } = creation;
 
   try {
     await sendBillingEmail(supabase, {

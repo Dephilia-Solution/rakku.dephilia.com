@@ -38,7 +38,7 @@ export default function RootLayout({
       <body>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var s=window.localStorage.getItem("rakku-owner-sidebar-collapsed");document.documentElement.setAttribute("data-owner-sidebar",s==="1"?"collapsed":"expanded")}catch(e){}`,
+            __html: `if(!location.pathname.startsWith("/demo")){try{var s=window.localStorage.getItem("rakku-owner-sidebar-collapsed");document.documentElement.setAttribute("data-owner-sidebar",s==="1"?"collapsed":"expanded")}catch(e){}}`,
           }}
         />
         {children}

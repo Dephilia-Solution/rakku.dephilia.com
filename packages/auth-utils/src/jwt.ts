@@ -1,4 +1,6 @@
-import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { SignJWT } from "jose/jwt/sign";
+import { jwtVerify } from "jose/jwt/verify";
+import type { JWTPayload } from "jose";
 
 export async function signJwt(
   secret: Uint8Array,
@@ -21,7 +23,7 @@ export async function verifyJwt<T>(
   token: string
 ): Promise<T | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
     return payload as unknown as T;
   } catch {
     return null;

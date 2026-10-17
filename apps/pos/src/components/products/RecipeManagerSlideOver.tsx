@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Ingredient, IngredientUnit } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass, fieldSelectClass } from "@rakku/ui";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { SlideOver, fieldInputClass, fieldSelectClass } from "@rakku/ui";
+import ConfirmDialog from "@pos/components/ui/ConfirmDialog";
+import { useMerchantRequest, useMerchantToast } from "@pos/lib/merchant-runtime";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 
 // Baris resep di UI — baris yang sudah tersimpan di DB punya `id`,
@@ -31,6 +32,8 @@ export default function RecipeManagerSlideOver({
   rows,
   onRowsChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
@@ -47,7 +50,7 @@ export default function RecipeManagerSlideOver({
 
   const fetchIngredients = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/ingredients");
+      const res = await request("/api/admin/ingredients");
       if (res.ok) {
         const data = await res.json();
         setIngredients(
@@ -57,13 +60,13 @@ export default function RecipeManagerSlideOver({
     } catch {
       showToast("error", "Gagal memuat data bahan baku");
     }
-  }, []);
+  }, [request, showToast]);
 
   const fetchRecipes = useCallback(async () => {
     if (!productId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/recipes?product_id=${productId}`);
+      const res = await request(`/api/admin/recipes?product_id=${productId}`);
       if (res.ok) {
         const data = await res.json();
         applyRows(
@@ -84,7 +87,7 @@ export default function RecipeManagerSlideOver({
     } finally {
       setLoading(false);
     }
-  }, [productId, applyRows]);
+  }, [productId, applyRows, request, showToast]);
 
   useEffect(() => {
     if (open) {
@@ -125,7 +128,7 @@ export default function RecipeManagerSlideOver({
     }
 
     try {
-      const res = await fetch("/api/admin/recipes", {
+      const res = await request("/api/admin/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,7 +160,7 @@ export default function RecipeManagerSlideOver({
       return;
     }
     try {
-      const res = await fetch(`/api/admin/recipes?id=${row.id}`, {
+      const res = await request(`/api/admin/recipes?id=${row.id}`, {
         method: "DELETE",
       });
       if (res.ok) {

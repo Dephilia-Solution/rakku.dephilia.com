@@ -1,4 +1,7 @@
-import { create } from "zustand";
+"use client";
+
+import { createStore, useStore } from "zustand";
+import { useMerchantRuntime } from "@rakku/ui/merchant-runtime";
 
 const STORAGE_KEY = "rakku-pos-sidebar-collapsed";
 
@@ -36,26 +39,37 @@ interface SidebarState {
   hydrate: () => void;
 }
 
-export const useSidebarStore = create<SidebarState>((set) => ({
+function createSidebarStore(memoryOnly = false) { return createStore<SidebarState>((set) => ({
   isCollapsed: false,
   hydrated: false,
   setCollapsed: (collapsed) => {
-    persist(collapsed);
+    if (!memoryOnly) persist(collapsed);
     applyDomState(collapsed);
     set({ isCollapsed: collapsed });
   },
   toggleCollapsed: () =>
     set((state) => {
       const next = !state.isCollapsed;
-      persist(next);
+      if (!memoryOnly) persist(next);
       applyDomState(next);
       return { isCollapsed: next };
     }),
   hydrate: () =>
     set((state) => {
       if (state.hydrated) return state;
-      const stored = readStored();
+      const stored = memoryOnly ? state.isCollapsed : readStored();
       applyDomState(stored);
       return { isCollapsed: stored, hydrated: true };
     }),
-}));
+})); }
+
+let productionStore: ReturnType<typeof createSidebarStore> | undefined;
+export function useSidebarStoreApi() {
+  const runtime = useMerchantRuntime();
+  return runtime
+    ? runtime.getStore("pos:sidebar", () => createSidebarStore(true))
+    : (productionStore ??= createSidebarStore());
+}
+export function useSidebarStore<T>(selector: (state: SidebarState) => T): T {
+  return useStore(useSidebarStoreApi(), selector);
+}

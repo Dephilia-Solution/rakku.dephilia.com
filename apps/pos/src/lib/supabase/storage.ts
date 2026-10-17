@@ -1,4 +1,10 @@
-export async function uploadProductImage(
+"use client";
+
+import { useMemo } from "react";
+import { useMerchantRequest } from "@pos/lib/merchant-runtime";
+
+export function createStorage(request: typeof fetch = globalThis.fetch) {
+async function uploadProductImage(
   productId: string,
   file: File
 ): Promise<string> {
@@ -6,7 +12,7 @@ export async function uploadProductImage(
   formData.append("file", file);
   formData.append("productId", productId);
 
-  const res = await fetch("/api/admin/products/upload", {
+  const res = await request("/api/admin/products/upload", {
     method: "POST",
     body: formData,
   });
@@ -20,8 +26,8 @@ export async function uploadProductImage(
   return url;
 }
 
-export async function deleteProductImage(productId: string) {
-  const res = await fetch(
+async function deleteProductImage(productId: string) {
+  const res = await request(
     `/api/admin/products/image?productId=${encodeURIComponent(productId)}`,
     { method: "DELETE" }
   );
@@ -30,4 +36,14 @@ export async function deleteProductImage(productId: string) {
     const data = await res.json();
     throw new Error(data.error ?? "Hapus gambar gagal");
   }
+}
+
+return { uploadProductImage, deleteProductImage };
+}
+
+export const { uploadProductImage, deleteProductImage } = createStorage();
+
+export function useProductStorage() {
+  const request = useMerchantRequest();
+  return useMemo(() => createStorage(request), [request]);
 }

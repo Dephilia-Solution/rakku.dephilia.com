@@ -111,6 +111,7 @@ export function MobileMenu({ links, ownerUrl }: MobileMenuProps) {
               </motion.a>
             ))}
             <motion.div variants={item} className="my-1 border-t border-brand" />
+            <motion.a href={`${ownerUrl.replace(/\/$/, "")}/demo`} onClick={closeMenu} variants={item} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800">Coba Demo</motion.a>
             <motion.a href={`${ownerUrl}/login`} onClick={closeMenu} variants={item} whileHover={reduceMotion ? undefined : { x: 3 }} whileTap={reduceMotion ? undefined : { x: 1, scale: 0.99 }} transition={{ duration: 0.16, ease: MENU_EASE }} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800 transition-colors hover:bg-paper-deep active:bg-paper-deep">
               Masuk ke portal owner
             </motion.a>

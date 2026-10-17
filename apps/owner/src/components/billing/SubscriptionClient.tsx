@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { showToast } from "@rakku/ui";
+import { useRouter, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { Check, Sparkles } from "lucide-react";
 import type {
   Plan,
@@ -74,6 +73,9 @@ export default function SubscriptionClient({
   plans: Plan[];
   invoices: InvoiceRow[];
 }) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const router = useRouter();
   const [now, setNow] = useState<number | null>(null);
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
@@ -92,6 +94,7 @@ export default function SubscriptionClient({
       : null;
 
   const handleChoose = async (plan: Plan) => {
+    if (isActive?.() === false) return;
     if (plan.slug === "free") {
       showToast("info", "Paket Free tidak memerlukan pembayaran.");
       return;
@@ -103,21 +106,23 @@ export default function SubscriptionClient({
 
     setCheckingOut(plan.slug);
     try {
-      const res = await fetch("/api/owner/subscription/checkout", {
+      const res = await request("/api/owner/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_slug: plan.slug, billing_cycle: cycle }),
       });
       const data = await res.json().catch(() => ({}));
+      if (isActive?.() === false) return;
       if (!res.ok || !data.invoice?.id) {
         showToast("error", data.error || "Gagal membuat pembayaran");
         return;
       }
       router.push(`/subscription/checkout/${data.invoice.id}`);
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan, coba lagi");
     } finally {
-      setCheckingOut(null);
+      if (isActive?.() !== false) setCheckingOut(null);
     }
   };
 

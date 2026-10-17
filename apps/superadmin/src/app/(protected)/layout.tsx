@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { createClient } from "@rakku/supabase-clients/server";
+import { getAuthorizedUser } from "@/lib/auth/require-superadmin";
 import Link from "next/link";
 import {
   Building2,
@@ -41,10 +41,8 @@ export default async function SuperadminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-
-  if (!data?.user) {
+  const user = await getAuthorizedUser();
+  if (!user) {
     redirect("/login");
   }
 
@@ -105,3 +103,5 @@ export default async function SuperadminLayout({
     </div>
   );
 }
+
+export const dynamic = "force-dynamic";

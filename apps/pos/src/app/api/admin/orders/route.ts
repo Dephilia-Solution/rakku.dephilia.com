@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { CartItem, SplitPayment, AppliedDiscount } from "@rakku/shared-types";
 import { deductStockForOrder } from "@rakku/inventory";
+import { sql } from "@rakku/db";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     orderType, paymentMethod, items, subtotal, total,
-    customerName, tableId, note, status, paymentStatus, companyId, outletId, cashierId,
+    customerName, tableId, note, status, paymentStatus,
     pricingTierId, splitPayments, taxes, discounts,
   } = body;
 
@@ -27,7 +28,9 @@ export async function POST(request: NextRequest) {
   }
   const cashierName = session.user_name ?? null;
 
-  const supabase = createAdminClient();
+  try {
+  return await createAdminClient().transaction(async supabase => {
+  await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${session.company_id},0))`);
 
   if ((status || "completed") === "completed") {
     const limit = await checkLimit(supabase, session.company_id, "transactions");
@@ -55,9 +58,9 @@ export async function POST(request: NextRequest) {
       note: note || null,
       status: status || "completed",
       payment_status: paymentStatus || "paid",
-      company_id: companyId || null,
-      outlet_id: outletId || null,
-      cashier_id: cashierId || null,
+      company_id: session.company_id,
+      outlet_id: session.outlet_id,
+      cashier_id: session.user_id,
       cashier_name: cashierName,
       pricing_tier_id: pricingTierId || null,
       split_bill: (splitPayments?.length ?? 0) > 0,
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (orderError || !order) {
-    return NextResponse.json({ error: orderError?.message ?? "Gagal membuat order" }, { status: 500 });
+    throw new Error(orderError?.message ?? "Gagal membuat order");
   }
 
   const orderItems = items.map((item: CartItem) => ({
@@ -85,8 +88,7 @@ export async function POST(request: NextRequest) {
     .insert(orderItems);
 
   if (itemsError) {
-    await supabase.from("orders").delete().eq("id", order.id);
-    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    throw new Error(itemsError.message);
   }
 
   // Insert split payments if any
@@ -105,24 +107,22 @@ export async function POST(request: NextRequest) {
       .insert(splitInserts);
 
     if (splitError) {
-      // Log error but don't fail the order
-      console.error("Failed to insert split payments:", splitError);
+      throw new Error(splitError.message);
     }
   }
 
-  // Potong stok otomatis (best-effort) — hanya untuk order selesai.
-  // Gagal di sini tidak menggagalkan order; error di-log (keputusan M2).
+  // Stock deduction shares the order transaction.
   if ((status || "completed") === "completed") {
     await deductStockForOrder(
       supabase,
       order.id,
-      companyId,
-      outletId,
+      session.company_id,
+      session.outlet_id,
       session.user_id ?? null
     );
   }
 
-  // Tandai meja occupied (best-effort) — hanya untuk order selesai ber-meja.
+  // Tandai meja occupied dalam transaksi yang sama untuk order selesai ber-meja.
   // Kasir bisa toggle manual kembali ke available (keputusan M6).
   if ((status || "completed") === "completed" && tableId) {
     const { error: tableError } = await supabase
@@ -130,9 +130,13 @@ export async function POST(request: NextRequest) {
       .update({ status: "occupied" })
       .eq("id", tableId);
     if (tableError) {
-      console.error("Failed to mark table occupied:", tableError);
+      throw new Error(tableError.message);
     }
   }
 
   return NextResponse.json(order, { status: 201 });
+  });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal membuat order" }, { status: 500 });
+  }
 }

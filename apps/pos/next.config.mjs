@@ -31,8 +31,10 @@ const MODERN_SYNTAX_REGEX = /\?\?=?|\|\|=\??|&&=\??|\?\.(?:[a-zA-Z_$])/;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: { cpus: 2, webpackBuildWorker: true },
   async redirects() {
     return [
+      { source: "/demo", destination: `${process.env.NEXT_PUBLIC_OWNER_URL || (process.env.NODE_ENV === "production" ? "https://rakku.vercel.app" : "http://localhost:3000")}/demo?mode=pos`, permanent: false },
       { source: "/categories", destination: "/products", permanent: false },
       { source: "/pricing-tiers", destination: "/products", permanent: false },
       { source: "/taxes", destination: "/tax-discounts?tab=pajak", permanent: false },
@@ -43,17 +45,13 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.supabase.co",
-      },
-      {
-        protocol: "https",
         hostname: "cdn.dephilia.com",
       },
     ],
   },
   transpilePackages: [
     "@rakku/shared-types",
-    "@rakku/supabase-clients",
+    "@rakku/db",
     "@rakku/auth-utils",
     "@rakku/ui",
     "@rakku/pricing",

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@/lib/db";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import InvoicePageClient from "./InvoicePageClient";
 

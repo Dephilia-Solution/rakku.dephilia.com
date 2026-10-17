@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatCurrency } from "@/lib/format";
+import { useMerchantRequest, useMerchantRuntime } from "@/lib/merchant-runtime";
 import {
   Wallet,
   Package,
@@ -40,29 +41,38 @@ export default function ProfitLossClient({
   onDateRangeChange,
   onOutletChange,
 }: ProfitLossClientProps) {
+  const request = useMerchantRequest();
+  const isActive = useMerchantRuntime()?.active;
   const [data, setData] = useState<ProfitLossData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfitLoss = useCallback(async () => {
+  const fetchProfitLoss = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({ date_range: dateRange });
       if (outletId) params.set("outlet_id", outletId);
-      const res = await fetch(`/api/owner/reports/profit-loss?${params.toString()}`);
+      const res = await request(`/api/owner/reports/profit-loss?${params.toString()}`, { signal });
+      if (signal?.aborted || isActive?.() === false) return;
       if (res.ok) {
-        setData(await res.json());
+        const result = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
+        setData(result);
       } else {
         setData(null);
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       setData(null);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [dateRange, outletId]);
+  }, [dateRange, outletId, request, isActive]);
 
   useEffect(() => {
-    fetchProfitLoss();
+    const controller = new AbortController();
+    void fetchProfitLoss(controller.signal);
+    return () => controller.abort();
   }, [fetchProfitLoss]);
 
   const ranges = [

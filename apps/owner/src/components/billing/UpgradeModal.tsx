@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { MerchantLink as Link } from "@/lib/merchant-runtime";
 import { Sparkles, X } from "lucide-react";
 
 interface UpgradeModalProps {

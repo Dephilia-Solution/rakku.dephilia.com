@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
+import { MerchantLink as Link, MerchantForm } from "@pos/lib/merchant-runtime";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@pos/lib/merchant-runtime";
 import { ChevronLeft, LogOut, Lock, PanelLeftOpen, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { useDraftCount } from "@/hooks/useDraftCount";
-import { useLowStockCount } from "@/hooks/useLowStockCount";
-import { useSidebarStore } from "@/lib/store/sidebarStore";
-import { usePlan } from "@/components/billing/PlanProvider";
+import { useDraftCount } from "@pos/hooks/useDraftCount";
+import { useLowStockCount } from "@pos/hooks/useLowStockCount";
+import { useSidebarStore } from "@pos/lib/store/sidebarStore";
+import { usePlan } from "@pos/components/billing/PlanProvider";
 import type { Menu } from "@rakku/shared-types";
 
 interface AppSidebarProps {
@@ -161,30 +161,32 @@ export default function AppSidebar({
           const content = (
             <>
               <span className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
-                {Icon ? (
-                  <Icon size={22} />
-                ) : (
-                  <span className="text-sm font-bold">
-                    {item.name.charAt(0)}
-                  </span>
-                )}
-                {item.path === "/register" && draftCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
-                    {draftCount > 9 ? "9+" : draftCount}
-                  </span>
-                )}
-                {item.path === "/ingredients" &&
-                  !locked &&
-                  lowStockCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
-                      {lowStockCount > 9 ? "9+" : lowStockCount}
+                <span className="relative flex h-[22px] w-[22px] items-center justify-center">
+                  {Icon ? (
+                    <Icon size={22} />
+                  ) : (
+                    <span className="text-sm font-bold">
+                      {item.name.charAt(0)}
                     </span>
                   )}
-                {locked && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center">
-                    <Lock size={9} />
-                  </span>
-                )}
+                  {item.path === "/register" && draftCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-forest text-[9px] font-bold text-white flex items-center justify-center">
+                      {draftCount > 9 ? "9+" : draftCount}
+                    </span>
+                  )}
+                  {item.path === "/ingredients" &&
+                    !locked &&
+                    lowStockCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-warning text-[9px] font-bold text-white flex items-center justify-center">
+                        {lowStockCount > 9 ? "9+" : lowStockCount}
+                      </span>
+                    )}
+                  {locked && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center">
+                      <Lock size={9} />
+                    </span>
+                  )}
+                </span>
               </span>
               <motion.span
                 initial={false}
@@ -230,7 +232,7 @@ export default function AppSidebar({
       </nav>
 
       <div className="px-2.5 py-3 border-t border-surface-container space-y-1">
-        <form action="/api/auth/tenant/switch-user" method="post">
+        <MerchantForm action="/api/auth/tenant/switch-user" method="post">
           <button
             type="submit"
             title={isCollapsed ? "Ganti User" : undefined}
@@ -250,8 +252,8 @@ export default function AppSidebar({
               Ganti User
             </motion.span>
           </button>
-        </form>
-        <form action="/api/auth/tenant/logout" method="post">
+        </MerchantForm>
+        <MerchantForm action="/api/auth/tenant/logout" method="post">
           <button
             type="submit"
             title={isCollapsed ? "Keluar" : undefined}
@@ -271,7 +273,7 @@ export default function AppSidebar({
               Keluar
             </motion.span>
           </button>
-        </form>
+        </MerchantForm>
       </div>
     </motion.aside>
   );

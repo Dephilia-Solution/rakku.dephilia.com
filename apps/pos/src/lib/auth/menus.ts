@@ -1,4 +1,4 @@
-import { createAdminClient } from "@rakku/supabase-clients";
+import { createAdminClient } from "@rakku/db";
 import type { Menu } from "@rakku/shared-types";
 
 export async function getAllowedMenus(roleId: string): Promise<Menu[]> {

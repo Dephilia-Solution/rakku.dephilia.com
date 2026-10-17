@@ -1,186 +1,63 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { sql, type DatabaseClient } from "@rakku/db";
 
-type JsonLike = Record<string, unknown>;
-
-interface RecipeWithIngredient extends JsonLike {
-  product_id: string;
-  ingredient_id: string;
-  quantity_used: number;
-  ingredients: { company_id: string; outlet_id: string } | null;
-}
-
-interface OrderItemRow extends JsonLike {
-  product_id: string;
-  quantity: number;
-}
-
-/**
- * Potong stok otomatis (best-effort) untuk order yang baru selesai.
- *
- * Strategi (keputusan v5 M2): dipanggil SETELAH order + order_items tersimpan,
- * TIDAK dalam transaksi yang sama. Gagal di sini TIDAK menggagalkan order —
- * error cukup di-log ("best-effort").
- *
- * Idempotent: jika sudah ada stock_movements type=sale_deduction untuk order
- * ini, langsung skip (cegah double-deduct saat retry/webhook+polling).
- */
+/** Atomic, idempotent deduction: stock and movement commit together. */
 export async function deductStockForOrder(
-  supabase: SupabaseClient,
-  orderId: string,
-  companyId: string | null,
-  outletId: string | null,
-  createdBy: string | null = null
+  db: DatabaseClient, orderId: string, companyId: string | null,
+  outletId: string | null, createdBy: string | null = null
 ): Promise<void> {
-  try {
-    const company = companyId;
-    const outlet = outletId;
+  if (!companyId || !outletId) throw new Error("Missing order company/outlet scope");
+  const result = await db.rpc("deduct_stock_for_order", {
+    p_order_id: orderId, p_company_id: companyId, p_outlet_id: outletId, p_created_by: createdBy,
+  });
+  if (result.error) throw new Error(result.error.message);
+}
 
-    if (!company || !outlet) {
-      console.error(
-        "[stock] deductStockForOrder skipped: missing company/outlet scope",
-        { orderId }
-      );
-      return;
+export interface PurchaseItemInput { ingredient_id: string; quantity: number; unit_cost: number; }
+export async function recordPurchase(db: DatabaseClient, input: {
+  companyId: string; outletId: string; userId: string; supplier?: string; date?: string; note?: string;
+  items: PurchaseItemInput[];
+}) {
+  return db.transaction(async tx => {
+    const ids = Array.from(new Set(input.items.map(item => item.ingredient_id)));
+    const locked = await tx.execute(sql`select id from public.ingredients where company_id=${input.companyId}
+      and outlet_id=${input.outletId} and id in (${sql.join(ids.map(id => sql`${id}::uuid`), sql`, `)}) order by id for update`);
+    if (locked.length !== ids.length) throw new Error("Bahan tidak ditemukan pada outlet ini");
+    const total = input.items.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+    const result = await tx.from("ingredient_purchases").insert({ company_id: input.companyId, outlet_id: input.outletId,
+      supplier_name: input.supplier?.trim() || null, purchase_date: input.date ?? new Date().toISOString(),
+      note: input.note?.trim() || null, total_amount: total, created_by: input.userId }).select().single();
+    if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal menyimpan pembelian");
+    const purchase = result.data;
+    for (const item of input.items) {
+      await tx.execute(sql`update public.ingredients set stock_quantity=stock_quantity+${item.quantity},
+        cost_per_unit=${item.unit_cost} where id=${item.ingredient_id}`);
     }
+    const items = await tx.from("ingredient_purchase_items").insert(input.items.map(item => ({ ...item,
+      purchase_id: purchase.id, subtotal: item.quantity * item.unit_cost })));
+    if (items.error) throw new Error(items.error.message);
+    const movements = await tx.from("stock_movements").insert(input.items.map(item => ({
+      company_id: input.companyId, outlet_id: input.outletId, ingredient_id: item.ingredient_id,
+      type: "purchase", quantity_change: item.quantity, reference_id: purchase.id,
+      note: input.supplier?.trim() || null, created_by: input.userId,
+    })));
+    if (movements.error) throw new Error(movements.error.message);
+    return { success: true, id: purchase.id, total_amount: total };
+  });
+}
 
-    const { count: existingCount, error: countError } = await supabase
-      .from("stock_movements")
-      .select("id", { count: "exact", head: true })
-      .eq("reference_id", orderId)
-      .eq("type", "sale_deduction");
-
-    if (countError) {
-      console.error("[stock] idempotency check failed:", countError);
-      return;
-    }
-
-    if ((existingCount ?? 0) > 0) {
-      return;
-    }
-
-    const { data: itemRows, error: itemsError } = await supabase
-      .from("order_items")
-      .select("product_id, quantity")
-      .eq("order_id", orderId);
-
-    if (itemsError) {
-      console.error("[stock] failed to fetch order_items:", itemsError);
-      return;
-    }
-
-    const items = (itemRows ?? []) as OrderItemRow[];
-    const productIds = Array.from(new Set(items.map((i) => i.product_id)));
-
-    if (productIds.length === 0) {
-      return;
-    }
-
-    const { data: recipeRows, error: recipesError } = await supabase
-      .from("product_recipes")
-      .select(
-        "product_id, ingredient_id, quantity_used, ingredients(company_id, outlet_id)"
-      )
-      .in("product_id", productIds);
-
-    if (recipesError) {
-      console.error("[stock] failed to fetch product_recipes:", recipesError);
-      return;
-    }
-
-    const recipes = (recipeRows ?? []) as unknown as RecipeWithIngredient[];
-
-    const deductions = new Map<
-      string,
-      { quantity: number; ingredientId: string }
-    >();
-
-    for (const item of items) {
-      for (const recipe of recipes) {
-        if (recipe.product_id !== item.product_id) continue;
-
-        const ingredientScope = recipe.ingredients;
-        if (
-          !ingredientScope ||
-          ingredientScope.company_id !== company ||
-          ingredientScope.outlet_id !== outlet
-        ) {
-          continue;
-        }
-
-        const current = deductions.get(recipe.ingredient_id) ?? {
-          quantity: 0,
-          ingredientId: recipe.ingredient_id,
-        };
-        current.quantity += recipe.quantity_used * item.quantity;
-        deductions.set(recipe.ingredient_id, current);
-      }
-    }
-
-    const ingredientIds = Array.from(deductions.keys());
-
-    if (ingredientIds.length === 0) {
-      return;
-    }
-
-    const { data: ingredientRows, error: ingredientsError } = await supabase
-      .from("ingredients")
-      .select("id, stock_quantity")
-      .in("id", ingredientIds);
-
-    if (ingredientsError) {
-      console.error("[stock] failed to fetch ingredients:", ingredientsError);
-      return;
-    }
-
-    const stockMap = new Map<string, number>(
-      (ingredientRows ?? []).map((r: JsonLike) => [
-        r.id as string,
-        Number(r.stock_quantity ?? 0),
-      ])
-    );
-
-    const movementRows = Array.from(deductions.values()).map((d) => ({
-      company_id: company,
-      outlet_id: outlet,
-      ingredient_id: d.ingredientId,
-      type: "sale_deduction" as const,
-      quantity_change: -d.quantity,
-      reference_id: orderId,
-      note: null,
-      created_by: createdBy,
-    }));
-
-    const updates = movementRows.map((m) => {
-      const current = stockMap.get(m.ingredient_id) ?? 0;
-      return supabase
-        .from("ingredients")
-        .update({ stock_quantity: current + m.quantity_change })
-        .eq("id", m.ingredient_id)
-        .eq("company_id", company)
-        .eq("outlet_id", outlet);
-    });
-
-    const updateResults = await Promise.all(updates);
-
-    for (const result of updateResults) {
-      if (result.error) {
-        console.error(
-          "[stock] failed to update ingredient stock:",
-          result.error
-        );
-        return;
-      }
-    }
-
-    const { error: movementsError } = await supabase
-      .from("stock_movements")
-      .insert(movementRows);
-
-    if (movementsError) {
-      console.error("[stock] failed to insert stock_movements:", movementsError);
-      return;
-    }
-  } catch (err) {
-    console.error("[stock] unexpected error deducting stock:", err);
-  }
+export async function adjustStock(db: DatabaseClient, input: {
+  companyId: string; outletId: string; ingredientId: string; userId: string; quantity: number; note?: string;
+}) {
+  return db.transaction(async tx => {
+    const rows = await tx.execute(sql`select stock_quantity from public.ingredients where id=${input.ingredientId}
+      and company_id=${input.companyId} and outlet_id=${input.outletId} for update`);
+    if (!rows.length) throw new Error("Bahan baku tidak ditemukan");
+    const previous = Number(rows[0].stock_quantity);
+    const delta = input.quantity - previous;
+    await tx.execute(sql`update public.ingredients set stock_quantity=${input.quantity} where id=${input.ingredientId}`);
+    const movement = await tx.from("stock_movements").insert({ company_id: input.companyId, outlet_id: input.outletId,
+      ingredient_id: input.ingredientId, type: "adjustment", quantity_change: delta, note: input.note ?? null, created_by: input.userId });
+    if (movement.error) throw new Error(movement.error.message);
+    return { success: true, previous_stock: previous, new_stock: input.quantity, quantity_change: delta };
+  });
 }

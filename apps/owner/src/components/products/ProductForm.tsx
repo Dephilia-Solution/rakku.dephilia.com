@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useMemo, useEffect } from "react";
+import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantRuntime, useMerchantToast, useMerchantImages } from "@/lib/merchant-runtime";
 import Image from "next/image";
-import Link from "next/link";
 import { Category, Modifier, PricingTier } from "@rakku/shared-types";
 import {
   PageHeader,
@@ -11,7 +10,6 @@ import {
   fieldInputClass,
   fieldSelectClass,
   Toggle,
-  showToast,
 } from "@rakku/ui";
 import CategoryManagerSlideOver from "./CategoryManagerSlideOver";
 import TierManagerSlideOver from "./TierManagerSlideOver";
@@ -71,6 +69,13 @@ export default function OwnerProductForm({
   initialModifiers = [],
   initialRecipes = [],
 }: OwnerProductFormProps) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const images = useMerchantImages();
+  const isActive = useMerchantRuntime()?.active;
+  const ensureActive = () => {
+    if (isActive?.() === false) throw new DOMException("Merchant runtime inactive", "AbortError");
+  };
   const router = useRouter();
   const { openUpgrade } = usePlan();
 
@@ -99,6 +104,14 @@ export default function OwnerProductForm({
     initialProduct?.image_url ?? null
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const localPreview = useRef<{ url: string; revoke: (url: string) => void } | null>(null);
+  const releasePreview = () => {
+    if (localPreview.current) {
+      localPreview.current.revoke(localPreview.current.url);
+      localPreview.current = null;
+    }
+  };
+  useEffect(() => () => releasePreview(), []);
 
   const [modifiers, setModifiers] =
     useState<ModifierWithTierPrices[]>(initialModifiers);
@@ -137,6 +150,7 @@ export default function OwnerProductForm({
   const listUrl = `/products?outlet=${encodeURIComponent(outletId)}`;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isActive?.() === false) return;
     const file = e.target.files?.[0];
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -148,10 +162,14 @@ export default function OwnerProductForm({
       return;
     }
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    releasePreview();
+    const url = images.create(file);
+    localPreview.current = { url, revoke: images.revoke };
+    setPreviewUrl(url);
   };
 
   const handleRemoveImage = () => {
+    releasePreview();
     setSelectedFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -176,23 +194,27 @@ export default function OwnerProductForm({
   };
 
   const uploadImage = async (pid: string): Promise<string | null> => {
+    ensureActive();
     if (!selectedFile) return null;
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("productId", pid);
-    const res = await fetch("/api/owner/products/upload", {
+    const res = await request("/api/owner/products/upload", {
       method: "POST",
       body: formData,
     });
+    ensureActive();
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error ?? "Upload gambar gagal");
     }
     const { url } = await res.json();
+    ensureActive();
     return url as string;
   };
 
   const handleAddModifier = async () => {
+    if (isActive?.() === false) return;
     const name = modForm.name.trim();
     if (!name) {
       showToast("error", "Nama add-on harus diisi");
@@ -222,11 +244,12 @@ export default function OwnerProductForm({
           tier_id: tierId,
           price_delta: delta,
         }));
-        const res = await fetch("/api/owner/modifiers", {
+        const res = await request("/api/owner/modifiers", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editModId, name, group_name: group_name || null, prices }),
         });
+        ensureActive();
         if (!res.ok) throw new Error("Gagal mengupdate add-on");
         setModifiers((prev) =>
           prev.map((m) =>
@@ -238,6 +261,7 @@ export default function OwnerProductForm({
         resetModForm();
         showToast("success", "Add-on berhasil diupdate");
       } catch (err) {
+        if (isActive?.() === false) return;
         const msg = err instanceof Error ? err.message : "Gagal mengupdate add-on";
         showToast("error", msg);
       }
@@ -250,7 +274,7 @@ export default function OwnerProductForm({
           tier_id: tierId,
           price_delta: delta,
         }));
-        const res = await fetch("/api/owner/modifiers", {
+        const res = await request("/api/owner/modifiers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -260,8 +284,10 @@ export default function OwnerProductForm({
             prices,
           }),
         });
+        ensureActive();
         if (!res.ok) throw new Error("Gagal menambah add-on");
         const created = await res.json();
+        ensureActive();
         setModifiers((prev) => [
           ...prev,
           {
@@ -276,6 +302,7 @@ export default function OwnerProductForm({
         resetModForm();
         showToast("success", "Add-on berhasil ditambahkan");
       } catch (err) {
+        if (isActive?.() === false) return;
         const msg = err instanceof Error ? err.message : "Gagal menambah add-on";
         showToast("error", msg);
       }
@@ -287,14 +314,17 @@ export default function OwnerProductForm({
   };
 
   const handleDeleteModifier = async (mod: ModifierWithTierPrices) => {
+    if (isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/modifiers?id=${mod.id}`, {
+      const res = await request(`/api/owner/modifiers?id=${mod.id}`, {
         method: "DELETE",
       });
+      ensureActive();
       if (!res.ok) throw new Error("Gagal menghapus add-on");
       setModifiers((prev) => prev.filter((m) => m.id !== mod.id));
       showToast("success", "Add-on berhasil dihapus");
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menghapus add-on";
       showToast("error", msg);
     }
@@ -317,6 +347,7 @@ export default function OwnerProductForm({
   };
 
   const handleSave = async () => {
+    if (isActive?.() === false) return;
     if (!form.name.trim()) {
       showToast("error", "Nama produk harus diisi");
       return;
@@ -343,7 +374,7 @@ export default function OwnerProductForm({
       let pid = productId;
 
       if (mode === "edit" && productId) {
-        const res = await fetch("/api/owner/products", {
+        const res = await request("/api/owner/products", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -355,6 +386,7 @@ export default function OwnerProductForm({
             is_active: form.is_active,
           }),
         });
+        ensureActive();
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           const error = new Error(
@@ -364,15 +396,17 @@ export default function OwnerProductForm({
           throw error;
         }
         const imageUrl = await uploadImage(productId);
+        ensureActive();
         if (imageUrl) {
-          await fetch("/api/owner/products", {
+          await request("/api/owner/products", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: productId, image_url: imageUrl }),
           });
+          ensureActive();
         }
       } else {
-        const res = await fetch("/api/owner/products", {
+        const res = await request("/api/owner/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -384,6 +418,7 @@ export default function OwnerProductForm({
             is_active: form.is_active,
           }),
         });
+        ensureActive();
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           const error = new Error(
@@ -393,23 +428,27 @@ export default function OwnerProductForm({
           throw error;
         }
         const created = await res.json();
+        ensureActive();
         pid = created.id;
         const imageUrl = await uploadImage(created.id);
+        ensureActive();
         if (imageUrl) {
-          await fetch("/api/owner/products", {
+          await request("/api/owner/products", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: created.id, image_url: imageUrl }),
           });
+          ensureActive();
         }
       }
 
       if (pid && tierPriceArray.length > 0) {
-        await fetch("/api/owner/product-tier-prices", {
+        await request("/api/owner/product-tier-prices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productId: pid, prices: tierPriceArray }),
         });
+        ensureActive();
       }
 
       if (mode === "add" && pid) {
@@ -418,7 +457,7 @@ export default function OwnerProductForm({
             const prices = Object.entries(mod.tierDeltas).map(
               ([tierId, delta]) => ({ tier_id: tierId, price_delta: delta })
             );
-            await fetch("/api/owner/modifiers", {
+            await request("/api/owner/modifiers", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -428,7 +467,10 @@ export default function OwnerProductForm({
                 prices,
               }),
             });
-          } catch {}
+            ensureActive();
+          } catch {
+            if (isActive?.() === false) return;
+          }
         }
       }
 
@@ -436,7 +478,7 @@ export default function OwnerProductForm({
         for (const recipe of recipeRows) {
           if (recipe.id) continue;
           try {
-            await fetch("/api/owner/recipes", {
+            await request("/api/owner/recipes", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -445,7 +487,10 @@ export default function OwnerProductForm({
                 quantity_used: recipe.quantity_used,
               }),
             });
-          } catch {}
+            ensureActive();
+          } catch {
+            if (isActive?.() === false) return;
+          }
         }
       }
 
@@ -456,6 +501,7 @@ export default function OwnerProductForm({
       router.push(listUrl);
       router.refresh();
     } catch (err) {
+      if (isActive?.() === false) return;
       const message = err instanceof Error ? err.message : "Terjadi kesalahan";
       if (
         err instanceof Error &&
@@ -466,7 +512,7 @@ export default function OwnerProductForm({
         showToast("error", message);
       }
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 

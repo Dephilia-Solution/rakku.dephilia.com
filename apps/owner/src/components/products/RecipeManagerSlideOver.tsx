@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Ingredient, IngredientUnit } from "@rakku/shared-types";
-import { SlideOver, showToast, fieldInputClass, fieldSelectClass } from "@rakku/ui";
+import { SlideOver, fieldInputClass, fieldSelectClass } from "@rakku/ui";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 
@@ -33,6 +34,9 @@ export default function RecipeManagerSlideOver({
   rows,
   onRowsChange,
 }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
@@ -47,27 +51,31 @@ export default function RecipeManagerSlideOver({
     onRowsChangeRef.current?.(next);
   }, []);
 
-  const fetchIngredients = useCallback(async () => {
+  const fetchIngredients = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     try {
-      const res = await fetch(`/api/owner/ingredients?outlet_id=${encodeURIComponent(outletId)}`);
+      const res = await request(`/api/owner/ingredients?outlet_id=${encodeURIComponent(outletId)}`, { signal });
       if (res.ok) {
         const data = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
         setIngredients(
           (data as Ingredient[]).filter((i) => i.is_active)
         );
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       showToast("error", "Gagal memuat data bahan baku");
     }
-  }, [outletId]);
+  }, [outletId, request, showToast, isActive]);
 
-  const fetchRecipes = useCallback(async () => {
-    if (!productId) return;
+  const fetchRecipes = useCallback(async (signal?: AbortSignal) => {
+    if (!productId || signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/owner/recipes?product_id=${productId}`);
+      const res = await request(`/api/owner/recipes?product_id=${productId}`, { signal });
       if (res.ok) {
         const data = await res.json();
+        if (signal?.aborted || isActive?.() === false) return;
         applyRows(
           (data as Record<string, unknown>[]).map((r) => ({
             id: r.id as string,
@@ -82,19 +90,22 @@ export default function RecipeManagerSlideOver({
         );
       }
     } catch {
+      if (signal?.aborted || isActive?.() === false) return;
       showToast("error", "Gagal memuat resep");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [productId, applyRows]);
+  }, [productId, applyRows, request, showToast, isActive]);
 
   useEffect(() => {
+    const controller = new AbortController();
     if (open) {
-      fetchIngredients();
-      fetchRecipes();
+      void fetchIngredients(controller.signal);
+      void fetchRecipes(controller.signal);
       setSelectedIngredientId("");
       setQuantity("");
     }
+    return () => controller.abort();
   }, [open, fetchIngredients, fetchRecipes]);
 
   // Bahan yang sudah dipakai di resep tidak bisa dipilih lagi (UNIQUE constraint)
@@ -105,6 +116,7 @@ export default function RecipeManagerSlideOver({
   const selectedIngredient = ingredients.find((i) => i.id === selectedIngredientId);
 
   const handleAdd = async () => {
+    if (isActive?.() === false) return;
     const qty = Number(quantity);
     if (!selectedIngredientId || !qty || qty <= 0 || saving) return;
     setSaving(true);
@@ -127,7 +139,7 @@ export default function RecipeManagerSlideOver({
     }
 
     try {
-      const res = await fetch("/api/owner/recipes", {
+      const res = await request("/api/owner/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -136,6 +148,7 @@ export default function RecipeManagerSlideOver({
           quantity_used: qty,
         }),
       });
+      if (isActive?.() === false) return;
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error ?? "Gagal menambah bahan resep");
@@ -145,31 +158,36 @@ export default function RecipeManagerSlideOver({
       showToast("success", "Bahan resep berhasil ditambahkan");
       await fetchRecipes();
     } catch (err) {
+      if (isActive?.() === false) return;
       const msg = err instanceof Error ? err.message : "Gagal menambah bahan resep";
       showToast("error", msg);
     } finally {
-      setSaving(false);
+      if (isActive?.() !== false) setSaving(false);
     }
   };
 
   const handleDelete = async (row: RecipeRow) => {
+    if (isActive?.() === false) return;
     // Mode tambah produk: hapus dari antrian lokal
     if (!row.id) {
       applyRows(rows.filter((r) => r.ingredient_id !== row.ingredient_id));
       return;
     }
     try {
-      const res = await fetch(`/api/owner/recipes?id=${row.id}`, {
+      const res = await request(`/api/owner/recipes?id=${row.id}`, {
         method: "DELETE",
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         showToast("success", "Bahan resep berhasil dihapus");
         await fetchRecipes();
       } else {
         const data = await res.json();
+        if (isActive?.() === false) return;
         showToast("error", data.error ?? "Gagal menghapus");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal menghapus");
     }
   };
