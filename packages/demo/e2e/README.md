@@ -56,6 +56,10 @@ allow only real demo routes, local app/static assets and existing static font
 resources. Cookie/localStorage/cache merchant sentinels must survive every suite.
 Errors, blocked requests, storage writes and console/page errors fail verification.
 
+`browser.mjs` and `chrome.mjs` are shared helpers imported by the routed suite and
+must be committed with it. The old standalone scenario scripts remain ignored and
+are not dependencies of `routed.mjs`.
+
 JSON diagnostics, screenshots and a summary are written under a unique temporary
 `opencode/rakku-routed-demo-*` directory, not the workspace or application storage.
 

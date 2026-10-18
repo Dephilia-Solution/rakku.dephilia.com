@@ -88,7 +88,7 @@ Form logout/switch-user terikat lewat `MerchantForm`; tidak ada listener global 
 | `apps/owner/src/app/demo/(sandbox)/` | Route namespace Owner/POS dan wrapper per fitur |
 | `apps/owner/public/demo-assets/` | Ilustrasi statis lokal |
 | `packages/demo/src/*.test.ts` | Domain, adapter, source parity, provider/storage sentinels, route contracts |
-| `packages/demo/e2e/routed.mjs` | Browser acceptance terhadap route dan UI asli |
+| `packages/demo/e2e/routed.mjs`, `isolation.mjs`, `browser.mjs`, `chrome.mjs` | Browser acceptance terhadap route/UI asli, kebijakan request, dan helper browser bersama |
 
 Tidak ada backend state, `Map` server tenant, token/cookie demo, TTL, layanan berbayar, atau schema/migration baru. Instance browser memiliki salinan immutable fixture dan store sendiri. `pnpm db:demo` adalah **tenant testing permanen Neon yang terpisah** dan tidak digunakan/reset oleh demo publik.
 
@@ -133,7 +133,7 @@ pnpm lint --concurrency=1
 pnpm build --concurrency=1
 ```
 
-`test:demo` memeriksa domain, facade existing API, route contracts, isolasi antarvisitor, BOM/ledger/report, idempotency, quota/period/permission, gambar, serta imports provider yang sengaja melempar. `test:db` memakai PGlite, bukan Neon bersama. Node 24 direkomendasikan (provider hook memerlukan ≥22.15).
+`test:demo` memeriksa domain, facade existing API, route contracts, isolasi antarvisitor, BOM/ledger/report, idempotency, quota/period/permission, gambar, imports provider yang sengaja melempar, serta 3 request-policy tests. `browser.mjs` dan `chrome.mjs` adalah helper aktif yang dipakai `routed.mjs`/`isolation.mjs`; keduanya harus tetap dilacak Git. `.gitignore` hanya mengecualikan scenario harness mandiri lama. `test:db` memakai PGlite, bukan Neon bersama. Node 24 direkomendasikan (provider hook memerlukan ≥22.15).
 
 Build dan browser production lokal:
 

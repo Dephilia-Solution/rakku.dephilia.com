@@ -50,11 +50,9 @@ Thumbs.db
 # Backup
 .package-lock.json.bak
 
-# Demo e2e: harness standalone lama (UI dihapus, digantikan suite routed)
+# Demo e2e: scenario scripts mandiri lama (suite routed memakai helper bersama)
 packages/demo/e2e/acceptance.mjs
 packages/demo/e2e/billing.mjs
-packages/demo/e2e/browser.mjs
-packages/demo/e2e/chrome.mjs
 packages/demo/e2e/commerce.mjs
 packages/demo/e2e/lifecycle.mjs
 packages/demo/e2e/management.mjs
