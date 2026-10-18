@@ -1,7 +1,7 @@
-import type { DemoEntity, DemoState } from "./models";
-import { INGREDIENT_UNITS, DEMO_MENUS } from "./constants";
+import type { DemoEntity, DemoMenuGrant, DemoRole, DemoState } from "./models";
+import { INGREDIENT_UNITS, DEMO_MENUS, demoMenuId } from "./constants";
 import { bool, date, discountDate, fail, find, jakartaDate, list, money, number, optionalText, recipeId, record, text, uniqueStrings } from "./business";
-import { entityAccess, scope } from "./access";
+import { entityAccess, fullMenusGrant, roleGrants, scope } from "./access";
 
 export type NewId = (kind: string) => string;
 type Row = { id: string; company_id: string; outlet_id?: string; [key: string]: unknown };
@@ -52,9 +52,40 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
       row = { ...base, name: name(), username, role_id, pin, outlet_ids, all_outlets, is_active: is_active() }; break;
     }
     case "roles": {
-      const menus = uniqueStrings(v.menus); if (menus.some(m => !(DEMO_MENUS as readonly string[]).includes(m))) fail("Invalid menu slug");
-      if (existing && JSON.stringify(menus) !== JSON.stringify(existing.menus) && !state.plans.find(p => p.slug === state.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
-      row = { ...base, name: name(), menus }; break;
+      const existingRole = existing as unknown as DemoRole | undefined;
+      let grants: DemoMenuGrant[];
+      let menus: string[];
+      if (value.grants !== undefined) {
+        const byId = new Map(DEMO_MENUS.map(slug => [demoMenuId(slug), slug]));
+        grants = list(value.grants).map(raw => {
+          const entry = record(raw), menu_id = text(entry.menu_id, "menu ID"), slug = byId.get(menu_id);
+          if (!slug) fail("Invalid menu ID");
+          const flags = { can_view: bool(entry.can_view), can_create: bool(entry.can_create),
+            can_edit: bool(entry.can_edit), can_delete: bool(entry.can_delete) };
+          if (!flags.can_view && (flags.can_create || flags.can_edit || flags.can_delete)) fail("VIEW_REQUIRED");
+          return { menu_id, ...flags };
+        });
+        if (new Set(grants.map(grant => grant.menu_id)).size !== grants.length) fail("Duplicate menu ID");
+        grants.sort((a, b) => a.menu_id.localeCompare(b.menu_id));
+        menus = grants.filter(grant => grant.can_view)
+          .map(grant => DEMO_MENUS.find(slug => demoMenuId(slug) === grant.menu_id)!)
+          .sort();
+      } else if (value.menus !== undefined) {
+        menus = uniqueStrings(value.menus).sort();
+        if (menus.some(m => !(DEMO_MENUS as readonly string[]).includes(m))) fail("Invalid menu slug");
+        grants = fullMenusGrant(menus);
+      } else if (existingRole) {
+        grants = roleGrants(existingRole);
+        menus = [...existingRole.menus];
+      } else {
+        grants = [];
+        menus = [];
+      }
+      const canonical = (rows: DemoMenuGrant[]) => [...rows].sort((a, b) => a.menu_id.localeCompare(b.menu_id));
+      const sameMenus = (a: string[], b: string[]) => a.length === b.length && [...a].sort().every((menu, index) => menu === [...b].sort()[index]);
+      const changed = !!existingRole && (JSON.stringify(canonical(grants)) !== JSON.stringify(canonical(roleGrants(existingRole))) || !sameMenus(menus, existingRole.menus));
+      if (existing && changed && !state.plans.find(p => p.slug === state.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
+      row = { ...base, name: name(), menus, grants }; break;
     }
     case "categories": row = { ...scopedBase, name: name(), sort_order: sort_order() }; break;
     case "tiers": {

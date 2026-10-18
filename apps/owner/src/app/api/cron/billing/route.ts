@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/db";
+import { logError } from "@rakku/observability";
+import { runDueJobs } from "@/lib/billing/provider-jobs";
 import {
   getUsageSummary,
   GRACE_DAYS,
@@ -56,38 +59,45 @@ async function run(request: NextRequest) {
     renewalReminders: 0,
     subscriptionExpired: 0,
     limitWarnings: 0,
+    jobsCompleted: 0,
+    jobsRetried: 0,
+    jobsDeadLettered: 0,
   };
 
+  const deadline = Date.now() + 45000;
   // 1. Sinkronkan invoice pending (re-verify ke Vessel + aktivasi bila sukses)
   const { data: pendingInvoices } = await supabase
     .from("subscription_invoices")
     .select("*")
     .eq("status", "pending")
-    .limit(100);
+    .order("updated_at")
+    .limit(4);
 
-  for (const invoice of pendingInvoices ?? []) {
-    const processed = await processInvoice(
-      supabase,
-      invoice as SubscriptionInvoice
-    );
-    result.synced++;
-    if (processed.activated) result.activated++;
+  for (const invoice of dry ? [] : pendingInvoices ?? []) {
+    if (Date.now() > deadline) break;
+    try {
+      const processed = await processInvoice(supabase, invoice as SubscriptionInvoice);
+      result.synced++;
+      if (processed.activated) result.activated++;
+    } catch (error) { logError("billing.invoice_sync_failed", error, { invoice_id: invoice.id }); }
   }
 
   // 1b. Sinkronkan QRIS order pending (finalisasi + kredit saldo bila sukses)
   const { data: pendingIntents } = await supabase
     .from("payment_intents")
     .select("*")
-    .eq("status", "pending")
-    .limit(100);
+    .in("status", ["pending", "expired", "cancelled", "failed"])
+    .not("provider_transaction_id", "is", null)
+    .order("updated_at")
+    .limit(8);
 
-  for (const intent of pendingIntents ?? []) {
-    const processed = await processOrderPayment(
-      supabase,
-      intent as PaymentIntent
-    );
-    result.intentsSynced++;
-    if (processed.finalized) result.ordersFinalized++;
+  for (const intent of dry ? [] : pendingIntents ?? []) {
+    if (Date.now() > deadline) break;
+    try {
+      const processed = await processOrderPayment(supabase, intent as PaymentIntent);
+      result.intentsSynced++;
+      if (processed.finalized) result.ordersFinalized++;
+    } catch (error) { logError("billing.order_sync_failed", error, { intent_id: intent.id }); }
   }
 
   // 2. Siklus trial & langganan + peringatan kuota
@@ -99,8 +109,19 @@ async function run(request: NextRequest) {
     .not("plan_id", "is", null);
 
   if (dry) {
-    return NextResponse.json({ ok: true, dry: true, result });
+    return NextResponse.json({ ok: true, dry: true, result, preview: { invoices: pendingInvoices?.length ?? 0, intents: pendingIntents?.length ?? 0, companies: companies?.length ?? 0 } });
   }
+
+  const jobs = await runDueJobs(supabase, {
+    workerId: `billing-cron-${randomUUID()}`,
+    batchSize: 8,
+    deadlineMs: 8000,
+    leaseSeconds: 60,
+    maxBatches: 10,
+  });
+  result.jobsCompleted = jobs.completed;
+  result.jobsRetried = jobs.retried;
+  result.jobsDeadLettered = jobs.deadLettered;
 
   for (const company of companies ?? []) {
     const companyId = company.id as string;
@@ -262,6 +283,21 @@ async function run(request: NextRequest) {
       });
       if (sent) result.limitWarnings++;
     }
+  }
+
+  try {
+    const after = await runDueJobs(supabase, {
+      workerId: `billing-cron-tail-${randomUUID()}`,
+      batchSize: 8,
+      deadlineMs: 5000,
+      leaseSeconds: 60,
+      maxBatches: 5,
+    });
+    result.jobsCompleted += after.completed;
+    result.jobsRetried += after.retried;
+    result.jobsDeadLettered += after.deadLettered;
+  } catch (error) {
+    logError("billing.tail_jobs_failed", error);
   }
 
   return NextResponse.json({ ok: true, result });

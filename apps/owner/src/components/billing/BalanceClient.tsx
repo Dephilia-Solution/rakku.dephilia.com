@@ -91,7 +91,8 @@ export default function BalanceClient({
 
   const cards = [
     { label: "Saldo tersedia", value: formatRupiah(balance.available_balance), accent: true },
-    { label: "Sedang diproses", value: formatRupiah(balance.pending_balance) },
+    { label: "Belum settlement", value: formatRupiah(balance.unsettled_balance ?? 0) },
+    { label: "Hold pencairan", value: formatRupiah(balance.pending_balance) },
     { label: "Total masuk (gross)", value: formatRupiah(balance.total_credited) },
     { label: "Total MDR (0,7%)", value: formatRupiah(balance.total_fees) },
     { label: "Total ditarik", value: formatRupiah(balance.total_withdrawn) },
@@ -260,7 +261,7 @@ export default function BalanceClient({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {cards.map((card) => (
           <div
             key={card.label}

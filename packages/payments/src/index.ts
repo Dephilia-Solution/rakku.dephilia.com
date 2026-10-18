@@ -1,7 +1,10 @@
+import { checked } from "@rakku/db/merchant";
 import { createAdminClient, sql, type DatabaseClient } from "@rakku/db";
 import {
   createQrisPayment,
   getPaymentStatus,
+  ProviderUnavailableError,
+  ProviderVerificationError,
   type VesselPaymentDetail,
 } from "@rakku/vessel-client";
 import { creditBalance } from "@rakku/ledger";
@@ -34,61 +37,46 @@ export type CreateQrisIntentResult =
 /** Buat QRIS dinamis Vessel + simpan payment intent (pending). */
 export async function createQrisIntent(
   supabase: DatabaseClient,
-  input: CreateQrisIntentInput
+  input: CreateQrisIntentInput,
+  providerCreate: typeof createQrisPayment = createQrisPayment
 ): Promise<CreateQrisIntentResult> {
-  const invoiceNumber = generateOrderInvoiceNumber();
-
-  let payment;
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0) return { error: "Nominal QRIS harus rupiah bulat positif" };
+  // Commit the invoice identity before contacting the provider. A timeout must never erase it.
+  const reserved = await supabase.transaction(async tx => {
+    const [order] = await tx.execute(sql`select * from public.orders where id=${input.orderId} and company_id=${input.companyId} for update`);
+    if (!order || order.status !== "pending_payment" || Number(order.total_price) !== input.amount) throw new Error("Order cannot receive QRIS");
+    const existing = checked(await tx.from("payment_intents").select("*").eq("order_id", input.orderId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle());
+    if (existing) return { intent: existing as PaymentIntent, fresh: false };
+    const intent = checked(await tx.from("payment_intents").insert({ company_id: input.companyId, outlet_id: input.outletId,
+      order_id: input.orderId, invoice_number: generateOrderInvoiceNumber(), amount: input.amount, status: "pending",
+      expired_at: new Date(Date.now() + ORDER_QR_EXPIRY_MINUTES * 60000).toISOString(), created_by: input.createdBy ?? null,
+    }).select().single());
+    return { intent: intent as PaymentIntent, fresh: true };
+  });
+  if (!reserved.fresh) return reserved.intent.provider_transaction_id && reserved.intent.qr_string
+    ? { intent: reserved.intent } : { error: "Status pembuatan QRIS belum pasti. Periksa order dan rekonsiliasi sebelum membuat pembayaran baru." };
   try {
-    payment = await createQrisPayment({
-      tenant_id: input.companyId,
-      invoice_number: invoiceNumber,
-      amount: input.amount,
-      expired_in_minutes: ORDER_QR_EXPIRY_MINUTES,
-      callback_url: input.callbackUrl,
-    });
-  } catch (err) {
-    console.error("[payments] gagal membuat QRIS:", err);
-    return { error: "Gagal membuat QRIS. Coba lagi." };
+    const payment = await providerCreate({ tenant_id: input.companyId, invoice_number: reserved.intent.invoice_number,
+      amount: input.amount, expired_in_minutes: ORDER_QR_EXPIRY_MINUTES, callback_url: input.callbackUrl });
+    if (!payment.transaction_id || payment.invoice_number !== reserved.intent.invoice_number || !payment.qr_string) throw new Error("Invalid provider response");
+    const intent = checked(await supabase.from("payment_intents").update({ provider_transaction_id: payment.transaction_id,
+      qr_string: payment.qr_string, expired_at: payment.expired_at, raw_payload: payment,
+    }).eq("id", reserved.intent.id).select().single());
+    return { intent: intent as PaymentIntent };
+  } catch {
+    return { error: "Pembuatan QRIS belum terkonfirmasi. Order disimpan untuk rekonsiliasi; jangan membuat pembayaran pengganti." };
   }
-
-  const { data, error } = await supabase
-    .from("payment_intents")
-    .insert({
-      company_id: input.companyId,
-      outlet_id: input.outletId,
-      order_id: input.orderId,
-      provider: "vessel",
-      provider_transaction_id: payment.transaction_id,
-      invoice_number: invoiceNumber,
-      amount: input.amount,
-      qr_string: payment.qr_string,
-      status: "pending",
-      expired_at: payment.expired_at,
-      raw_payload: payment,
-      created_by: input.createdBy ?? null,
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
-    console.error("[payments] gagal menyimpan payment intent:", error);
-    return { error: "Gagal menyimpan payment intent" };
-  }
-
-  return { intent: data as PaymentIntent };
 }
 
-/** Batalkan semua intent pending untuk satu order (retry/cancel). */
-export async function expirePendingIntents(
-  supabase: DatabaseClient,
-  orderId: string
-): Promise<void> {
-  await supabase
-    .from("payment_intents")
-    .update({ status: "cancelled" })
-    .eq("order_id", orderId)
-    .eq("status", "pending");
+/** Only provider-confirmed terminal attempts can be retried. */
+export async function expirePendingIntents(supabase: DatabaseClient, orderId: string): Promise<void> {
+  const intents = checked(await supabase.from("payment_intents").select("*").eq("order_id", orderId).neq("status", "success"));
+  for (const intent of intents) {
+    if (!intent.provider_transaction_id) throw new Error("Pembuatan QRIS belum pasti; rekonsiliasi diperlukan");
+    const result = await processOrderPayment(supabase, intent as PaymentIntent);
+    if (result.intent.status === "pending") throw new Error("QRIS masih aktif di provider. Tunggu konfirmasi kedaluwarsa sebelum mencoba lagi.");
+    if (result.intent.status === "success") throw new Error("Pembayaran sudah diterima. Muat ulang order.");
+  }
 }
 
 export interface ProcessOrderPaymentResult {
@@ -98,7 +86,8 @@ export interface ProcessOrderPaymentResult {
 
 /**
  * Sinkronkan status QRIS order ke Vessel lalu finalisasi bila sukses.
- * Idempotent: atomic claim `status=pending` → hanya satu pemanggil yang
+ * Idempotent: a locked intent can reach success only once; late receipts are reconciled.
+ * Only one caller
  * memfinalisasi (webhook + polling bersamaan aman). `statusFetcher` dapat
  * di-inject untuk pengujian.
  */
@@ -110,34 +99,42 @@ export async function processOrderPayment(
   ) => Promise<VesselPaymentDetail> = getPaymentStatus,
   finalizationDatabase: () => DatabaseClient = createAdminClient
 ): Promise<ProcessOrderPaymentResult> {
-  if (intent.status !== "pending" || !intent.provider_transaction_id) {
+  if (intent.status === "success" || !intent.provider_transaction_id) {
     return { intent, finalized: false };
   }
 
   let detail: VesselPaymentDetail;
   try {
     detail = await statusFetcher(intent.provider_transaction_id);
-  } catch {
-    return { intent, finalized: false };
+  } catch (error) {
+    checked(await supabase.from("payment_intents").update({ updated_at: new Date().toISOString() }).eq("id", intent.id).neq("status", "success"));
+    if (error instanceof ProviderUnavailableError) throw error;
+    throw new ProviderUnavailableError("Status provider tidak dapat diambil; pembayaran belum direkonsiliasi");
   }
 
+  if (detail.id !== intent.provider_transaction_id || detail.invoice_number !== intent.invoice_number || Number(detail.amount) !== Number(intent.amount)) {
+    throw new ProviderVerificationError("Identitas/nominal pembayaran provider tidak cocok");
+  }
   if (detail.payment_status === "success") {
-    if (detail.invoice_number !== intent.invoice_number || Number(detail.amount) !== Number(intent.amount)) {
-      throw new Error("Provider payment does not match the stored invoice/amount");
-    }
     // Trusted server-only finalization after provider verification. Merchant
     // ledger writes use platform scope, while POS callers cannot mutate balances.
     return finalizationDatabase().transaction(async tx => {
       const locked = await tx.execute(sql`select * from public.payment_intents where id=${intent.id}
-        and company_id=${intent.company_id} and provider_transaction_id=${intent.provider_transaction_id} for update`);
+        and company_id=${intent.company_id} and (provider_transaction_id=${intent.provider_transaction_id} or provider_transaction_id is null) for update`);
       const current = locked[0];
-      if (!current) throw new Error("Payment intent not found");
-      if (current.status !== "pending") return { intent: current as PaymentIntent, finalized: false };
+      if (!current) throw new ProviderVerificationError("Payment intent tidak ditemukan");
+      if (current.status === "success") return { intent: current as PaymentIntent, finalized: false };
       const orders = await tx.execute(sql`select * from public.orders where id=${current.order_id}
         and company_id=${current.company_id} and outlet_id is not distinct from ${current.outlet_id} for update`);
       const order = orders[0];
-      if (!order || order.status !== "pending_payment" || Number(order.total_price) !== Number(current.amount)) {
-        throw new Error("Order cannot be finalized for this payment");
+      if (!order || Number(order.total_price) !== Number(current.amount)) throw new ProviderVerificationError("Nominal pembayaran/order tidak cocok");
+      if (order.status !== "pending_payment") {
+        await tx.execute(sql`insert into app_private.payment_reconciliation(intent_id,company_id,order_id,amount,reason,provider_payload)
+          values(${current.id},${current.company_id},${order.id},${current.amount},${order.status === "completed" ? "duplicate_payment" : "late_payment_cancelled_order"},${JSON.stringify(detail)}::jsonb)
+          on conflict(intent_id) do nothing`);
+        const updated = checked(await tx.from("payment_intents").update({ status: "success", paid_at: detail.paid_at ?? new Date().toISOString(),
+          provider_transaction_id: intent.provider_transaction_id, raw_payload: detail }).eq("id", current.id).select().single());
+        return { intent: updated as PaymentIntent, finalized: false };
       }
       const paidAt = detail.paid_at ?? new Date().toISOString();
       await tx.execute(sql`update public.orders set status='completed', payment_status='paid' where id=${order.id}`);
@@ -148,7 +145,7 @@ export async function processOrderPayment(
         grossAmount: Number(current.amount), referenceType: "payment_intent", referenceId: current.id,
         note: `Pembayaran QRIS order ${order.id}`, createdBy: "system" });
       if (!credit.ok) throw new Error(credit.error ?? "Ledger credit failed");
-      const updated = await tx.from("payment_intents").update({ status: "success", paid_at: paidAt, raw_payload: detail })
+      const updated = await tx.from("payment_intents").update({ status: "success", paid_at: paidAt, provider_transaction_id: intent.provider_transaction_id, raw_payload: detail })
         .eq("id", current.id).select().single();
       if (updated.error || !updated.data) throw new Error(updated.error?.message ?? "Payment update failed");
       return { intent: updated.data as PaymentIntent, finalized: true };
@@ -160,34 +157,14 @@ export async function processOrderPayment(
     detail.payment_status === "failed" ||
     detail.payment_status === "cancelled"
   ) {
-    await supabase
-      .from("payment_intents")
-      .update({
-        status: detail.payment_status,
-        raw_payload: detail as unknown as Record<string, unknown>,
-      })
-      .eq("id", intent.id)
-      .eq("status", "pending");
-
-    return {
-      intent: {
-        ...intent,
-        status: detail.payment_status as PaymentIntentStatus,
-      },
-      finalized: false,
-    };
+    const updated = checked(await supabase.from("payment_intents").update({
+      status: detail.payment_status, provider_transaction_id: intent.provider_transaction_id, raw_payload: detail,
+    }).eq("id", intent.id).neq("status", "success").select().maybeSingle());
+    return { intent: (updated ?? intent) as PaymentIntent, finalized: false };
   }
 
-  // Masih pending: tandai expired lokal bila lewat waktu.
-  if (intent.expired_at && new Date(intent.expired_at).getTime() < Date.now()) {
-    await supabase
-      .from("payment_intents")
-      .update({ status: "expired" })
-      .eq("id", intent.id)
-      .eq("status", "pending");
-
-    return { intent: { ...intent, status: "expired" }, finalized: false };
-  }
-
-  return { intent, finalized: false };
+  const refreshed = checked(await supabase.from("payment_intents").update({ status: "pending", provider_transaction_id: intent.provider_transaction_id,
+    qr_string: detail.qr_string ?? intent.qr_string, expired_at: detail.expired_at, raw_payload: detail,
+  }).eq("id", intent.id).neq("status", "success").select().maybeSingle());
+  return { intent: (refreshed ?? intent) as PaymentIntent, finalized: false };
 }

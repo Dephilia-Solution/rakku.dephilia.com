@@ -1,6 +1,7 @@
 import type { DemoSandbox } from "../engine";
-import type { DemoCommand, DemoEntity, DemoOrder, DemoPaymentMethod, DemoReportEmail, DemoState } from "../models";
+import type { DemoCommand, DemoEntity, DemoOrder, DemoPaymentMethod, DemoReportEmail, DemoRole, DemoState } from "../models";
 import { clone, date, deepFreeze, fail, find, jakartaDate, list, number, optionalText, record, shiftedDate, text } from "../business";
+import { roleGrants, roleRevision } from "../access";
 import { createDemoProjections, demoMenuId, demoMenus, type DemoViewData } from "./projections";
 import { orderPayload, splitPayload } from "./payloads";
 
@@ -223,6 +224,7 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         const rows = entity === "products" ? filter(v.products) : entity === "categories" ? filter(v.categories) : entity === "tiers" ? filter(v.tiers) : entity === "ingredients" ? filter(v.ingredients) : entity === "tables" ? filter(v.tables) : entity === "taxes" ? filter(v.taxes) : entity === "discounts" ? filter(s.discounts) : entity === "expenses" ? filter(v.expenses) : entity === "outlets" ? v.outlets : entity === "employees" ? v.employees : entity === "roles" ? v.roles : v.banks;
         if (app === "owner" && ["products", "categories", "ingredients"].includes(name) && !outlet) fail("outlet_id is required");
         if (entity === "discounts") { const products = (rows as typeof s.discounts).filter(row => row.product_id), orders = (rows as typeof s.discounts).filter(row => !row.product_id), type = query.get("type"); return result(app === "pos" && type ? type === "product" ? products : type === "order" ? orders : fail("Invalid discount scope") : { productDiscounts: products, orderDiscounts: orders }); }
+        if (app === "owner" && entity === "roles" && !resourceId) return result({ roles: rows, menus: demoMenus() });
         if (app === "owner") { const key = name === "bank-accounts" ? "bank_accounts" : name === "pricing-tiers" ? "tiers" : name; return result(entity === "ingredients" ? rows : { [key]: rows }); }
         return result(rows);
       }
@@ -247,7 +249,7 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         return result(method === "POST" ? { employee: { id: (employee as { id: string }).id } } : { success: true }, method === "POST" ? 201 : 200);
       }
       if (entity === "outlets" && body.toggle_status === true) { const old = find(s.outlets, value.id), saved = save(entity, { id: old.id, is_active: !old.is_active }) as { is_active: boolean }; return result({ status: saved.is_active ? "active" : "inactive" }); }
-      if (entity === "roles" && method === "POST") value.menus = [];
+      if (entity === "roles" && method === "POST") { value.menus = []; value.grants = []; }
       if (entity === "discounts") {
         const kind = body.scope ?? query.get("scope") ?? "product"; if (!["product", "order"].includes(String(kind))) fail("Invalid discount scope");
         if (method !== "POST") { const old = find(s.discounts, value.id); if ((kind === "product") !== Boolean(old.product_id)) fail("Invalid discount resource scope"); }
@@ -283,9 +285,14 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       const stockAdjust = app === "pos" && url.pathname.match(/^\/api\/admin\/ingredients\/([^/]+)\/adjust$/);
       if (roleAccess) {
         const s = sandbox.getSnapshot(); guard(s); references(s, body, url.searchParams); allowed(method, ["GET", "POST"]); const role = find(s.roles, decodeURIComponent(roleAccess[1]));
-        if (method === "GET") value = { data: { menu_access: role.menus.map(demoMenuId) } };
-        else { if (!s.plans.find(row => row.slug === s.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles"); const menu = find(demoMenus(), body.menuId); if (typeof body.canView !== "boolean") fail("Invalid canView");
-          run({ type: "entity.save", entity: "roles", value: { id: role.id, menus: body.canView ? [...new Set([...role.menus, menu.slug])] : role.menus.filter(slug => slug !== menu.slug) } }); value = { data: { message: "Akses menu diupdate" } }; }
+        if (method === "GET") value = { data: { grants: roleGrants(role), revision: roleRevision(role), menu_access: role.menus.map(demoMenuId) } };
+        else {
+          if (!s.plans.find(row => row.slug === s.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
+          if (!Array.isArray(body.grants) || typeof body.expectedRevision !== "string") fail("Kirim grants lengkap dan expectedRevision");
+          if (body.expectedRevision !== roleRevision(role)) throw new HttpError("Akses telah berubah. Muat ulang lalu tinjau perubahan.", 409);
+          const saved = run({ type: "entity.save", entity: "roles", value: { id: role.id, grants: body.grants } }) as DemoRole;
+          value = { data: { grants: roleGrants(saved), revision: roleRevision(saved) } };
+        }
       } else if (stockAdjust) {
         const s = sandbox.getSnapshot(); guard(s, "ingredients"); references(s, body, url.searchParams); allowed(method, ["POST"]);
         value = { data: { success: true, ...record(run({ type: "stock.adjust", ingredient_id: decodeURIComponent(stockAdjust[1]), quantity: body.stock_quantity as number, note: optionalText(body.note) ?? "" })) } };

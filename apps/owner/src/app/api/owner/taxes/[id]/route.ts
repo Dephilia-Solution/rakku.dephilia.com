@@ -14,7 +14,7 @@ async function requireOwner(): Promise<OwnerWithCompany | null> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -32,7 +32,7 @@ export async function PATCH(
   const { name, type, value, sort_order, is_active } = body;
 
   const { error } = await updateCompanyTax({
-    taxId: params.id,
+    taxId: (await params).id,
     companyId: session.company_id,
     name: name !== undefined ? String(name).trim() : undefined,
     type,
@@ -47,7 +47,7 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -57,7 +57,7 @@ export async function DELETE(
     );
   }
 
-  const { error } = await deleteCompanyTax(params.id, session.company_id);
+  const { error } = await deleteCompanyTax((await params).id, session.company_id);
   if (error) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }

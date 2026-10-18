@@ -133,9 +133,11 @@ still records Business or Pro. Invoice states and subscription states are separa
 - POS snapshots expose only the selected outlet and permitted arrays. Employee,
   role, bank, invoice, withdrawal, ledger, and owner outbox arrays are empty;
   company email/code/owner/password are blank and `balance` is `null`.
-- Manager fixture role has all nine existing POS menus: `register`, `orders`,
-  `reports`, `products`, `tax-discounts`, `ingredients`, `tables`, `expenses`,
-  `purchases`. Cashier role has `register`, `orders`, `reports`, `tax-discounts`.
+- Manager fixture role has all nine existing POS menus with full V/C/E/D:
+  `register`, `orders`, `reports`, `products`, `tax-discounts`, `ingredients`,
+  `tables`, `expenses`, `purchases`. Cashier role has register CRUD, orders
+  view/edit/delete, and view-only reports/tax-discounts. Roles also expose a
+  stable `revision` for the Owner editor's full-replacement contract.
 - `register` permits reading products/categories/tiers/tables/taxes/discounts,
   but product mutations require `products`, table mutations require `tables`,
   and tax/discount mutations require `tax-discounts`. Cashier product recipes are
@@ -208,7 +210,7 @@ fields are discarded. Audit fields are generated, not writable.
 | --- | --- |
 | outlets | required `name`; `address:''`, `is_active:true` |
 | employees | required `name`, unique normalized `username`, existing `role_id`, six-digit `pin`, nonempty unique active `outlet_ids`; `is_active:true`. PIN must be unique across overlapping assignments. |
-| roles | required `name`, `menus:string[]` containing only known POS slugs; owner only; creating roles or changing menu grants requires `custom_roles` |
+| roles | required `name`; either legacy `menus:string[]` (full CRUD) or explicit `grants:[{menu_id,can_view,can_create,can_edit,can_delete}]` with V required for mutations; owner only; creating roles or changing grants requires `custom_roles` |
 | categories | required `name`; `sort_order` defaults to next position |
 | tiers | required `name`; `slug` defaults to lowercase hyphenated name, unique per outlet; `is_active:true`, next `sort_order` |
 | products | required `name`, same-outlet `category_id`; `price:0`, `prices:{}`, `recipe:[]`, `modifiers:[]`, `description:null`, `image_url:null`, `is_active:true`, next `sort_order` |

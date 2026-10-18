@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import PosShell from "@pos/components/layout/PosShell";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
@@ -23,7 +24,14 @@ export default async function DashboardLayout({
   try {
     menus = await getAllowedMenus(session.role_id);
   } catch {
-    // If DB query fails, just use empty menus
+    menus = [];
+  }
+
+  const requestPath = (await headers()).get("x-rakku-path") ?? "";
+  const section = requestPath.split("/").filter(Boolean)[0] ?? "";
+  if (section && section !== "access-denied"
+    && !menus.some(menu => menu.slug === section || menu.path === `/${section}`)) {
+    redirect("/access-denied");
   }
 
   const summary = await getUsageSummary(

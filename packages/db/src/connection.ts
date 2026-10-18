@@ -1,3 +1,16 @@
+import { getDefaultAutoSelectFamilyAttemptTimeout, setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
+
+export function configureDatabaseNetworking(): void {
+  // postgres.js uses net.Socket without per-address connection options. Node's
+  // 250ms default can abort every IPv4 attempt on higher-latency networks when
+  // IPv6 is unreachable, well before the driver's overall connect_timeout.
+  // This process-wide floor keeps dual-stack fallback and any longer operator
+  // setting, without changing TLS verification or retrying database writes.
+  if (getDefaultAutoSelectFamilyAttemptTimeout() < 1500) {
+    setDefaultAutoSelectFamilyAttemptTimeout(1500);
+  }
+}
+
 /** Normalize libpq Console URLs for postgres.js, which does not implement
  * channel_binding and otherwise forwards it as an invalid server GUC. TLS
  * certificate verification is retained/enforced for hosted connections. */

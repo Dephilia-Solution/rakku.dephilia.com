@@ -38,6 +38,15 @@ function escapeHtml(value: unknown): string {
   }[character]!));
 }
 
+function discountBreakdown(appliedDiscounts: AppliedDiscount[], appliedTaxes: AppliedTax[], subtotal: number, total: number) {
+  const productDiscounts = appliedDiscounts.filter((discount) => discount.type === "fixed" && Number(discount.value) === 0);
+  const orderDiscounts = appliedDiscounts.filter((discount) => !(discount.type === "fixed" && Number(discount.value) === 0));
+  const orderDiscountTotal = orderDiscounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
+  const taxTotal = appliedTaxes.reduce((sum, tax) => sum + Number(tax.amount), 0);
+  const rounding = Math.round((total - (subtotal - orderDiscountTotal + taxTotal)) * 100) / 100;
+  return { productDiscounts, orderDiscounts, rounding };
+}
+
 function buildReceiptHtml(props: InvoiceReceiptProps) {
   const {
     orderNumber, customerName, cashierName, tableName, items,
@@ -49,6 +58,8 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
     paymentMethod === "cash" ? "Tunai" :
     paymentMethod === "qris" ? "QRIS" :
     paymentMethod === "card" ? "Kartu" : paymentMethod;
+
+  const { productDiscounts, orderDiscounts, rounding } = discountBreakdown(appliedDiscounts, appliedTaxes, subtotal, total);
 
   const itemRows = items
     .map(
@@ -129,9 +140,11 @@ function buildReceiptHtml(props: InvoiceReceiptProps) {
   <div class="divider"></div>
 
   <table class="totals-table">
-    <tr><td>Subtotal</td><td>${formatCurrency(subtotal)}</td></tr>
-    ${appliedDiscounts.map((d) => `<tr><td>${escapeHtml(d.name)}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
+    <tr><td>Subtotal (net)</td><td>${formatCurrency(subtotal)}</td></tr>
+    ${productDiscounts.map((d) => `<tr><td>${escapeHtml(d.name)} (termasuk)</td><td>${formatCurrency(d.amount)}</td></tr>`).join("")}
+    ${orderDiscounts.map((d) => `<tr><td>${escapeHtml(d.name)}</td><td>-${formatCurrency(d.amount)}</td></tr>`).join("")}
     ${appliedTaxes.map((t) => `<tr><td>${escapeHtml(t.name)}${t.type === 'percentage' ? ` (${escapeHtml(t.value)}%)` : ''}</td><td>${formatCurrency(t.amount)}</td></tr>`).join("")}
+    ${rounding !== 0 ? `<tr><td>Pembulatan</td><td>${formatCurrency(rounding)}</td></tr>` : ""}
     ${cashAmount != null ? `<tr><td>Uang Tunai</td><td>${formatCurrency(cashAmount)}</td></tr>` : ""}
     ${change != null ? `<tr><td>Kembalian</td><td>${formatCurrency(change)}</td></tr>` : ""}
     <tr class="grand-total">
@@ -195,6 +208,7 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
     paymentMethod === "cash" ? "Tunai" :
     paymentMethod === "qris" ? "QRIS" :
     paymentMethod === "card" ? "Kartu" : paymentMethod;
+  const { productDiscounts, orderDiscounts, rounding } = discountBreakdown(appliedDiscounts, appliedTaxes, subtotal, total);
 
   return (
     <div className="flex flex-col h-full">
@@ -304,11 +318,17 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
           {/* Totals */}
           <div className="space-y-1 text-xs">
             <div className="flex justify-between text-neutral-600">
-              <span>Subtotal</span>
+              <span>Subtotal (net)</span>
               <span className="font-mono">{formatCurrency(subtotal)}</span>
             </div>
-            {appliedDiscounts.map((d, i) => (
-              <div key={i} className="flex justify-between text-success">
+            {productDiscounts.map((d, i) => (
+              <div key={`product-${i}`} className="flex justify-between text-neutral-500">
+                <span>{d.name} (termasuk)</span>
+                <span className="font-mono">{formatCurrency(d.amount)}</span>
+              </div>
+            ))}
+            {orderDiscounts.map((d, i) => (
+              <div key={`order-${i}`} className="flex justify-between text-success">
                 <span>{d.name}</span>
                 <span className="font-mono">-{formatCurrency(d.amount)}</span>
               </div>
@@ -319,6 +339,12 @@ export default function InvoiceReceipt(props: InvoiceReceiptProps) {
                 <span className="font-mono">{formatCurrency(t.amount)}</span>
               </div>
             ))}
+            {rounding !== 0 && (
+              <div className="flex justify-between text-neutral-600">
+                <span>Pembulatan</span>
+                <span className="font-mono">{formatCurrency(rounding)}</span>
+              </div>
+            )}
             {cashAmount != null && (
               <div className="flex justify-between text-neutral-600">
                 <span>Uang Tunai</span>

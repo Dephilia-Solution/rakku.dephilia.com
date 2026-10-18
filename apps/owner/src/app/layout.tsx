@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import SessionGuard from "@/components/layout/SessionGuard";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,8 +35,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={`${inter.variable} ${fraunces.variable}`}>
+    <html lang="id" suppressHydrationWarning className={`${inter.variable} ${fraunces.variable}`}>
       <body>
+        <SessionGuard />
         <script
           dangerouslySetInnerHTML={{
             __html: `if(!location.pathname.startsWith("/demo")){try{var s=window.localStorage.getItem("rakku-owner-sidebar-collapsed");document.documentElement.setAttribute("data-owner-sidebar",s==="1"?"collapsed":"expanded")}catch(e){}}`,

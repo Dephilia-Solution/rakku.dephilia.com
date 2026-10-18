@@ -1,11 +1,12 @@
 import type { Menu, OwnerDashboardEmployee, OwnerDashboardOutlet } from "@rakku/shared-types";
 import type { DemoSandbox } from "../engine";
 import { clone, deepFreeze, discountActive, fail, find } from "../business";
-import { DEMO_MENUS } from "../constants";
+import { DEMO_MENUS, demoMenuId } from "../constants";
+import { roleGrants, roleRevision } from "../access";
+export { demoMenuId } from "../constants";
 
 const menuNames = ["Kasir", "Pesanan", "Laporan", "Produk", "Pajak & Diskon", "Bahan Baku", "Meja", "Pengeluaran", "Pembelian"];
 const menuIcons = ["ShoppingCart", "ClipboardList", "BarChart3", "Package", "Percent", "Boxes", "Grid3X3", "Wallet", "ShoppingBag"];
-export const demoMenuId = (slug: string) => `fixture:menu:${slug}`;
 export function demoMenus(_app: "owner" | "pos" = "owner"): Menu[] {
   return deepFreeze(DEMO_MENUS.map((slug, index) => ({ id: demoMenuId(slug), slug, name: menuNames[index], icon: menuIcons[index], path: `/${slug}`, sort_order: index + 1 })));
 }
@@ -49,7 +50,8 @@ export function createDemoProjections(sandbox: DemoSandbox) {
     const owner = stable("owner", sandbox.getOwnerSession());
     const tenant = stable("tenant", s.session.authenticated && s.session.mode === "pos" ? sandbox.getTenantSession() : null);
     const menus = stable("menus", demoMenus(s.session.mode).filter(menu => s.menus.includes(menu.slug)));
-    const roles = stable("roles", s.roles.map(row => ({ id: row.id, name: row.name, company_id: row.company_id })));
+    const roles = stable("roles", s.roles.map(row => ({ id: row.id, name: row.name, company_id: row.company_id,
+      menus: row.menus, grants: roleGrants(row), revision: roleRevision(row), menu_access: row.menus.map(demoMenuId) })));
     const invoices = stable("invoices", s.invoices.map(row => ({ ...row, plans: { name: s.plans.find(plan => plan.id === row.plan_id)?.name ?? "" } })));
     const balance = stable("balance", s.balance), banks = stable("banks", s.banks), withdrawals = stable("withdrawals", s.withdrawals), transactions = stable("transactions", [...s.ledger].reverse());
     const register = stable("register", { products: activeProducts, categories, modifiers, initialPricingTiers: tiers.filter(row => row.is_active), initialProductTierPrices: productTierPrices,

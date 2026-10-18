@@ -9,7 +9,8 @@ export type { PublicMenu, PricingTier, Ingredient, DiningTable, StockMovement, E
 export interface DemoCompany { id: string; name: string; code: string; email: string; owner_name: string; password: string; logo_url?: string | null }
 export interface DemoOutlet { id: string; name: string; address: string; is_active: boolean; company_id: string }
 export interface DemoEmployee { id: string; name: string; username: string; role_id: string; pin: string; is_active: boolean; outlet_ids: string[]; company_id: string; all_outlets?: boolean }
-export interface DemoRole extends Role { menus: string[] }
+export interface DemoMenuGrant { menu_id: string; can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }
+export interface DemoRole extends Role { menus: string[]; grants: DemoMenuGrant[] }
 export interface DemoCategory extends Category { company_id: string; outlet_id: string }
 export interface DemoModifier extends Modifier { prices: Record<string, number> }
 export interface DemoProduct extends Product {

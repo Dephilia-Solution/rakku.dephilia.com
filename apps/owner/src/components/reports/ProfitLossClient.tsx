@@ -20,10 +20,13 @@ interface OutletOption {
 interface ProfitLossData {
   totalRevenue: number;
   totalHpp: number;
+  estimatedCogs?: number;
+  hasEstimatedCogs?: boolean;
   grossProfit: number;
   totalExpenses: number;
   netProfit: number;
   totalTransactions: number;
+  historyLimited?: boolean;
 }
 
 interface ProfitLossClientProps {
@@ -180,6 +183,17 @@ export default function ProfitLossClient({
               </div>
             ))}
           </div>
+          {data.hasEstimatedCogs && (
+            <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Sebagian HPP memakai estimasi dari resep/biaya saat laporan dibaca karena snapshot historis tidak tersedia
+              ({formatCurrency(data.estimatedCogs ?? 0)}). Angka ini bukan bukti biaya historis.
+            </p>
+          )}
+          {data.historyLimited && (
+            <p role="status" className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+              Rentang &ldquo;Semua&rdquo; dibatasi sesuai riwayat laporan paket aktif. Data lebih lama tidak ditampilkan.
+            </p>
+          )}
 
           <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-5">
             <div className="flex items-center gap-2 mb-4">

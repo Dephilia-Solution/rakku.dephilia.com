@@ -3,6 +3,7 @@ import { getPendingLoginFromCookies, signPendingLogin, setPendingLoginCookie } f
 import { getActiveOutlets } from "@/lib/auth/company";
 import { logAuthEvent } from "@rakku/auth-utils";
 import { createAdminClient } from "@rakku/db";
+import { consumeSession } from "@rakku/db/sessions";
 
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -68,10 +69,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Outlet tidak valid" }, { status: 400 });
   }
 
-  const token = await signPendingLogin({
-    ...pending,
-    outlet_id: outlet.id,
-    outlet_name: outlet.name,
+  const token = await supabase.transaction(async tx => {
+    await consumeSession(tx, pending.session_id!, "pending", pending.company_id);
+    return signPendingLogin({ ...pending, outlet_id: outlet.id, outlet_name: outlet.name }, 600, tx);
   });
 
   await logAuthEvent(supabase, {

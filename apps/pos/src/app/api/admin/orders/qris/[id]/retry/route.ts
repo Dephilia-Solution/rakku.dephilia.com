@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
+import { createAdminClient as createPlatformClient } from "@rakku/db";
 import { createQrisIntent, expirePendingIntents } from "@rakku/payments";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { isCheckoutPaused } from "@rakku/db/runtime-flags";
 
 export async function POST(
   _request: NextRequest,
@@ -10,6 +12,9 @@ export async function POST(
   const session = await getTenantSessionFromCookies();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (await isCheckoutPaused(createPlatformClient())) {
+    return NextResponse.json({ error: "Checkout sedang dijeda sementara oleh operator.", code: "CHECKOUT_PAUSED" }, { status: 503 });
   }
 
   const { id } = await params;
@@ -33,7 +38,8 @@ export async function POST(
     );
   }
 
-  await expirePendingIntents(supabase, id);
+  try { await expirePendingIntents(supabase, id); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "QRIS belum dapat diulang" }, { status: 409 }); }
 
   const ownerBase = process.env.NEXT_PUBLIC_OWNER_URL || "http://localhost:3000";
   const result = await createQrisIntent(supabase, {

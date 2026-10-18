@@ -18,6 +18,7 @@ export const TRANSACTION_GRACE_DAYS = 3;
 // Existing POS menu slugs (scripts/neon-seed.ts, POS db permission map).
 export const DEMO_MENUS = ["register", "orders", "reports", "products", "tax-discounts", "ingredients", "tables", "expenses", "purchases"] as const;
 export const CASHIER_MENUS = ["register", "orders", "reports", "tax-discounts"] as const;
+export const demoMenuId = (slug: string) => `fixture:menu:${slug}`;
 export const INGREDIENT_UNITS = ["gram", "ml", "pcs", "kg", "liter"] as const;
 // apps/{owner,pos}/src/app/api/{owner,admin}/products/upload/route.ts
 export const DEMO_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;

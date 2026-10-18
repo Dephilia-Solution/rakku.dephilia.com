@@ -1,4 +1,5 @@
 node_modules/
+.next-hardening*/
 .next/
 .turbo/
 dist/
@@ -6,18 +7,23 @@ dist/
 .env.local
 .env*.local
 .env.neon
+/config/environments/*.env.local
+
+# Salinan env lokal per app (tidak dibaca Next.js, hanya referensi/backup)
+/env/
+/env.rar
+/env.zip
+/env.7z
+
+/RAKKU_HANDOFF
 
 # Next.js
 apps/*/next-env.d.ts
-apps/*/.next/
 
 # PWA
 apps/*/public/sw.js
 apps/*/public/sw.js.map
 apps/*/public/swe-worker*.js
-
-# Build
-.turbo/
 
 # OS
 .DS_Store

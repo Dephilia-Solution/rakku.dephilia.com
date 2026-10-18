@@ -34,6 +34,14 @@ export async function GET(
     return NextResponse.json({ error: "Invoice tidak ditemukan" }, { status: 404 });
   }
 
-  const result = await processInvoice(scoped.supabase, scoped.invoice);
-  return NextResponse.json({ invoice: result.invoice, activated: result.activated });
+  try {
+    const result = await processInvoice(scoped.supabase, scoped.invoice);
+    return NextResponse.json({ invoice: result.invoice, activated: result.activated, reconciled: result.reconciled });
+  } catch (error) {
+    const retryable = (error as { retryable?: boolean }).retryable !== false;
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : "Status pembayaran belum dapat dipastikan",
+      invoice: scoped.invoice,
+    }, { status: retryable ? 503 : 409 });
+  }
 }

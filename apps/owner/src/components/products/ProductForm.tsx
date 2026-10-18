@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect, type JSX } from "react";
 import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantRuntime, useMerchantToast, useMerchantImages } from "@/lib/merchant-runtime";
 import Image from "next/image";
 import { Category, Modifier, PricingTier } from "@rakku/shared-types";

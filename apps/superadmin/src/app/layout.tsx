@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SessionGuard from "@/components/layout/SessionGuard";
 
 export const metadata: Metadata = {
   title: "Rakku Superadmin",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body><SessionGuard />{children}</body>
     </html>
   );
 }

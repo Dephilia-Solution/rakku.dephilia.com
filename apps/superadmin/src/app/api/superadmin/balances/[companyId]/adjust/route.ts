@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@rakku/db";
+import { runFinancialCommand } from "@rakku/db/financial-commands";
 import { adjustBalance, getBalance } from "@rakku/ledger";
 import { requireSuperadmin } from "@/lib/auth/require-superadmin";
 
@@ -33,14 +34,28 @@ export async function POST(
     }
 
     const admin = createAdminClient();
-    const result = await adjustBalance(admin, { companyId, amount, note, createdBy: user.email ?? user.id });
-
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+    const requestId = typeof body?.requestId === "string" ? body.requestId : request.headers.get("idempotency-key");
+    try {
+      const result = await runFinancialCommand(admin, {
+        companyId,
+        requestId,
+        command: "balance.adjustment",
+        payload: { amount, note },
+        execute: async tx => {
+          const mutation = await adjustBalance(tx, {
+            companyId, amount, note, createdBy: user.email ?? user.id,
+            referenceId: requestId && /^[0-9a-f-]{36}$/i.test(requestId) ? requestId : null,
+          });
+          if (!mutation.ok) throw new Error(mutation.error ?? "Gagal menyesuaikan saldo");
+          return mutation;
+        },
+      });
+      const balance = await getBalance(admin, companyId);
+      return NextResponse.json({ balance, inserted: result.inserted });
+    } catch (error) {
+      const status = (error as { status?: number }).status ?? 400;
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal menyesuaikan saldo" }, { status });
     }
-
-    const balance = await getBalance(admin, companyId);
-    return NextResponse.json({ balance, inserted: result.inserted });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

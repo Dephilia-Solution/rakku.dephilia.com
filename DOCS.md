@@ -55,7 +55,7 @@ Monorepo berisi 4 aplikasi Next.js independen, masing-masing deploy terpisah:
 |-------|-----|-----------|
 | **POS Register** | pos | Grid produk, kategori, modifier/add-on, pencarian, tier harga, pajak & diskon otomatis |
 | **Multi-Tenant** | owner, pos, superadmin | Banyak company/outlet; tenant context, FORCE RLS, trigger relasi tenant, dan guard server |
-| **RBAC Dinamis** | owner, pos, superadmin | Role & menu access matrix per company; `can_view` ditegakkan pada POS server boundary, belum CRUD grants terpisah |
+| **RBAC Dinamis** | owner, pos, superadmin | Role & menu access matrix per company; grant V/C/E/D ditegakkan pada POS server boundary dengan registry method/path deny-by-default |
 | **Pricing Tiers** | owner, pos | Harga berbeda per tier (Dine In, Take Away, Gojek, dll) |
 | **Manajemen Produk** | owner, pos | CRUD produk per outlet, gambar (Silos), modifier, tier pricing, resep |
 | **Manajemen Order** | owner, pos | Order completed, draft/pay-later (24 jam), split bill, invoice print 58mm |
@@ -263,6 +263,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 ├── .env.neon                         # Referensi konfigurasi privat instalasi aktif (ignored)
 ├── NEON_MIGRATION.md                  # Setup, deploy, invitation, optional copy, recovery
 ├── DEMO.md                           # Arsitektur/operasional demo publik browser-memory
+├── DEMO_FLOW.md                      # Panduan presentasi langkah-demi-langkah demo
 ├── DOCS.md                           # Dokumen ini
 ├── README.md                         # Quick start
 └── PANDUAN.md                        # Manual pengguna (owner & kasir)
@@ -369,7 +370,7 @@ Middleware Owner/POS berada di **`src/middleware.ts`**, sesuai struktur app yang
 | App | Gate request | Pemeriksaan authoritative |
 |---|---|---|
 | Owner | JWT pada matcher dashboard/onboarding/outlet/employee/settings/report/order/subscription/balance; login/register tetap dapat dibuka | `getOwnerSessionFromCookies()` membaca owner aktif dan company yang dimiliki serta statusnya; API memverifikasi resource company/outlet |
-| POS | JWT pada halaman utama dan `/api/admin/*`, `/api/reports/*`; mutasi API harus memiliki Origin sama dengan request origin | Session user/company/outlet aktif, role dan assignment outlet; menu-level `can_view` di `src/lib/db.ts`; tenant RLS/trigger FK |
+| POS | JWT pada halaman utama dan `/api/admin/*`, `/api/reports/*`; mutasi API harus memiliki Origin sama dengan request origin | Session user/company/outlet aktif, role dan assignment outlet; registry method/path V/C/E/D deny-by-default di `src/lib/db.ts`; tenant RLS/trigger FK |
 | Superadmin | SDK Neon Auth session gate; login/activate/reset/API dikecualikan matcher | Session Neon + allowlist `active`/`superadmin`; Origin bila ada cocok canonical/alias |
 | Landing | Tidak ada middleware/Auth | Tidak ada data privat |
 
@@ -408,9 +409,9 @@ Owner juga menjadwalkan cron `/api/cron/billing` dengan `0 1 * * *` (01:00 UTC).
 - **Superadmin** memakai Managed Better Auth untuk identitas dan allowlist privat untuk hak platform. Session Auth saja tidak cukup; subject harus terdaftar dengan status `active` dan role `superadmin`.
 - **Role** didefinisikan per company. Onboarding membuat Owner/Kasir; DEMO mempunyai satu role kasir. Dataset legacy dapat mempunyai role tambahan seperti Kepala Cabang/Admin.
 - **Menu** = modul sistem di tabel `menus`; menu aktif saat ini: `register`, `orders`, `reports`, `products`, `tax-discounts`, `ingredients`, `tables`, `expenses`, `purchases`.
-- **Access matrix** = `role_menu_access` (role × menu). UI dan POS database boundary memakai `can_view`. Kolom `can_create`, `can_edit`, dan `can_delete` tersedia, tetapi belum menjadi kontrak CRUD terpisah pada UI/API.
-- Route/method dipetakan ke menu di `apps/pos/src/lib/db.ts`; beberapa read katalog diizinkan untuk `register` agar kasir dapat bertransaksi tanpa akses mutasi produk.
-- Sidebar POS dirender dari `getAllowedMenus(roleId)`. Onboarding baru membuat role **Owner** dengan semua menu yang ada dan **Kasir** dengan `register`, `orders`, `reports`, serta `tax-discounts`; akses dapat diubah lewat panel "Kelola Role & Akses". Script BUILD memakai access map sendiri dan masih menyebut slug legacy `taxes` (§16.4).
+- **Access matrix** = `role_menu_access` (role × menu). Empat grant `can_view`, `can_create`, `can_edit`, `can_delete` ditegakkan; fase 2 menambahkan snapshot legacy, revision, audit dan full-replacement API di Owner/Superadmin. Mutation flag hanya berlaku jika `can_view` aktif.
+- Route/method POS dipetakan eksplisit ke capability di `packages/auth-utils/src/access-policy.ts` dan dievaluasi sebelum tenant client dipakai (`apps/pos/src/lib/db.ts`). Unknown path/method ditolak. Read katalog untuk kasir tetap diizinkan lewat grant `register` tanpa memberi akses mutasi produk.
+- Sidebar POS dirender dari `getAllowedMenus(roleId)`. Onboarding baru membuat role **Owner** dengan CRUD penuh pada menu yang didukung dan **Kasir** dengan register penuh, orders view/edit/delete, serta reports dan tax-discounts view-only; akses dapat diubah lewat panel "Kelola Role & Akses". Perubahan grant mencabut sesi POS role terkait. Script BUILD memakai access map sendiri dan masih menyebut slug legacy `taxes` (§16.4).
 
 ### 5.3 Pola Server vs Client
 
@@ -548,19 +549,20 @@ Komponen: `apps/owner/src/components/billing/{PlanProvider,PlanBanner,UpgradeMod
 
 **Billing QRIS via Vessel (M3):**
 
-1. Owner memilih paket + siklus di `/subscription` → `POST /api/owner/subscription/checkout` membuat invoice (`RK-YYYYMM-<code>-<stamp>`) dan memanggil `createQrisPayment` Vessel (`tenant_id` = company_id, `callback_url` = `<owner>/api/webhooks/vessel`).
+1. Owner memilih paket + siklus di `/subscription` → `POST /api/owner/subscription/checkout` menyimpan invoice/request intent (`app_private.subscription_payment_requests`, hash payload, status `pending`, provider_state `creating`) **sebelum** memanggil `createQrisPayment` Vessel (`tenant_id` = company_id, `callback_url` = `<owner>/api/webhooks/vessel`). Request idempotency key/`Idempotency-Key` dan invoice aktif yang sama mencegah tagihan ganda.
 2. Halaman `/subscription/checkout/[invoiceId]` menampilkan QR (`qrcode.react`), nominal, countdown, polling status tiap 5 detik + tombol "Saya sudah bayar".
-3. Status sukses di-aktivasi lewat `processInvoice()`: **selalu re-verify** ke Vessel (`getPaymentStatus`) — payload webhook tidak dipercaya langsung. Aktivasi idempotent (atomic claim `status=pending`), membuat baris `subscriptions` + update `companies.plan_id/plan_expires_at/status`.
-4. `POST /api/webhooks/vessel` menerima callback Vessel → cari invoice → `processInvoice()` (aman dipanggil bersamaan dengan polling).
-5. Invoice pending yang lewat `expired_at` ditandai `expired`; renewal = checkout baru (QRIS one-time). Perpanjangan plan yang sama mulai dari `plan_expires_at` yang masih berlaku.
+3. Status sukses di-aktivasi lewat `processInvoice()`: **selalu re-verify** ke Vessel (`getPaymentStatus`) — payload webhook tidak dipercaya langsung. Aktivasi adalah satu transaksi idempotent: claim invoice, `subscriptions`, update `companies.plan_id/plan_expires_at/status`, journal append-only, dan job email. Invoice lama yang dibayar setelah aktivasi lebih baru masuk `subscription_reconciliation` dan tidak menurunkan plan.
+4. `POST /api/webhooks/vessel` menyimpan event ke inbox privat (`provider_events`, event key unik), lalu enqueue job durable `vessel.webhook`; verifikasi signature HMAC opsional dan re-verify provider tetap dilakukan. Duplicate/out-of-order aman; unmatched event dipertahankan untuk retry/dead-letter.
+5. Terminal `expired`/`failed`/`cancelled` hanya diambil dari provider. Provider timeout/ambigu mempertahankan invoice sebagai `unknown`; renewal = checkout baru (QRIS one-time). Perpanjangan plan yang sama mulai dari `plan_expires_at` yang masih berlaku bila belum lewat.
 
-Tabel: `subscriptions` (riwayat periode) dan `subscription_invoices` (tagihan + `provider_transaction_id` UNIQUE). Package: `@rakku/vessel-client` (`createQrisPayment`, `getPaymentStatus`, `syncPaymentStatus`).
+Tabel: `subscriptions`, `subscription_invoices` (state + request journal), `app_private.subscription_payment_requests`, `app_private.subscription_payment_journal`, `app_private.subscription_reconciliation`, `app_private.provider_events`, `app_private.job_queue`. Package: `@rakku/vessel-client`, `@rakku/db/subscription-billing`, `@rakku/db/jobs`.
 
 **Notifikasi & cron harian (M4):**
 
 - Semua email billing memakai `sendBillingEmail()` (package `@rakku/emails`) dengan **klaim idempotent** di tabel `notification_logs` (UNIQUE company/type/period) — satu email per event per periode.
 - Event: trial dimulai (onboarding), trial H-3, trial berakhir, limit 80%, limit 100%, pembayaran berhasil (aktivasi), renewal H-7/H-3/H-1, grace, langganan berakhir.
-- `GET/POST /api/cron/billing` (dilindungi `CRON_SECRET`, Vercel Cron `0 1 * * *`): sync invoice/payment intent pending ke Vessel, expire trial/langganan, kirim reminder, dan peringatan kuota. **`?dry=1` bukan mode read-only**: sync/finalisasi pembayaran tetap terjadi sebelum return; hanya tahap siklus langganan/notifikasi berikutnya yang dilewati.
+- `GET/POST /api/cron/billing` (dilindungi `CRON_SECRET`, Vercel Cron `0 1 * * *`): sync invoice/payment intent pending ke Vessel, proses batch job durable, expire trial/langganan, kirim reminder, dan peringatan kuota. `?dry=1` tidak memproses sync, aktivasi, job, atau email.
+- `GET/POST /api/cron/provider-jobs` (dilindungi `CRON_SECRET`): worker inbox/outbox dengan lease, exponential backoff+jitter, max attempts, dead-letter. `?dry=1` hanya menghitung due/dead-letter tanpa writes. Replay manual: `pnpm provider:jobs -- --list` / `--replay <id>`.
 - Email memakai template `renderRakkuEmail()` (logo CDN) via `@rakku/echo-client`.
 
 **Analytics & go-live (M5, sebagian):**
@@ -568,7 +570,7 @@ Tabel: `subscriptions` (riwayat periode) dan `subscription_invoices` (tagihan + 
 - Superadmin `/subscriptions` menampilkan analytics konversi: trial → bayar, limit → upgrade, pendapatan 30 hari, dan distribusi paket per company.
 - Checklist go-live Vessel produksi:
   1. Rotasi `VESSEL_API_KEY` sandbox → key produksi (update `VESSEL_API_URL` bila host berbeda).
-  2. Set env produksi owner: `NEXT_PUBLIC_OWNER_URL` (domain asli, bukan localhost), `CRON_SECRET`, `ECHO_*`, `SILOS_*`.
+  2. Set env produksi owner: `NEXT_PUBLIC_OWNER_URL` (domain asli, bukan localhost), `CRON_SECRET`, `ECHO_*`, `SILOS_*`. `VESSEL_WEBHOOK_SECRET` hanya diisi setelah header/algoritma signature Vessel dikonfirmasi; tanpa secret, event tercatat `unverified` dan tetap di-re-verify ke provider.
   3. Uji transaksi QRIS nominal kecil di produksi; pastikan `callback_url` terjangkau dan aktivasi + email berjalan.
   4. Pastikan Vercel Cron aktif (`crons` di `apps/owner/vercel.json`) dan `CRON_SECRET` sama.
   5. Pantau `/subscriptions` superadmin (invoice pending, konversi, revenue).
@@ -610,7 +612,7 @@ Nomor migration `028`–`031` pada riwayat milestone berikut adalah nomor Supaba
 - Default: minimum Rp50.000, biaya Rp0, maks 1 pengajuan pending per company, maks Rp10 juta/hari (konstanta, mudah diubah).
 - Notifikasi email: pengajuan diterima, selesai, ditolak. Pembayaran pelanggan tidak memicu email.
 
-Disbursement masih manual dan refund provider belum tersedia. Saldo kewajiban merchant, posisi kas, dan settlement dicatat melalui fitur rekonsiliasi; jangan menyamakan keberhasilan login smoke dengan verifikasi pembayaran/settlement nyata.
+Disbursement masih manual dan refund provider belum tersedia. Receipt QRIS masuk `unsettled_balance`; hanya statement provider yang cocok melepas dana ke `available_balance` lewat `settlement_credit`. Exception memiliki status investigate/resolve dengan bukti, tetapi tidak mengubah saldo. Withdrawal hanya meng-hold available; koreksi memakai reversal journal. Jangan menyamakan login smoke dengan verifikasi statement/bank/settlement nyata.
 
 ---
 
@@ -1118,7 +1120,7 @@ Terdapat 30 file historis di `supabase/migrations/` (`001`–`031`, tanpa `005`)
 | 030 | `030_withdrawals.sql` | `merchant_bank_accounts` + `withdrawals` (pencairan manual, v6.1 M3) |
 | 031 | `031_settlement_reports.sql` | `settlement_reports` (rekonsiliasi settlement, v6.1 M4) |
 
-Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat kolom seperti `modifiers.group_name`, `order_items.note`, `split_payments.items`, dan `products.image_silo_id`. Bila suatu saat menyalin source lama, audit schema nyata dan ikuti bagian copy opsional pada [NEON_MIGRATION.md](NEON_MIGRATION.md#7-opsional-rekonsiliasi-dan-copy-source-lama); instalasi aktif tidak memakai copy tersebut.
+Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat kolom seperti `modifiers.group_name`, `order_items.note`, `split_payments.items`, dan `products.image_silo_id`. Implementasi branch hardening saat ini memakai `packages/db/migrations/0001`–`0013` (termasuk 0010 subscription lifecycle, 0011 provider jobs, 0012 settlement/financial commands dan 0013 usage quota dan 0014 runtime flags); daftar 020–031 di atas adalah histori source lama. Bila suatu saat menyalin source lama, audit schema nyata dan ikuti bagian copy opsional pada [NEON_MIGRATION.md](NEON_MIGRATION.md#7-opsional-rekonsiliasi-dan-copy-source-lama); instalasi aktif tidak memakai copy tersebut.
 
 ---
 
@@ -1156,7 +1158,7 @@ Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat 
 | `/subscription` | `(dashboard)/subscription/page.tsx` | Paket aktif, usage meter, pilihan paket + riwayat invoice (M2/M3) |
 | `/subscription/checkout/[invoiceId]` | `(dashboard)/subscription/checkout/[invoiceId]/page.tsx` | Halaman bayar QRIS + countdown + polling status (M3) |
 | `/settings` | `(dashboard)/settings/page.tsx` | Profil company, ganti password company, **Menu QR per outlet** |
-| `/balance` | `(dashboard)/balance/page.tsx` | Saldo tersedia/pending, ledger, rekening bank, dan pengajuan withdrawal |
+| `/balance` | `(dashboard)/balance/page.tsx` | Saldo tersedia/unsettled/hold, ledger, rekening bank, dan pengajuan withdrawal |
 
 #### Fitur Kunci (Owner)
 
@@ -1208,8 +1210,9 @@ Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat 
 | `/api/owner/balance/transactions` | GET | Riwayat ledger merchant |
 | `/api/owner/bank-accounts` (+ `[id]`) | GET/POST/PATCH/DELETE | CRUD rekening withdrawal |
 | `/api/owner/withdrawals` | GET/POST | Riwayat dan pengajuan withdrawal |
-| `/api/webhooks/vessel` | POST | Callback Vessel → re-verify + aktivasi (tanpa session) |
-| `/api/cron/billing` | GET/POST | Job harian: sync invoice, expire trial/langganan, reminder + warning kuota (`CRON_SECRET`, `?dry=1` untuk uji) |
+| `/api/webhooks/vessel` | POST | Callback Vessel → inbox `provider_events` → job durable → re-verify + aktivasi (tanpa session) |
+| `/api/cron/billing` | GET/POST | Job harian: sync invoice, proses batch job, expire trial/langganan, reminder + warning kuota (`CRON_SECRET`, `?dry=1` untuk uji) |
+| `/api/cron/provider-jobs` | GET/POST | Worker lease/retry/dead-letter inbox-outbox (`CRON_SECRET`, `?dry=1`) |
 | `/api/owner/reports/profit-loss` | GET | Laba rugi (omzet, HPP, laba kotor, pengeluaran, laba bersih) |
 | `/api/owner/reports/send-email` | POST | Kirim laporan penjualan via Echo |
 
@@ -1983,7 +1986,7 @@ Migrasi sudah menambahkan expiry/revalidation POS, menu authorization server-sid
 Keterbatasan source yang masih ada:
 
 - **Nominal order:** standard order mengambil harga item, pajak, diskon, subtotal/total dari client. Company/outlet/cashier sekarang berasal dari session, tetapi seluruh nominal belum dihitung ulang dari katalog server.
-- **Permission:** kontrak UI/API POS memakai menu-level `can_view`. Kolom CRUD ada di schema, tetapi belum ditegakkan sebagai grants create/edit/delete yang terpisah.
+- **Permission:** fase 2 menegakkan grant V/C/E/D pada POS dan menyediakan matriks Owner/Superadmin. Acceptance staging, browser editor, privilege runtime migration 0009 dan concurrency dua koneksi PostgreSQL belum dijalankan; lihat `PHASE_2_REPORT.md`.
 - **PIN issuance:** verify-pin masih berfokus pada user/company/PIN; assignment outlet/status company-outlet diperiksa authoritative ketika session dipakai. Pemeriksaan sebelum penerbitan session juga perlu diselaraskan, walaupun invalid session ditolak database boundary.
 - **Verification secret Owner:** session/pending-login fail-fast, tetapi register/resend/verify-email masih mempunyai fallback secret verification. `OWNER_JWT_SECRET` tetap wajib disediakan pada deployment.
 - **Cookie sementara:** session utama Owner/POS memakai Secure pada production; `pending_login` belum menambahkan Secure.
@@ -2048,4 +2051,4 @@ Lifecycle: soft navigation mempertahankan bisnis dan cart; ganti kasir/outlet me
 
 Perbaikan UI terakhir: badge jumlah draft/stok pada `AppSidebar`/`SideRail` POS semula berada di luar slot ikon yang memakai `overflow-hidden` sehingga angka terpotong. Badge kini diposisikan relatif ke wrapper ikon yang rapat, mengikuti pola `BottomNav`; perilaku production dan demo sama. Verifikasi browser mengukur ukuran, batas sidebar, dan hit-testing badge pada state expanded/collapsed di dua outlet.
 
-Detail lengkap fixture dua outlet/empat karyawan/20 produk, lifecycle/cache, matriks fitur, simulator pembayaran/langganan/withdrawal/email/upload, batasan source, dan perintah pengujian ada di **[DEMO.md](DEMO.md)**.
+Detail lengkap fixture dua outlet/empat karyawan/20 produk, lifecycle/cache, matriks fitur, simulator pembayaran/langganan/withdrawal/email/upload, batasan source, dan perintah pengujian ada di **[DEMO.md](DEMO.md)**. Alur presentasi per durasi, langkah klik, narasi, checklist, dan troubleshooting ada di **[DEMO_FLOW.md](DEMO_FLOW.md)**.

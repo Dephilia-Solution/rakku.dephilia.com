@@ -1,190 +1,24 @@
 import { sql, type DatabaseClient } from "@rakku/db";
+import { enqueueJob } from "@rakku/db/jobs";
+import {
+  activateSubscriptionInvoice,
+  markSubscriptionProviderPending,
+  markSubscriptionProviderTerminal,
+  markSubscriptionProviderUncertain,
+  type ProviderPaymentDetail,
+} from "@rakku/db/subscription-billing";
 import {
   getPaymentStatus,
+  ProviderUnavailableError,
+  ProviderVerificationError,
   type VesselPaymentDetail,
 } from "@rakku/vessel-client";
 import type { SubscriptionInvoice } from "@rakku/shared-types";
-import { sendBillingEmail } from "@rakku/emails";
 
 export interface ProcessResult {
   invoice: SubscriptionInvoice;
   activated: boolean;
-}
-
-function addPeriod(base: Date, cycle: string): Date {
-  const end = new Date(base);
-  if (cycle === "yearly") {
-    end.setFullYear(end.getFullYear() + 1);
-  } else {
-    end.setMonth(end.getMonth() + 1);
-  }
-  return end;
-}
-
-async function activateSubscription(
-  supabase: DatabaseClient,
-  invoice: SubscriptionInvoice,
-  detail: VesselPaymentDetail
-): Promise<boolean> {
-  const paidAt = detail.paid_at ? new Date(detail.paid_at) : new Date();
-  if (detail.invoice_number !== invoice.invoice_number || Number(detail.amount) !== Number(invoice.amount)) {
-    throw new Error("Provider payment does not match the subscription invoice");
-  }
-  const activation = await supabase.transaction(async supabase => {
-  await supabase.execute(sql`select id from public.companies where id=${invoice.company_id} for update`);
-
-  // Atomic claim: hanya invoice berstatus pending yang boleh diaktifkan.
-  // Webhook & polling yang berjalan bersamaan tidak akan double-aktivasi.
-  const { data: claimed, error: claimError } = await supabase
-    .from("subscription_invoices")
-    .update({
-      status: "success",
-      paid_at: paidAt.toISOString(),
-      raw_payload: detail as unknown as Record<string, unknown>,
-    })
-    .eq("id", invoice.id)
-    .eq("status", "pending")
-    .select()
-    .maybeSingle();
-
-  if (claimError) throw new Error(claimError.message);
-  if (!claimed) return null;
-
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, plan_id, plan_expires_at")
-    .eq("id", invoice.company_id)
-    .maybeSingle();
-
-  const now = new Date();
-  const existingExpiry = company?.plan_expires_at
-    ? new Date(company.plan_expires_at)
-    : null;
-
-  // Perpanjangan plan yang sama: mulai dari expiry yang masih berlaku.
-  const base =
-    company?.plan_id === invoice.plan_id &&
-    existingExpiry &&
-    existingExpiry.getTime() > now.getTime()
-      ? existingExpiry
-      : now;
-
-  const periodEnd = addPeriod(base, invoice.billing_cycle);
-
-  const subscription = await supabase.from("subscriptions").insert({
-    company_id: invoice.company_id,
-    plan_id: invoice.plan_id,
-    status: "active",
-    started_at: paidAt.toISOString(),
-    current_period_start: base.toISOString(),
-    current_period_end: periodEnd.toISOString(),
-  });
-  if (subscription.error) throw new Error(subscription.error.message);
-
-  const companyUpdate = await supabase
-    .from("companies")
-    .update({
-      plan_id: invoice.plan_id,
-      subscription_status: "active",
-      plan_expires_at: periodEnd.toISOString(),
-      billing_cycle: invoice.billing_cycle,
-    })
-    .eq("id", invoice.company_id);
-  if (companyUpdate.error) throw new Error(companyUpdate.error.message);
-
-  const { data: plan } = await supabase
-    .from("plans")
-    .select("name")
-    .eq("id", invoice.plan_id)
-    .maybeSingle();
-  return { periodEnd, planName: plan?.name ?? "langganan" };
-  });
-  if (!activation) return false;
-  const { periodEnd, planName } = activation;
-
-  try {
-  await sendBillingEmail(supabase, {
-    companyId: invoice.company_id,
-    type: "payment_success",
-    period: invoice.invoice_number,
-    subject: `Pembayaran diterima — Paket ${planName} aktif`,
-    eyebrow: "Langganan",
-    title: "Pembayaran diterima.",
-    paragraphs: [
-      `Paket ${planName} Anda aktif sampai ${periodEnd.toLocaleDateString("id-ID")}.`,
-      `Invoice ${invoice.invoice_number} sebesar Rp${Number(invoice.amount).toLocaleString("id-ID")} sudah kami terima.`,
-    ],
-    note: "Terima kasih. Langganan dapat diperpanjang kapan saja dari halaman Langganan.",
-  });
-  } catch (error) { console.error("[billing] post-commit email failed", error); }
-
-  return true;
-}
-
-/**
- * Sinkronkan status invoice ke Vessel lalu aktivasi bila sudah dibayar.
- * Selalu re-verify ke Vessel — payload webhook tidak pernah dipercaya langsung.
- * `statusFetcher` dapat di-inject untuk pengujian.
- */
-export async function processInvoice(
-  supabase: DatabaseClient,
-  invoice: SubscriptionInvoice,
-  statusFetcher: (
-    transactionId: string
-  ) => Promise<VesselPaymentDetail> = getPaymentStatus
-): Promise<ProcessResult> {
-  if (invoice.status !== "pending") {
-    return { invoice, activated: false };
-  }
-
-  if (!invoice.provider_transaction_id) {
-    return { invoice, activated: false };
-  }
-
-  let detail: VesselPaymentDetail;
-  try {
-    detail = await statusFetcher(invoice.provider_transaction_id);
-  } catch {
-    return { invoice, activated: false };
-  }
-
-  if (detail.payment_status === "success") {
-    const activated = await activateSubscription(supabase, invoice, detail);
-    return {
-      invoice: { ...invoice, status: "success", paid_at: detail.paid_at },
-      activated,
-    };
-  }
-
-  if (
-    detail.payment_status === "expired" ||
-    detail.payment_status === "failed" ||
-    detail.payment_status === "cancelled"
-  ) {
-    await supabase
-      .from("subscription_invoices")
-      .update({
-        status: detail.payment_status,
-        raw_payload: detail as unknown as Record<string, unknown>,
-      })
-      .eq("id", invoice.id)
-      .eq("status", "pending");
-
-    return { invoice: { ...invoice, status: detail.payment_status }, activated: false };
-  }
-
-  // Masih pending: tandai expired lokal bila sudah lewat waktu.
-  if (invoice.expired_at && new Date(invoice.expired_at).getTime() < Date.now()) {
-    await supabase
-      .from("subscription_invoices")
-      .update({ status: "expired" })
-      .eq("id", invoice.id)
-      .eq("status", "pending");
-
-    return { invoice: { ...invoice, status: "expired" }, activated: false };
-  }
-
-  return { invoice, activated: false };
+  reconciled: boolean;
 }
 
 export function generateInvoiceNumber(companyCode: string): string {
@@ -193,4 +27,104 @@ export function generateInvoiceNumber(companyCode: string): string {
   const random = Math.random().toString(36).slice(2, 6).toUpperCase();
   const stamp = Date.now().toString(36).toUpperCase().slice(-4);
   return `RK-${period}-${companyCode.slice(0, 8)}-${stamp}${random}`;
+}
+
+function record(invoice: SubscriptionInvoice): SubscriptionInvoice {
+  return invoice;
+}
+
+function verify(stored: SubscriptionInvoice, detail: VesselPaymentDetail): void {
+  if (detail.id !== stored.provider_transaction_id
+    || detail.invoice_number !== stored.invoice_number
+    || Number(detail.amount) !== Number(stored.amount)) {
+    throw new ProviderVerificationError("Identitas/nominal pembayaran provider tidak cocok");
+  }
+}
+
+/**
+ * Re-verify to the provider; webhook payload is never trusted directly.
+ * Provider calls happen outside DB transactions. Unknown/timeout keeps the
+ * invoice and is retried by the durable job queue or cron.
+ */
+export async function processInvoice(
+  supabase: DatabaseClient,
+  inputInvoice: SubscriptionInvoice,
+  statusFetcher: (transactionId: string) => Promise<VesselPaymentDetail> = getPaymentStatus,
+): Promise<ProcessResult> {
+  let invoice = record(inputInvoice);
+  if (invoice.status === "success") {
+    return { invoice, activated: false, reconciled: !!invoice.reconciliation_reason };
+  }
+  if (!invoice.provider_transaction_id) {
+    return { invoice, activated: false, reconciled: !!invoice.reconciliation_reason };
+  }
+
+  let detail: VesselPaymentDetail;
+  try {
+    detail = await statusFetcher(invoice.provider_transaction_id);
+  } catch (error) {
+    await markSubscriptionProviderUncertain(supabase, invoice.id, error);
+    if (error instanceof ProviderUnavailableError) throw error;
+    throw new ProviderUnavailableError("Status provider tidak dapat diambil; invoice dipertahankan");
+  }
+
+  try {
+    verify(invoice, detail);
+  } catch (error) {
+    await markSubscriptionProviderUncertain(supabase, invoice.id, error);
+    throw error;
+  }
+
+  if (detail.payment_status === "success") {
+    const activation = await activateSubscriptionInvoice(supabase, invoice.id, detail as ProviderPaymentDetail, {
+      onApplied: async (tx, result) => {
+        await enqueueJob(tx, {
+          kind: "subscription.payment_email",
+          uniqueKey: result.invoice.id,
+          correlationId: `subscription:${result.invoice.invoice_number}`,
+          payload: {
+            invoiceId: result.invoice.id,
+            companyId: result.companyId,
+            invoiceNumber: result.invoice.invoice_number,
+            planName: result.planName,
+            periodEnd: result.periodEnd,
+            amount: result.amount,
+            paidAt: result.paidAt,
+          },
+        });
+      },
+    });
+    invoice = activation.invoice as unknown as SubscriptionInvoice;
+    return { invoice, activated: activation.applied, reconciled: activation.reconciled };
+  }
+
+  if (["expired", "failed", "cancelled"].includes(detail.payment_status)) {
+    const updated = await markSubscriptionProviderTerminal(
+      supabase,
+      invoice.id,
+      detail.payment_status as "expired" | "failed" | "cancelled",
+      detail as ProviderPaymentDetail,
+    );
+    return { invoice: updated as unknown as SubscriptionInvoice, activated: false, reconciled: false };
+  }
+
+  if (detail.payment_status === "pending") {
+    const updated = await markSubscriptionProviderPending(supabase, invoice.id, detail as ProviderPaymentDetail);
+    return { invoice: updated as unknown as SubscriptionInvoice, activated: false, reconciled: false };
+  }
+
+  await markSubscriptionProviderUncertain(supabase, invoice.id, new Error("Provider mengembalikan status yang belum dipetakan"));
+  return { invoice, activated: false, reconciled: false };
+}
+
+export async function findSubscriptionInvoiceByReference(
+  supabase: DatabaseClient,
+  reference: { transactionId?: string | null; invoiceNumber?: string | null },
+): Promise<SubscriptionInvoice | null> {
+  if (!reference.transactionId && !reference.invoiceNumber) return null;
+  const where = reference.transactionId
+    ? sql`provider_transaction_id=${reference.transactionId}`
+    : sql`invoice_number=${reference.invoiceNumber}`;
+  const [row] = await supabase.execute(sql`select * from public.subscription_invoices where ${where} limit 1`);
+  return row ? row as unknown as SubscriptionInvoice : null;
 }

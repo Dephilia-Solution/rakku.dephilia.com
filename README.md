@@ -50,7 +50,7 @@ Klasifikasi development/production ini adalah keputusan deployment Rakku. URL `*
 
 Buka **`/demo` pada aplikasi Owner** (lokal: `http://localhost:3000/demo`) untuk memilih Demo Owner atau Demo Kasir. Route mengikuti aplikasi asli, misalnya `/demo/owner/outlets`, `/demo/pos/products`, `/demo/pos/register`. Komponen/layout asli digunakan dengan sandbox cafe yang sama selama soft navigation; perubahan hanya di memori dan reset pada logout/reset/refresh. CTA Coba Demo tersedia di landing serta login Owner/POS.
 
-Demo publik ini terpisah dari tenant testing Neon `pnpm db:demo`. Data, PIN simulator, matriks fitur, arsitektur, dan pengujian dijelaskan di **[DEMO.md](DEMO.md)**.
+Demo publik ini terpisah dari tenant testing Neon `pnpm db:demo`. Data, PIN simulator, matriks fitur, arsitektur, dan pengujian dijelaskan di **[DEMO.md](DEMO.md)**; alur presentasi per durasi ada di **[DEMO_FLOW.md](DEMO_FLOW.md)**.
 
 ### Setup aplikasi
 

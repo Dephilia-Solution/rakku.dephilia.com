@@ -4,7 +4,7 @@ import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { checkFeature } from "@rakku/plans";
 import { adjustStock } from "@rakku/inventory";
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getTenantSessionFromCookies();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json();
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!feature.allowed) return NextResponse.json(feature, { status: 403 });
   try {
     return NextResponse.json(await adjustStock(db, { companyId: session.company_id, outletId: session.outlet_id,
-      ingredientId: params.id, userId: session.user_id, quantity: body.stock_quantity, note: body.note }));
+      ingredientId: (await params).id, userId: session.user_id, quantity: body.stock_quantity, note: body.note }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal memperbarui stok" }, { status: 400 });
   }

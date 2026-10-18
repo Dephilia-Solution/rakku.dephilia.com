@@ -1,5 +1,10 @@
 import { createAdminClient } from "@rakku/db";
 import type { Menu } from "@rakku/shared-types";
+export async function getTenantHome(roleId: string) {
+  const menu = (await getAllowedMenus(roleId))[0];
+  if (!menu) return "/access-denied";
+  return menu.slug === "products" ? "/products" : menu.path.startsWith("/") && !menu.path.startsWith("//") ? menu.path : `/${menu.slug}`;
+}
 
 export async function getAllowedMenus(roleId: string): Promise<Menu[]> {
   const supabase = createAdminClient();

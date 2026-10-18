@@ -11,6 +11,7 @@ export interface Owner {
 }
 
 export interface OwnerSession {
+  session_id?: string;
   owner_id: string;
   email: string;
   name: string;

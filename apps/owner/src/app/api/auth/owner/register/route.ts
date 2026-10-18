@@ -1,14 +1,12 @@
+import { guardOwnerAuth } from "@/lib/auth/request-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { createOwner } from "@/lib/supabase/queries.owner";
 import { sendEmail } from "@rakku/echo-client";
 import { renderRakkuEmail } from "@rakku/emails";
-import { SignJWT } from "jose";
-
-const VERIFY_SECRET = new TextEncoder().encode(
-  process.env.OWNER_JWT_SECRET || "dev-secret-change-in-production-min-32-chars!!"
-);
+import { signVerification } from "@/lib/auth/verification";
 
 export async function POST(request: NextRequest) {
+  const denied = await guardOwnerAuth(request); if (denied) return denied;
   const body = await request.json().catch(() => null);
 
   if (!body) {
@@ -17,16 +15,16 @@ export async function POST(request: NextRequest) {
 
   const { name, email, password } = body;
 
-  if (!name || !email || !password) {
+  if (typeof name !== "string" || !name.trim() || name.length > 100 || typeof email !== "string" || email.length > 254 || typeof password !== "string") {
     return NextResponse.json(
       { error: "Nama, email, dan password harus diisi" },
       { status: 400 }
     );
   }
 
-  if (password.length < 8) {
+  if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
     return NextResponse.json(
-      { error: "Password minimal 8 karakter" },
+      { error: "Password minimal 8 karakter dan maksimal 72 byte" },
       { status: 400 }
     );
   }
@@ -50,15 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status: 400 });
   }
 
-  const token = await new SignJWT({
-    owner_id: owner.id,
-    email: owner.email,
-    name: owner.name,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(VERIFY_SECRET);
+  const token = await signVerification(owner);
 
   const verifyUrl = `${process.env.NEXT_PUBLIC_OWNER_URL || "http://localhost:3000"}/api/auth/owner/verify-email?token=${token}`;
 

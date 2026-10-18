@@ -1,3 +1,4 @@
+import { guardOwnerAuth } from "@/lib/auth/request-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail, setOwnerResetToken } from "@/lib/supabase/queries.owner";
 import { sendEmail } from "@rakku/echo-client";
@@ -5,6 +6,7 @@ import { renderRakkuEmail } from "@rakku/emails";
 import { generateResetToken } from "@/lib/auth/reset-token";
 
 export async function POST(request: NextRequest) {
+  const denied = await guardOwnerAuth(request); if (denied) return denied;
   const body = await request.json().catch(() => null);
   if (!body || !body.email) {
     return NextResponse.json({ error: "Email harus diisi" }, { status: 400 });
@@ -19,10 +21,7 @@ export async function POST(request: NextRequest) {
   const { owner, error } = await getOwnerByEmail(email);
 
   if (error || !owner) {
-    return NextResponse.json(
-      { error: "Tidak ada akun dengan email ini." },
-      { status: 404 }
-    );
+    return NextResponse.json({ message: "Jika akun tersedia, tautan reset akan dikirim ke email Anda." });
   }
 
   const { token, tokenHash, expiresAt } = generateResetToken();
@@ -68,6 +67,6 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    message: `Link reset telah dikirim ke ${email}. Cek inbox atau folder spam Anda.`,
+    message: "Jika akun tersedia, tautan reset akan dikirim ke email Anda.",
   });
 }

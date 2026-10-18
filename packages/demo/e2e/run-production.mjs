@@ -11,7 +11,10 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const require = createRequire(import.meta.url);
 const rawInput = process.argv.slice(2);
 const devOwner = rawInput.includes('--dev-owner');
-const args = rawInput.filter(value => value !== '--dev-owner' && value !== '--routed');
+const isolatedBuild = rawInput.includes('--isolated-build');
+const isolatedDirectory = process.env.RAKKU_BUILD_DIRECTORY || '.next-hardening';
+if (!/^\.next-hardening(?:-[a-z0-9]+)*$/.test(isolatedDirectory)) throw new Error('Invalid isolated build directory');
+const args = rawInput.filter(value => !['--dev-owner', '--routed', '--isolated-build'].includes(value));
 const runner = resolve(root, 'packages/demo/e2e/routed.mjs');
 const children = [];
 const stop = new AbortController();
@@ -115,7 +118,7 @@ async function main() {
   assert.notEqual(owner.port, pos.port, 'The controlled Owner/POS servers require distinct ports');
   // Start only existing production builds. DB/provider transports use the previously supplied
   // blocked endpoints; this wrapper never runs build, login, smoke, or database commands.
-  const env = { ...process.env, NODE_ENV: 'production', NEXT_PUBLIC_OWNER_URL: owner.origin, NEXT_PUBLIC_POS_URL: pos.origin,
+  const env = { ...process.env, NODE_ENV: 'production', RAKKU_ISOLATED_BUILD: isolatedBuild ? '1' : '0', NEXT_PUBLIC_OWNER_URL: owner.origin, NEXT_PUBLIC_POS_URL: pos.origin,
     DATABASE_URL: 'postgresql://demo_blocked:demo_blocked@127.0.0.1:1/demo_blocked?connect_timeout=1',
     VESSEL_API_URL: 'http://127.0.0.1:1', VESSEL_API_KEY: 'demo-provider-blocked',
     ECHO_API_URL: 'http://127.0.0.1:1', ECHO_API_KEY: 'demo-provider-blocked',
@@ -125,7 +128,7 @@ async function main() {
   const builds = [];
   for (const [app, address] of apps) {
     const cwd = resolve(root, `apps/${app}`);
-    const buildPath = resolve(cwd, '.next/BUILD_ID');
+    const buildPath = resolve(cwd, isolatedBuild ? isolatedDirectory : '.next', 'BUILD_ID');
     const development = devOwner && app === 'owner';
     const buildID = development ? null : (await readFile(buildPath, 'utf8')).trim();
     assert.ok(development || buildID, `Missing completed production build for ${app}`);

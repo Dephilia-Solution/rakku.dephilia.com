@@ -66,18 +66,14 @@ export default function SplitBillPanel({ items, total = items.reduce((sum, item)
     }, 0));
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
-    let allocated = 0;
-    let cumulative = 0;
-    return weights.map((weight, index) => {
-      cumulative += subtotal > 0 ? weight / subtotal : quantity > 0
-        ? persons[index].items.reduce((sum, item) => sum + item.quantity, 0) / quantity : 0;
+    return weights.reduce<{ cumulative: number; allocated: number; amounts: number[] }>((state, weight, index) => {
+      const cumulative = state.cumulative + (subtotal > 0 ? weight / subtotal : quantity > 0
+        ? persons[index].items.reduce((sum, item) => sum + item.quantity, 0) / quantity : 0);
       const target = cumulative >= 1 - Number.EPSILON * persons.length
         ? total
         : Math.round(total * Math.min(1, cumulative));
-      const amount = target - allocated;
-      allocated = target;
-      return amount;
-    });
+      return { cumulative, allocated: target, amounts: [...state.amounts, target - state.allocated] };
+    }, { cumulative: 0, allocated: 0, amounts: [] }).amounts;
   }, [items, persons, total]);
 
   const getPersonTotal = useCallback((person: SplitPerson): number => {

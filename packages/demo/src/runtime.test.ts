@@ -56,11 +56,18 @@ test("original Owner catalog contracts cover category/tier/product prices/modifi
   await ok(request, `/api/owner/products?id=${product.id}`, "DELETE"); await ok(request, `/api/owner/categories?id=${category.id}`, "DELETE");
 });
 
-test("Owner employee allOutlets, menus can_view matrix, status and PIN forms preserve assignment semantics", async () => {
+test("Owner employee allOutlets, CRUD grant matrix, status and PIN forms preserve assignment semantics", async () => {
   const { sandbox, request } = owner(); const role = record(record(await ok(request, "/api/owner/roles", "POST", { name: "New manager" })).role);
-  const menus = rows(record(await ok(request, "/api/owner/menus")).menus);
-  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { menuId: menus[0].id, canView: true });
-  assert.deepEqual(record(await ok(request, `/api/owner/roles/${role.id}/access`)).menu_access, [menus[0].id]);
+  const menus = rows(record(await ok(request, "/api/owner/roles")).menus);
+  const before = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  const grant = { menu_id: menus[0].id, can_view: true, can_create: true, can_edit: false, can_delete: false };
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [grant], expectedRevision: before.revision });
+  const after = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  assert.deepEqual(after.grants, [grant]); assert.deepEqual(after.menu_access, [menus[0].id]);
+  const stale = await call(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [], expectedRevision: before.revision });
+  assert.equal(stale.response.status, 409);
+  const invalid = await call(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [{ ...grant, can_view: false }], expectedRevision: after.revision });
+  assert.equal(invalid.response.status, 400);
   const employee = record(record(await ok(request, "/api/owner/employees", "POST", { name: "Sinta", username: "sinta", pin: "555555", roleId: role.id, allOutlets: true, outletIds: [] })).employee);
   assert.deepEqual(Object.keys(employee), ["id"]);
   const outlet = record(record(await ok(request, "/api/owner/outlets", "POST", { name: "Baru", address: "Jl. Baru" })).outlet);

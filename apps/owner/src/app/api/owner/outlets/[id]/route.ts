@@ -18,7 +18,7 @@ async function requireOwner(): Promise<OwnerWithCompany | null> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -36,7 +36,7 @@ export async function PATCH(
   // Toggle status jika diminta
   if (body.toggle_status === true) {
     const { error, status } = await toggleOutletStatus(
-      params.id,
+      (await params).id,
       session.company_id
     );
     if (error) return NextResponse.json({ error }, { status: 400 });
@@ -46,7 +46,7 @@ export async function PATCH(
   const { name, address } = body;
 
   const { error } = await updateOutlet({
-    outletId: params.id,
+    outletId: (await params).id,
     companyId: session.company_id,
     name: name !== undefined ? String(name).trim() : undefined,
     address: address !== undefined ? String(address).trim() : undefined,
@@ -58,7 +58,7 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -68,7 +68,7 @@ export async function DELETE(
     );
   }
 
-  const { error } = await deleteOutlet(params.id, session.company_id);
+  const { error } = await deleteOutlet((await params).id, session.company_id);
   if (error) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }

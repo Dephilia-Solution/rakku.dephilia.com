@@ -1,3 +1,6 @@
+import { revokeSubjectSessions } from "@rakku/db/sessions";
+import { saveEmployee } from "@rakku/db/merchant";
+import { deleteRole, getRoleGrants, saveRoleGrants, onboardingRoleGrants } from "@rakku/db/roles-access";
 import bcrypt from "bcryptjs";
 import { createAdminClient, sql } from "@rakku/db";
 import { hashPin } from "@rakku/auth-utils";
@@ -89,12 +92,14 @@ export async function updateOwnerPassword(
 ): Promise<{ error: string | null }> {
   const supabase = createAdminClient();
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  const { error } = await supabase
-    .from("owners")
-    .update({ password_hash: passwordHash })
-    .eq("id", ownerId);
-  if (error) return { error: "Gagal memperbarui kata sandi" };
-  return { error: null };
+  try {
+    await supabase.transaction(async tx => {
+      const result = await tx.from("owners").update({ password_hash: passwordHash, reset_token_hash: null, reset_token_expires_at: null }).eq("id", ownerId).select("id").single();
+      if (result.error) throw new Error(result.error.message);
+      await revokeSubjectSessions(tx, "owner", ownerId);
+    });
+    return { error: null };
+  } catch { return { error: "Gagal memperbarui kata sandi" }; }
 }
 
 // ============================================================
@@ -391,8 +396,6 @@ export async function createCompanyWithOnboarding(params: {
   }
 
   // 3. Seed default pricing tiers (Dine In & Take Away)
-  // Catatan: role & akses menu tidak di-seed di sini — Owner kelola sendiri
-  // via menu "Kelola Role" di halaman Karyawan.
   const { data: outlet } = await supabase
     .from("outlets")
     .select("id")
@@ -433,36 +436,17 @@ export async function createCompanyWithOnboarding(params: {
     .select("id, name");
   if (rolesError || !roles) throw new Error("Gagal membuat role");
 
-  const { data: menus } = await supabase.from("menus").select("id, slug");
-
-  if (roles && menus) {
-    const allMenuIds = menus.map((m) => m.id);
-    const kasirSlugs = ["register", "orders", "reports", "tax-discounts"];
-    const kasirMenuIds = menus
-      .filter((m) => kasirSlugs.includes(m.slug))
-      .map((m) => m.id);
-
-    const accessRows: {
-      role_id: string;
-      menu_id: string;
-      can_view: boolean;
-    }[] = [];
-
-    for (const role of roles) {
-      const menuIds = role.name === "Owner" ? allMenuIds : kasirMenuIds;
-      for (const menuId of menuIds) {
-        accessRows.push({
-          role_id: role.id,
-          menu_id: menuId,
-          can_view: true,
-        });
-      }
-    }
-
-    if (accessRows.length > 0) {
-      const access = await supabase.from("role_menu_access").insert(accessRows);
-      if (access.error) throw new Error(access.error.message);
-    }
+  const { data: menus, error: menusError } = await supabase.from("menus").select("id, slug");
+  if (menusError || !menus) throw new Error("Gagal memuat menu");
+  // These IDs were just created above. No name-based backfill of old roles.
+  for (const kind of ["owner", "kasir"] as const) {
+    const role = roles.find(r => r.name === (kind === "owner" ? "Owner" : "Kasir"));
+    if (!role) throw new Error("Role onboarding tidak ditemukan");
+    const current = await getRoleGrants(supabase, company.id, role.id);
+    await saveRoleGrants(supabase, {
+      companyId: company.id, roleId: role.id, expectedRevision: current.revision,
+      grants: onboardingRoleGrants(kind, menus), actor: { kind: "owner", id: ownerId },
+    });
   }
 
   // 5. Trial Pro 14 hari (v6 M2). Setelah habis, resolusi plan otomatis
@@ -749,52 +733,10 @@ export async function createEmployee(params: {
   allOutlets: boolean;
   outletIds: string[];
 }): Promise<{ employee: { id: string } | null; error: string | null }> {
-  const supabase = createAdminClient();
-  const { companyId, name, username, pin, roleId, allOutlets, outletIds } =
-    params;
-
-  // Cek username unik per company
-  const { data: existing } = await supabase
-    .from("users")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("username", username)
-    .maybeSingle();
-
-  if (existing) {
-    return { employee: null, error: "Username sudah dipakai" };
-  }
-
-  const pinHash = await hashPin(pin);
-
-  const { data: user, error } = await supabase
-    .from("users")
-    .insert({
-      company_id: companyId,
-      role_id: roleId,
-      name,
-      username,
-      pin_hash: pinHash,
-      all_outlets: allOutlets,
-      status: "active",
-    })
-    .select("id")
-    .single();
-
-  if (error || !user) {
-    return { employee: null, error: "Gagal membuat karyawan" };
-  }
-
-  // Assign ke outlet (jika tidak all_outlets)
-  if (!allOutlets && outletIds.length > 0) {
-    const inserts = outletIds.map((outletId) => ({
-      user_id: user.id,
-      outlet_id: outletId,
-    }));
-    await supabase.from("user_outlets").insert(inserts);
-  }
-
-  return { employee: { id: user.id }, error: null };
+  try {
+    const employee = await saveEmployee(createAdminClient(), { ...params, pinHash: await hashPin(params.pin) });
+    return { employee, error: null };
+  } catch (error) { return { employee: null, error: error instanceof Error ? error.message : "Gagal membuat karyawan" }; }
 }
 
 export async function updateEmployee(params: {
@@ -806,55 +748,10 @@ export async function updateEmployee(params: {
   allOutlets?: boolean;
   outletIds?: string[];
 }): Promise<{ error: string | null }> {
-  const supabase = createAdminClient();
-  const { employeeId, companyId, name, username, roleId, allOutlets, outletIds } =
-    params;
-
-  // Cek username unik jika diubah
-  if (username) {
-    const { data: existing } = await supabase
-      .from("users")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("username", username)
-      .neq("id", employeeId)
-      .maybeSingle();
-
-    if (existing) {
-      return { error: "Username sudah dipakai" };
-    }
-  }
-
-  const updateData: Record<string, unknown> = {};
-  if (name !== undefined) updateData.name = name;
-  if (username !== undefined) updateData.username = username;
-  if (roleId !== undefined) updateData.role_id = roleId;
-  if (allOutlets !== undefined) updateData.all_outlets = allOutlets;
-
-  const { error } = await supabase
-    .from("users")
-    .update(updateData)
-    .eq("id", employeeId)
-    .eq("company_id", companyId);
-
-  if (error) return { error: "Gagal mengupdate karyawan" };
-
-  // Update outlet assignment jika diberikan
-  if (outletIds !== undefined) {
-    // Hapus assignment lama
-    await supabase.from("user_outlets").delete().eq("user_id", employeeId);
-
-    // Insert assignment baru
-    if (outletIds.length > 0) {
-      const inserts = outletIds.map((outletId) => ({
-        user_id: employeeId,
-        outlet_id: outletId,
-      }));
-      await supabase.from("user_outlets").insert(inserts);
-    }
-  }
-
-  return { error: null };
+  try {
+    await saveEmployee(createAdminClient(), params);
+    return { error: null };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Gagal mengupdate karyawan" }; }
 }
 
 export async function toggleEmployeeStatus(
@@ -892,18 +789,15 @@ export async function resetEmployeePin(
   const supabase = createAdminClient();
   const pinHash = await hashPin(newPin);
 
-  const { error } = await supabase
-    .from("users")
-    .update({
-      pin_hash: pinHash,
-      failed_pin_attempts: 0,
-      locked_until: null,
-    })
-    .eq("id", employeeId)
-    .eq("company_id", companyId);
-
-  if (error) return { error: "Gagal reset PIN" };
-  return { error: null };
+  try {
+    await supabase.transaction(async tx => {
+      const result = await tx.from("users").update({ pin_hash: pinHash, failed_pin_attempts: 0, locked_until: null })
+        .eq("id", employeeId).eq("company_id", companyId).select("id").single();
+      if (result.error) throw new Error(result.error.message);
+      await revokeSubjectSessions(tx, "pos", employeeId);
+    });
+    return { error: null };
+  } catch { return { error: "Gagal reset PIN" }; }
 }
 
 export async function deleteEmployee(
@@ -927,11 +821,12 @@ export async function deleteEmployee(
 // ============================================================
 export async function getCompanyRoles(companyId: string) {
   const supabase = createAdminClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("roles")
     .select("id, name")
     .eq("company_id", companyId)
     .order("name");
+  if (error) throw new Error("Gagal memuat role");
   return data ?? [];
 }
 
@@ -989,13 +884,14 @@ export async function updateCompanyRole(
     return { error: "Nama role sudah dipakai" };
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("roles")
     .update({ name })
     .eq("id", roleId)
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .select("id").single();
 
-  if (error) return { error: "Gagal mengupdate role" };
+  if (error || !updated) return { error: "Gagal mengupdate role" };
   return { error: null };
 }
 
@@ -1003,34 +899,7 @@ export async function deleteCompanyRole(
   roleId: string,
   companyId: string
 ): Promise<{ error: string | null }> {
-  const supabase = createAdminClient();
-
-  // Cek apakah role masih dipakai oleh user
-  const { count } = await supabase
-    .from("users")
-    .select("id", { count: "exact" })
-    .eq("role_id", roleId)
-    .eq("company_id", companyId);
-
-  if (count !== null && count > 0) {
-    return {
-      error: `Role tidak bisa dihapus karena masih dipakai oleh ${count} karyawan`,
-    };
-  }
-
-  // Hapus role_menu_access terkait, lalu role-nya
-  await supabase
-    .from("role_menu_access")
-    .delete()
-    .eq("role_id", roleId);
-
-  const { error } = await supabase
-    .from("roles")
-    .delete()
-    .eq("id", roleId)
-    .eq("company_id", companyId);
-
-  if (error) return { error: "Gagal menghapus role" };
+  await deleteRole(createAdminClient(), companyId, roleId);
   return { error: null };
 }
 
@@ -1045,33 +914,6 @@ export async function getRoleMenuAccessIds(
     .eq("can_view", true);
 
   return (data ?? []).map((r) => r.menu_id as string);
-}
-
-export async function setCompanyRoleMenuAccess(
-  roleId: string,
-  menuId: string,
-  canView: boolean
-): Promise<{ error: string | null }> {
-  const supabase = createAdminClient();
-
-  if (canView) {
-    const { error } = await supabase
-      .from("role_menu_access")
-      .upsert(
-        { role_id: roleId, menu_id: menuId, can_view: true },
-        { onConflict: "role_id, menu_id" }
-      );
-    if (error) return { error: "Gagal mengaktifkan akses menu" };
-  } else {
-    const { error } = await supabase
-      .from("role_menu_access")
-      .delete()
-      .eq("role_id", roleId)
-      .eq("menu_id", menuId);
-    if (error) return { error: "Gagal menonaktifkan akses menu" };
-  }
-
-  return { error: null };
 }
 
 export async function getAllSystemMenus() {

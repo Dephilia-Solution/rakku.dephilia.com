@@ -1,5 +1,7 @@
 # Demo publik Rakku POS
 
+> Panduan presentasi langkah-demi-langkah (durasi, narasi, skenario, checklist): **[DEMO_FLOW.md](DEMO_FLOW.md)**.
+
 ## Route dan penggunaan
 
 Jalankan aplikasi Owner dengan `pnpm dev:owner`, lalu buka `http://localhost:3000/demo`.
@@ -35,7 +37,7 @@ Company **Rakku Demo Cafe** (`DEMO_CAFE`), Owner **Owner Demo Rakku**, email `ow
 | Rakku Demo Cafe — Pusat | Jl. Contoh Raya No. 10 | Rani / `rani_pusat` / Manager Outlet / `111111`; Bima / `bima_pusat` / Kasir / `222222` |
 | Rakku Demo Cafe — Taman | Jl. Contoh Taman No. 25 | Dita / `dita_taman` / Manager Outlet / `333333`; Raka / `raka_taman` / Kasir / `444444` |
 
-Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS; Kasir memiliki Register, Orders, Reports, Tax & Discounts. Role, menu-level `can_view`, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
+Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS dengan CRUD penuh; Kasir memiliki Register (CRUD), Orders (view/edit/delete), Reports dan Tax & Discounts (view-only). Role, grant V/C/E/D, revision, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
 
 Setiap outlet mempunyai sepuluh produk, tiga kategori, empat tier, 15 bahan, delapan meja, 60 order completed dalam 30 hari, dua draft, satu pending QRIS, satu cancelled, empat pembelian multi-item, enam pengeluaran, dua opname. Produk: Espresso, Americano, Cappuccino, Caffe Latte, Kopi Susu Gula Aren, Matcha Latte, Chocolate Latte, Lemon Tea, Butter Croissant, French Fries. Harga/BOM/unit menggunakan `packages/demo/src/fixture.ts`.
 
@@ -118,7 +120,7 @@ Subscription invoice/retry/expiry/aktivasi/renewal di memori mengikuti period/gr
 
 Upload JPG/PNG/WebP maksimum 2 MiB disimpan melalui object URL terdaftar di sandbox, tidak ke Silos/Sharp/server. Seed assets tidak terhapus oleh remove image. Public QR mengarah ke dua outlet fixture awal di origin Owner, tidak membawa generation/session capability. Produk/resep/cost/PIN/internal stock tidak menjadi payload menu publik.
 
-Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Aturan menu adalah **`can_view`**, bukan create/edit/delete grants terpisah.
+Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Editor role demo memakai kontrak grant `{ grants, revision }` yang sama dengan produksi. Dispatcher POS demo masih mensimulasikan visibilitas menu dan belum menegakkan seluruh capability V/C/E/D; enforcement produksi ada di server POS dan tidak dibuktikan oleh demo.
 
 ## Pengujian
 

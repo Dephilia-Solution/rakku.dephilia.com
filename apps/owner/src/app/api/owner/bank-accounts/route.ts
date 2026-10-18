@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import { createAdminClient } from "@rakku/db";
+import { createAdminClient, sql } from "@rakku/db";
 import type { OwnerSession } from "@rakku/shared-types";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };
@@ -65,39 +65,31 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  const { count } = await supabase
-    .from("merchant_bank_accounts")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", session.company_id);
-
-  const isFirst = (count ?? 0) === 0;
-
-  if (makeDefault || isFirst) {
-    await supabase
-      .from("merchant_bank_accounts")
-      .update({ is_default: false })
-      .eq("company_id", session.company_id);
+  try {
+    const data = await supabase.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${session.company_id},0))`);
+      const count = await tx.from("merchant_bank_accounts")
+        .select("id", { count: "exact", head: true }).eq("company_id", session.company_id);
+      if (count.error) throw new Error(count.error.message);
+      const isFirst = (count.count ?? 0) === 0;
+      if (makeDefault || isFirst) {
+        const cleared = await tx.from("merchant_bank_accounts")
+          .update({ is_default: false }).eq("company_id", session.company_id);
+        if (cleared.error) throw new Error(cleared.error.message);
+      }
+      const inserted = await tx.from("merchant_bank_accounts").insert({
+        company_id: session.company_id,
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_holder: accountHolder,
+        is_default: makeDefault || isFirst,
+        status: "active",
+      }).select().single();
+      if (inserted.error || !inserted.data) throw new Error(inserted.error?.message ?? "Gagal menyimpan rekening");
+      return inserted.data;
+    });
+    return NextResponse.json({ bank_account: data }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal menyimpan rekening" }, { status: 500 });
   }
-
-  const { data, error } = await supabase
-    .from("merchant_bank_accounts")
-    .insert({
-      company_id: session.company_id,
-      bank_name: bankName,
-      account_number: accountNumber,
-      account_holder: accountHolder,
-      is_default: makeDefault || isFirst,
-      status: "active",
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
-    return NextResponse.json(
-      { error: error?.message ?? "Gagal menyimpan rekening" },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({ bank_account: data }, { status: 201 });
 }

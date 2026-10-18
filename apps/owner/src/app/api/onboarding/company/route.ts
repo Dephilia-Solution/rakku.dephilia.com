@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
+  if (session.company_id) return NextResponse.json({ error: "Onboarding sudah selesai", redirect: "/" }, { status: 409 });
   if (!body) {
     return NextResponse.json({ error: "Body tidak valid" }, { status: 400 });
   }
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     {
       company: { id: company.id, name: company.name, code: company.code },
-      redirect: "/owner",
+      redirect: "/",
     },
     {
       status: 201,

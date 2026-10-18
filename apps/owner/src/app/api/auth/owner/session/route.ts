@@ -18,6 +18,7 @@ export async function GET() {
 
   return NextResponse.json({
     owner: {
+      session_id: session.session_id,
       id: owner.id,
       email: owner.email,
       name: owner.name,

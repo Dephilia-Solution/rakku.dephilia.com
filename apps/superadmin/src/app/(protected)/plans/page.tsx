@@ -69,7 +69,7 @@ export default function PlansPage() {
     fetchPlans();
   }, []);
 
-  const fetchPlans = async () => {
+  async function fetchPlans() {
     try {
       const res = await fetch("/api/superadmin/plans");
       const data = await res.json();
@@ -77,7 +77,7 @@ export default function PlansPage() {
     } catch {
       showToast("error", "Gagal memuat data plan");
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!form.slug || !form.name) {

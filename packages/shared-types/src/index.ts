@@ -5,3 +5,4 @@ export * from "./inventory";
 export * from "./billing";
 export * from "./ledger";
 export * from "./withdrawal";
+export * from "./reporting";

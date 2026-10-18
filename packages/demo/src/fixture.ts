@@ -1,7 +1,8 @@
 import type { Plan, PaymentIntent, Withdrawal } from "@rakku/shared-types";
 import type { DemoOrder, DemoState } from "./models";
-import { addSubscriptionPeriod, CASHIER_MENUS, DEMO_MENUS, QRIS_MDR_RATE } from "./constants";
+import { addSubscriptionPeriod, CASHIER_MENUS, DEMO_MENUS, QRIS_MDR_RATE, demoMenuId } from "./constants";
 import { addTime, deriveBalance, jakartaDate, quote, shiftedDate } from "./business";
+import { fullMenusGrant } from "./access";
 
 export const DEMO_IDS = { company: "fixture:company", pusat: "fixture:pusat", taman: "fixture:taman", manager: "fixture:manager", cashier: "fixture:cashier" } as const;
 export const fixtureId = (outlet: string, kind: string, key: string | number): string => `${outlet}:${kind}:${key}`;
@@ -48,8 +49,13 @@ export function createFixture(now: string, generation: string): DemoState {
       { id: DEMO_IDS.pusat, company_id, name: "Rakku Demo Cafe — Pusat", address: "Jl. Contoh Raya No. 10", is_active: true },
       { id: DEMO_IDS.taman, company_id, name: "Rakku Demo Cafe — Taman", address: "Jl. Contoh Taman No. 25", is_active: true },
     ], employees: [], roles: [
-      { id: DEMO_IDS.manager, company_id, name: "Manager Outlet", menus: [...DEMO_MENUS] },
-      { id: DEMO_IDS.cashier, company_id, name: "Kasir", menus: [...CASHIER_MENUS] },
+      { id: DEMO_IDS.manager, company_id, name: "Manager Outlet", menus: [...DEMO_MENUS], grants: fullMenusGrant(DEMO_MENUS) },
+      { id: DEMO_IDS.cashier, company_id, name: "Kasir", menus: [...CASHIER_MENUS], grants: [
+        { menu_id: demoMenuId("register"), can_view: true, can_create: true, can_edit: true, can_delete: true },
+        { menu_id: demoMenuId("orders"), can_view: true, can_create: false, can_edit: true, can_delete: true },
+        { menu_id: demoMenuId("reports"), can_view: true, can_create: false, can_edit: false, can_delete: false },
+        { menu_id: demoMenuId("tax-discounts"), can_view: true, can_create: false, can_edit: false, can_delete: false },
+      ] },
     ], categories: [], tiers: [], products: [], ingredients: [], tables: [], orders: [], movements: [], purchases: [], expenses: [], taxes: [], discounts: [], payments: [], ledger: [], balance: null,
     withdrawals: [], banks: [], invoices: [], outbox: [], plan: "business", plans: fixturePlans(now), menus: [],
     subscription: { id: "fixture:subscription:business", company_id, plan_id: "fixture:plan:business", status: "active", started_at: now,

@@ -1,38 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/db";
-
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { orderId, splitPayments } = body;
-
-  if (!orderId || !splitPayments?.length) {
-    return NextResponse.json({ error: "Data split bayar tidak lengkap" }, { status: 400 });
+import { NextResponse } from "next/server";
+import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { AccessDeniedError, assertApiAccess } from "@/lib/auth/authorize";
+export async function POST() {
+  const session = await getTenantSessionFromCookies();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await assertApiAccess(session, "/api/admin/orders/split", "POST");
+  } catch (error) {
+    if (error instanceof AccessDeniedError) return NextResponse.json({ error: error.message }, { status: error.status });
+    throw error;
   }
-
-  const supabase = createAdminClient();
-
-  const inserts = splitPayments.map((sp: { amount: number; payment_method: string; customer_name?: string; items?: unknown[] }) => ({
-    order_id: orderId,
-    amount: sp.amount,
-    payment_method: sp.payment_method,
-    status: "paid",
-    customer_name: sp.customer_name || null,
-    items: sp.items || [],
-  }));
-
-  const { data, error } = await supabase
-    .from("split_payments")
-    .insert(inserts)
-    .select();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  await supabase
-    .from("orders")
-    .update({ split_bill: true })
-    .eq("id", orderId);
-
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ error: "Split pembayaran harus disimpan bersamaan saat checkout atau penyelesaian draft." }, { status: 409 });
 }

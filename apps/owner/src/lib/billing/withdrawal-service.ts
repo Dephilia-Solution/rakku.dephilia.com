@@ -16,6 +16,7 @@ export interface CreateWithdrawalInput {
   bankAccountId: string;
   amount: number;
   note?: string | null;
+  requestId?: string | null;
 }
 
 export type CreateWithdrawalResult =
@@ -31,17 +32,25 @@ export async function createWithdrawalRequest(
   supabase: DatabaseClient,
   input: CreateWithdrawalInput
 ): Promise<CreateWithdrawalResult> {
-  const { companyId, ownerId, bankAccountId, amount, note } = input;
+  const { companyId, ownerId, bankAccountId, amount, note, requestId } = input;
 
   if (!bankAccountId) {
     return { error: "Pilih rekening tujuan" };
   }
-  if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
+  if (!Number.isSafeInteger(amount) || amount < MIN_WITHDRAWAL) {
     return { error: `Minimal pencairan ${formatRupiah(MIN_WITHDRAWAL)}` };
+  }
+  if (requestId != null && !/^[A-Za-z0-9._:-]{1,200}$/.test(requestId)) {
+    return { error: "Request identity tidak valid" };
   }
 
   const creation = await supabase.transaction(async supabase => {
   await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId},0))`);
+  if (requestId) {
+    const { data: existing } = await supabase.from("withdrawals").select("*")
+      .eq("company_id", companyId).eq("request_id", requestId).maybeSingle();
+    if (existing) return { withdrawal: existing, account: null };
+  }
   const { data: account } = await supabase
     .from("merchant_bank_accounts")
     .select("*")
@@ -109,6 +118,7 @@ export async function createWithdrawalRequest(
       status: "requested",
       note: note ?? null,
       requested_by: ownerId,
+      request_id: requestId ?? null,
     })
     .select()
     .single();
@@ -133,6 +143,7 @@ export async function createWithdrawalRequest(
   }).catch(error => ({ error: error instanceof Error ? error.message : "Gagal membuat pengajuan" }));
   if ("error" in creation) return { error: creation.error ?? "Gagal membuat pengajuan" };
   const { withdrawal, account } = creation;
+  if (!account) return { withdrawal: withdrawal as Withdrawal };
 
   try {
     await sendBillingEmail(supabase, {

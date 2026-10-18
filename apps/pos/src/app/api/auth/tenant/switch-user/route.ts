@@ -3,6 +3,7 @@ import { clearSessionCookie, getTenantSessionFromCookies } from "@/lib/auth/tena
 import { signPendingLogin, setPendingLoginCookie } from "@/lib/auth/pending-login";
 import { logAuthEvent } from "@rakku/auth-utils";
 import { createAdminClient } from "@rakku/db";
+import { revokeSession } from "@rakku/db/sessions";
 
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -47,22 +48,22 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const pending = await signPendingLogin(
+  const pending = await supabase.transaction(async tx => {
+    await revokeSession(tx, session.session_id);
+    return signPendingLogin(
     {
       company_id: session.company_id,
       company_name: session.company_name,
       outlet_id: session.outlet_id,
       outlet_name: session.outlet_name,
-    },
-    0
-  );
+    }, 600, tx
+    );
+  });
 
   const response = NextResponse.redirect(new URL("/login/select-user", request.url), {
     status: 303,
   });
-  response.headers.set(
-    "Set-Cookie",
-    [clearSessionCookie(), setPendingLoginCookie(pending, 0)].join(", ")
-  );
+  response.headers.append("Set-Cookie", clearSessionCookie());
+  response.headers.append("Set-Cookie", setPendingLoginCookie(pending));
   return response;
 }
