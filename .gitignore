@@ -17,6 +17,20 @@ dist/
 
 /RAKKU_HANDOFF
 
+# Local implementation plans and audit reports (kept out of application repo)
+/DEMO_FLOW.md
+/IMPLEMENTATION_PLAN.md
+/NEXT_PHASE_PROMPTS.md
+/PHASE_[1-9]_REPORT.md
+/PRODUCTION_READINESS_AUDIT.md
+/SYSTEM_MAP.md
+/config/environments/README.md
+/config/operations/README.md
+/config/pilot/README.md
+/config/provider/README.md
+/config/rbac/README.md
+/config/settlement/README.md
+
 # Next.js
 apps/*/next-env.d.ts
 
