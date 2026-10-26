@@ -58,6 +58,8 @@ export interface DemoState {
   outbox: DemoOutbox[]; plan: PlanSlug; plans: Plan[]; now: string; session: DemoSession; menus: string[];
   subscription: Subscription; subscription_status: SubscriptionStatus; billing_cycle: BillingCycle; plan_expires_at: string | null;
   pricing_options?: PricingOption[];
+  /** Internal transaction receipts; omitted from every public snapshot. */
+  request_receipts?: { request_id: string; operation: string; signature: string; result: unknown }[];
 }
 export type DemoEntity = "outlets" | "employees" | "roles" | "categories" | "tiers" | "products" | "ingredients" | "tables" | "taxes" | "discounts" | "expenses" | "banks";
 export interface DemoOrderInput {
@@ -89,6 +91,7 @@ export type DemoCommand =
   | { type: "company.adminPassword"; password: string }
   | { type: "ingredient.update"; id: string; value: Record<string, unknown>; note?: string }
   | { type: "product.prices"; product_id: string; prices: Record<string, number> }
+  | { type: "product.save"; value: Record<string, unknown>; request_id?: string }
   | { type: "modifier.save"; product_id: string; value: Record<string, unknown> }
   | { type: "modifier.delete"; id: string }
   | { type: "recipe.save"; product_id: string; ingredient_id: string; quantity_used: number }
@@ -103,8 +106,8 @@ export type DemoCommand =
   | { type: "order.complete"; id: string; payment_method: DemoPaymentMethod; amount_paid?: number; splits?: DemoSplit[] }
   | { type: "order.updateDraft"; id: string; input: DemoOrderInput }
   | { type: "order.cancel"; id: string }
-  | { type: "stock.adjust"; ingredient_id: string; quantity: number; note: string }
-  | { type: "purchase.create"; outlet_id: string; supplier_name: string; note: string; purchase_date?: string; items: { ingredient_id: string; quantity: number; unit_cost: number }[] }
+  | { type: "stock.adjust"; ingredient_id: string; outlet_id?: string; quantity: number; note: string; request_id?: string }
+  | { type: "purchase.create"; outlet_id: string; supplier_name: string; note: string; purchase_date?: string; items: { ingredient_id: string; quantity: number; unit_cost: number }[]; request_id?: string }
   | { type: "tables.generate"; outlet_id: string; count: number; prefix?: string }
   | { type: "payment.create"; order_id: string }
   | { type: "payment.transition"; id: string; status: PaymentIntent["status"] }

@@ -1,6 +1,6 @@
 import type { DemoSandbox } from "../engine";
 import type { DemoCommand, DemoEntity, DemoOrder, DemoPaymentMethod, DemoReportEmail, DemoRole, DemoState } from "../models";
-import { clone, date, deepFreeze, fail, find, jakartaDate, list, number, optionalText, record, shiftedDate, text } from "../business";
+import { clone, date, deepFreeze, fail, find, instant, jakartaDate, list, number, optionalText, record, shiftedDate, text } from "../business";
 import { roleGrants, roleRevision } from "../access";
 import { createDemoProjections, demoMenuId, demoMenus, type DemoViewData } from "./projections";
 import { orderPayload, splitPayload } from "./payloads";
@@ -97,7 +97,7 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     if (!path.startsWith(prefix)) throw new HttpError("Application API route denied", 403);
     const pieces = path.slice(prefix.length).split("/").map(piece => { const value = decodeURIComponent(piece); if (!value || /[\/\\]/.test(value)) fail("Invalid route segment"); return value; });
     const [name, resourceId, action] = pieces;
-    const endpoints = app === "owner" ? ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "ingredients", "recipes", "taxes", "discounts", "orders", "tables", "outlets", "employees", "roles", "menus", "settings", "menu-qr", "subscription", "balance", "bank-accounts", "withdrawals", "reports"]
+    const endpoints = app === "owner" ? ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "ingredients", "purchases", "stock-movements", "recipes", "taxes", "discounts", "orders", "tables", "outlets", "employees", "roles", "menus", "settings", "menu-qr", "subscription", "balance", "bank-accounts", "withdrawals", "reports"]
       : ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "modifier-tier-prices", "pricing-options", "ingredients", "recipes", "expenses", "tables", "taxes", "discounts", "orders", "purchases", "subscription"];
     if (!endpoints.includes(name)) return unknown();
     const entityMap: Record<string, DemoEntity> = { products: "products", categories: "categories", "pricing-tiers": "tiers", ingredients: "ingredients", expenses: "expenses", tables: "tables", taxes: "taxes", discounts: "discounts", outlets: "outlets", employees: "employees", roles: "roles", "bank-accounts": "banks" };
@@ -112,6 +112,12 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     const routeId = resourceId ?? body.id ?? query.get("id");
     const save = (kind: DemoEntity, value: Record<string, unknown>) => run({ type: "entity.save", entity: kind, value });
     const remove = (kind: DemoEntity, id: unknown) => run({ type: "entity.delete", entity: kind, id: text(id, "resource ID") });
+    const ownerOutlet = () => scope(s, text(body.outlet_id ?? query.get("outlet_id"), "outlet_id"));
+    const actorName = (id: string | null) => id === `demo-owner:${s.generation}` ? s.company.owner_name : s.employees.find(row => row.id === id)?.name ?? null;
+    const paginate = <T>(rows: T[]) => {
+      const page = number(Number(query.get("page") ?? 1), "page", 1, true), pageSize = 20;
+      return { rows: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, pageSize };
+    };
     if (name === "menus" && pieces.length === 1) { allowed(method, ["GET"]); return result({ menus: demoMenus() }); }
     if (name === "settings" && pieces.length === 1) {
       allowed(method, ["GET", "PUT"]); if (method === "GET") return result({ company: v.company });
@@ -179,9 +185,45 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       if (method === "DELETE") return result(run({ type: "pricingOption.delete", id: text(routeId, "pricing option ID") }));
       return result(run({ type: "pricingOption.save", value: body }), method === "POST" ? 201 : 200);
     }
+    if (app === "owner" && name === "ingredients" && pieces.length === 1 && method !== "GET") {
+      allowed(method, ["POST", "PATCH", "DELETE"]);
+      const outlet_id = ownerOutlet();
+      if (method === "POST") {
+        if (body.id !== undefined) fail("Ingredient creation must omit id");
+        return result(save("ingredients", { ...select(body, ["name", "unit", "stock_quantity", "min_stock_alert", "cost_per_unit"]), outlet_id }), 201);
+      }
+      const ingredient = find(s.ingredients, routeId);
+      if (ingredient.outlet_id !== outlet_id) throw new HttpError("Invalid ingredient outlet scope", 403);
+      if (method === "DELETE") return result(remove("ingredients", ingredient.id));
+      if (body.stock_quantity !== undefined) fail("Use stock.adjust for stock changes");
+      return result(save("ingredients", { ...select(body, ["name", "unit", "min_stock_alert", "cost_per_unit", "is_active"]), id: ingredient.id, outlet_id }));
+    }
+    if (app === "owner" && name === "stock-movements" && pieces.length === 1) {
+      allowed(method, ["GET"]); const outlet_id = ownerOutlet(), ingredientId = query.get("ingredient_id");
+      if (ingredientId && find(s.ingredients, ingredientId).outlet_id !== outlet_id) throw new HttpError("Invalid ingredient outlet scope", 403);
+      const movements = [...s.movements].reverse().filter(row => row.outlet_id === outlet_id && (!ingredientId || row.ingredient_id === ingredientId))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)).map(row => {
+          const ingredient = find(s.ingredients, row.ingredient_id);
+          return { id: row.id, type: row.type, quantity_change: row.quantity_change, ingredient_name: ingredient.name, unit: ingredient.unit,
+            created_at: row.created_at, note: row.note, actor_name: actorName(row.created_by) };
+        });
+      const { rows, ...page } = paginate(movements); return result({ movements: rows, ...page });
+    }
     if (name === "purchases" && pieces.length === 1) {
-      allowed(method, ["GET", "POST"]); if (method === "GET") return result(filter(v.purchases));
-      const purchase = run({ type: "purchase.create", outlet_id: s.session.outlet_id, supplier_name: optionalText(body.supplier_name) ?? "", note: optionalText(body.note) ?? "", purchase_date: body.purchase_date as string | undefined, items: list(body.items) as Extract<DemoCommand, { type: "purchase.create" }>["items"] }) as { id: string; total_amount: number };
+      allowed(method, ["GET", "POST"]);
+      const outlet_id = app === "owner" ? ownerOutlet() : s.session.outlet_id;
+      if (method === "GET") {
+        if (app === "pos") return result(filter(v.purchases));
+        const purchases = [...v.purchases].reverse().filter(row => row.outlet_id === outlet_id)
+          .sort((a, b) => b.purchase_date.localeCompare(a.purchase_date) || b.created_at.localeCompare(a.created_at)).map(row => ({
+            id: row.id, supplier_name: row.supplier_name, total_amount: row.total_amount, purchase_date: row.purchase_date, note: row.note, actor_name: actorName(row.created_by),
+            items: row.items.map(item => ({ ingredient_id: item.ingredient_id, ingredient_name: item.ingredient_name, unit: item.ingredient_unit, quantity: item.quantity, unit_cost: item.unit_cost, subtotal: item.subtotal })),
+          }));
+        const { rows, ...page } = paginate(purchases); return result({ purchases: rows, ...page });
+      }
+      const purchase = run({ type: "purchase.create", outlet_id, supplier_name: optionalText(app === "owner" ? body.supplier : body.supplier_name) ?? "", note: optionalText(body.note) ?? "",
+        purchase_date: app === "owner" ? ownerPurchaseDate(body.date) : body.purchase_date as string | undefined, request_id: body.request_id as string | undefined,
+        items: list(body.items) as Extract<DemoCommand, { type: "purchase.create" }>["items"] }) as { id: string; total_amount: number };
       return result({ success: true, id: purchase.id, total_amount: purchase.total_amount }, 201);
     }
     if (name === "orders") {
@@ -229,7 +271,6 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         return result(rows);
       }
       allowed(method, ["POST", "PATCH", "PUT", "DELETE"]);
-      if (app === "owner" && entity === "ingredients") return denyMethod();
       if (method === "DELETE") return result(remove(entity, routeId));
       if (method === "PUT" && ["categories", "pricing-tiers"].includes(name)) {
         const ordered = list(body.orders).map(raw => record(raw)).sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
@@ -257,7 +298,15 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       }
       if (entity === "banks" && body.account_number !== undefined) { const digits = text(body.account_number, "account number").replace(/\D/g, ""); if (digits.length < 8 || digits.length > 20) fail("Invalid account number"); value.account_number = digits; }
       if (entity === "banks" && body.status === "inactive") value.is_default = false;
-      const saved = entity === "ingredients" && method !== "POST" ? run({ type: "ingredient.update", id: text(value.id, "ingredient ID"), value }) : save(entity, value);
+      let saved: unknown;
+      if (app === "owner" && entity === "products") {
+        allowed(method, ["POST", "PATCH"]);
+        if (method === "POST" && body.id !== undefined) fail("Product creation must omit id");
+        const composition = select(value, ["id", "company_id", "outlet_id", "name", "category_id", "price", "description", "image_url", "is_active", "sort_order", "recipe", "modifiers"]);
+        if (body.prices !== undefined) composition.prices = priceMap(body.prices, "price");
+        if (body.recipes !== undefined) composition.recipe = list(body.recipes);
+        saved = run({ type: "product.save", value: composition, request_id: method === "POST" ? body.request_id as string | undefined : undefined });
+      } else saved = entity === "ingredients" && method !== "POST" ? run({ type: "ingredient.update", id: text(value.id, "ingredient ID"), value }) : save(entity, value);
       if (app === "owner") {
         if (method !== "POST" && ["outlets", "roles", "pricing-tiers", "taxes", "discounts"].includes(name)) return result({ success: true });
         const wrappers: Record<string, string> = { outlets: "outlet", roles: "role", "pricing-tiers": "tier", taxes: "tax", discounts: "discount", tables: "table", "bank-accounts": "bank_account" };
@@ -282,7 +331,7 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       // Precise extra routes, before the general resource dispatcher.
       let value: { data: unknown; status?: number; location?: string };
       const roleAccess = app === "owner" && url.pathname.match(/^\/api\/owner\/roles\/([^/]+)\/access$/);
-      const stockAdjust = app === "pos" && url.pathname.match(/^\/api\/admin\/ingredients\/([^/]+)\/adjust$/);
+      const stockAdjust = url.pathname.match(app === "owner" ? /^\/api\/owner\/ingredients\/([^/]+)\/adjust$/ : /^\/api\/admin\/ingredients\/([^/]+)\/adjust$/);
       if (roleAccess) {
         const s = sandbox.getSnapshot(); guard(s); references(s, body, url.searchParams); allowed(method, ["GET", "POST"]); const role = find(s.roles, decodeURIComponent(roleAccess[1]));
         if (method === "GET") value = { data: { grants: roleGrants(role), revision: roleRevision(role), menu_access: role.menus.map(demoMenuId) } };
@@ -295,21 +344,30 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         }
       } else if (stockAdjust) {
         const s = sandbox.getSnapshot(); guard(s, "ingredients"); references(s, body, url.searchParams); allowed(method, ["POST"]);
-        value = { data: { success: true, ...record(run({ type: "stock.adjust", ingredient_id: decodeURIComponent(stockAdjust[1]), quantity: body.stock_quantity as number, note: optionalText(body.note) ?? "" })) } };
+        const outlet_id = app === "owner" ? text(body.outlet_id, "outlet_id") : undefined;
+        value = { data: { success: true, ...record(run({ type: "stock.adjust", ingredient_id: decodeURIComponent(stockAdjust[1]), outlet_id,
+          quantity: (app === "owner" ? body.quantity : body.stock_quantity) as number, note: app === "owner" ? text(body.note, "opname note", 1000) : optionalText(body.note) ?? "",
+          request_id: body.request_id as string | undefined })) } };
       } else value = dispatch(url.pathname, method, url.searchParams, body, form);
       active(signal); return response(value.data, value.status, signal, value.location);
     } catch (error) {
       active(signal); if (error instanceof DOMException && error.name === "AbortError") throw error;
       const message = error instanceof Error ? error.message : "Local request failed";
-      const plan = message.startsWith("PLAN_LIMIT:"), status = error instanceof HttpError ? error.status : plan || /permission|access denied|Owner access|scope|assignment|inactive/i.test(message) ? 403 : /Authentication|credentials|PIN/i.test(message) ? 401 : /Resource not found/i.test(message) ? 404 : 400;
+      const conflict = message.startsWith("IDEMPOTENCY_CONFLICT:");
+      const plan = message.startsWith("PLAN_LIMIT:"), status = error instanceof HttpError ? error.status : conflict ? 409 : plan || /permission|access denied|Owner access|scope|assignment|inactive/i.test(message) ? 403 : /Authentication|credentials|PIN/i.test(message) ? 401 : /Resource not found/i.test(message) ? 404 : 400;
       let details: Record<string, unknown> = {};
       if (plan) { const key = message.slice("PLAN_LIMIT:".length).trim(); try { const summary = sandbox.getUsageSummary(); if (key in summary.usage) details = { current: summary.usage[key as keyof typeof summary.usage], max: summary.limits[key as keyof typeof summary.limits] }; } catch { /* no private data in unauthenticated errors */ } }
-      return response({ error: message, ...(plan ? { code: "PLAN_LIMIT", ...details } : {}) }, status, signal);
+      return response({ error: message, ...(plan ? { code: "PLAN_LIMIT", ...details } : conflict ? { code: "IDEMPOTENCY_CONFLICT" } : {}) }, status, signal);
     }
   }) as DemoRequestAdapter;
   Object.defineProperty(request, "request", { value: request });
   request.getViewData = () => view(); request.getLastPreview = () => { active(); return lastPreview; }; request.destroy = () => { disposed = true; lastPreview = null; };
   return request;
+}
+function ownerPurchaseDate(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  const value = text(raw, "purchase date");
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? date(value) : jakartaDate(instant(value));
 }
 function priceMap(raw: unknown, key: string): Record<string, number> {
   const entries = list(raw).map(value => { const row = record(value); return [text(row.tier_id, "tier ID"), row[key]] as const; });

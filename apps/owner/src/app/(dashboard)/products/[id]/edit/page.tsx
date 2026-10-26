@@ -19,26 +19,25 @@ interface EditProductPageProps {
 
 export default async function OwnerEditProductPage({
   params,
-  searchParams,
 }: EditProductPageProps) {
   const session = await getOwnerSessionFromCookies();
   if (!session || !session.company_id) {
     redirect("/login");
   }
 
-  const [{ id }, { outlet }] = await Promise.all([params, searchParams]);
-  const outlets = await getOwnerOutlets(session.company_id);
-  const selected = outlets.find((o) => o.id === outlet) ?? outlets[0];
+  const { id } = await params;
+  const [outlets, product] = await Promise.all([getOwnerOutlets(session.company_id), getCompanyProductById(session.company_id, id)]);
+  if (!product) notFound();
+  const selected = outlets.find((o) => o.id === product.outlet_id);
 
   if (!selected) {
     redirect("/outlets");
   }
 
-  const [categories, pricingTiers, product, modifiers, productTierPrices, recipes] =
+  const [categories, pricingTiers, modifiers, productTierPrices, recipes] =
     await Promise.all([
       getCompanyCategories(session.company_id, selected.id),
       getCompanyPricingTiersSimple(session.company_id, selected.id),
-      getCompanyProductById(session.company_id, id),
       getProductModifiers(session.company_id, id),
       getProductTierPricesByProduct(id),
       getProductRecipes(session.company_id, id),
@@ -61,6 +60,7 @@ export default async function OwnerEditProductPage({
       pricingTiers={pricingTiers as PricingTier[]}
       initialProduct={{
         name: product.name,
+        price: product.price,
         category_id: product.category_id,
         description: product.description,
         is_active: product.is_active,
@@ -74,6 +74,7 @@ export default async function OwnerEditProductPage({
         ingredient_name: r.ingredient_name,
         ingredient_unit: r.ingredient_unit,
         quantity_used: r.quantity_used,
+        cost_per_unit: r.ingredient_cost_per_unit,
       }))}
     />
   );

@@ -19,6 +19,11 @@ export function number(value: unknown, label: string, min = 0, integer = false):
   return value;
 }
 export function money(value: unknown, label = "amount"): number { return number(value, label, 0, true); }
+export function decimal(value: unknown, label: string, min = 0): number {
+  const n = number(value, label, min), scaled = n * 100;
+  if (Math.abs(scaled - Math.round(scaled)) > Math.max(1e-8, Number.EPSILON * Math.abs(scaled))) fail(`Invalid ${label}: at most 2 decimal places`);
+  return n;
+}
 export function bool(value: unknown): boolean { if (typeof value !== "boolean") fail("Invalid boolean"); return value; }
 export function list(value: unknown): unknown[] { if (!Array.isArray(value)) fail("Expected array"); return value; }
 export function uniqueStrings(value: unknown): string[] {

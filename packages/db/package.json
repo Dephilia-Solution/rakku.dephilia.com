@@ -21,7 +21,10 @@
     "./financial-commands": "./src/financial-commands.ts",
     "./usage": "./src/usage.ts",
     "./maintenance": "./src/maintenance.ts",
-    "./runtime-flags": "./src/runtime-flags.ts"
+    "./runtime-flags": "./src/runtime-flags.ts",
+    "./imports": "./src/imports.ts",
+    "./owner-inventory": "./src/owner-inventory.ts",
+    "./owner-products": "./src/owner-products.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

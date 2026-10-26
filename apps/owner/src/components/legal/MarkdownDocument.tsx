@@ -35,7 +35,7 @@ export function renderInline(value: string, prefix: string): ReactNode[] {
   return nodes;
 }
 
-export function slugifyHeading(value: string): string {
+function slugifyHeading(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFKD")
@@ -45,26 +45,35 @@ export function slugifyHeading(value: string): string {
     .replace(/\s+/g, "-");
 }
 
-export function extractHeadings(markdown: string): string[] {
-  return markdown
-    .split(/\r?\n/)
-    .filter((line) => /^##\s+/.test(line))
-    .map((line) => line.replace(/^##\s+/, "").trim());
+export interface HeadingRef {
+  level: number;
+  title: string;
+  id: string;
+}
+
+export function buildHeadings(source: string): HeadingRef[] {
+  const used = new Map<string, number>();
+  const refs: HeadingRef[] = [];
+  for (const line of source.split(/\r?\n/)) {
+    const match = line.match(/^(#{1,4})\s+(.*)$/);
+    if (!match) continue;
+    const level = match[1].length;
+    const title = match[2].trim();
+    const base = slugifyHeading(title) || `bagian-${refs.length}`;
+    const count = used.get(base) ?? 0;
+    used.set(base, count + 1);
+    refs.push({ level, title, id: count === 0 ? base : `${base}-${count + 1}` });
+  }
+  return refs;
 }
 
 export default function MarkdownDocument({ source }: { source: string }) {
   const lines = source.split(/\r?\n/);
+  const headingRefs = buildHeadings(source);
   const blocks: ReactNode[] = [];
-  const used = new Map<string, number>();
   let index = 0;
   let key = 0;
-
-  const idFor = (title: string) => {
-    const base = slugifyHeading(title) || `bagian-${key}`;
-    const count = used.get(base) ?? 0;
-    used.set(base, count + 1);
-    return count === 0 ? base : `${base}-${count + 1}`;
-  };
+  let headingCursor = 0;
 
   while (index < lines.length) {
     const line = lines[index];
@@ -75,10 +84,11 @@ export default function MarkdownDocument({ source }: { source: string }) {
 
     const heading = line.match(/^(#{1,4})\s+(.*)$/);
     if (heading) {
+      const ref = headingRefs[headingCursor] ?? { id: `bagian-${key}`, title: heading[2].trim() };
+      headingCursor += 1;
       const level = heading[1].length;
-      const title = heading[2].trim();
-      const id = idFor(title);
-      const content = renderInline(title, `heading-${key}`);
+      const id = ref.id;
+      const content = renderInline(ref.title, `heading-${key}`);
       if (level === 1) {
         blocks.push(
           <h1 key={`h-${key++}`} id={id} className="font-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-4xl">

@@ -15,11 +15,12 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@rakku/auth-utils": "workspace:*",
     "@rakku/db": "workspace:*",
-    "@rakku/observability": "workspace:*",
     "@rakku/demo": "workspace:*",
     "@rakku/echo-client": "workspace:*",
     "@rakku/emails": "workspace:*",
     "@rakku/ledger": "workspace:*",
+    "@rakku/inventory": "workspace:*",
+    "@rakku/observability": "workspace:*",
     "@rakku/payments": "workspace:*",
     "@rakku/plans": "workspace:*",
     "@rakku/shared-types": "workspace:*",
@@ -35,6 +36,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sharp": "^0.35.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

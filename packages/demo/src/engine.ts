@@ -1,9 +1,10 @@
 import type { BalanceTransaction, PaymentIntent, PublicMenu, SubscriptionInvoice, UsageSummary, Withdrawal } from "@rakku/shared-types";
 import type { DemoCommand, DemoNotificationType, DemoOrder, DemoPaymentMethod, DemoReport, DemoReportEmail, DemoSplit, DemoState } from "./models";
 import { createFixture } from "./fixture";
-import { addTime, calculateReport, clone, date, deepFreeze, deriveBalance, fail, find, instant, jakartaDate, list, money, number, optionalText, quote, recipeId, record, shiftedDate, text } from "./business";
-import { owner, projectSnapshot, requireMenu, requireOwner, scope, sessionMenus, validateSession } from "./access";
+import { addTime, calculateReport, clone, date, decimal, deepFreeze, deriveBalance, fail, find, instant, jakartaDate, list, money, number, optionalText, quote, recipeId, record, shiftedDate, text } from "./business";
+import { auditActorId, owner, projectSnapshot, requireMenu, requireOwner, scope, sessionMenus, validateSession } from "./access";
 import { deleteEntity, reorderEntity, saveEntity } from "./entities";
+import { withRequestReceipt } from "./receipts";
 import { addSubscriptionPeriod, DEMO_IMAGE_MIME_TYPES, DRAFT_EXPIRY_HOURS, GRACE_DAYS, MAX_DEMO_IMAGE_BYTES, MAX_PENDING_WITHDRAWALS, MIN_WITHDRAWAL, ORDER_QR_EXPIRY_MINUTES, QRIS_MDR_RATE, TRANSACTION_GRACE_DAYS, TRANSACTION_GRACE_RATIO, WITHDRAWAL_DAILY_LIMIT, WITHDRAWAL_FEE } from "./constants";
 
 /** One visitor's disposable domain. No network, timers, storage, or global instance. */
@@ -37,6 +38,7 @@ export class DemoSandbox {
     this.#destroyed = true; this.#listeners.clear();
     for (const url of this.#images) URL.revokeObjectURL(url);
     this.#images.clear();
+    this.#state = deepFreeze({ ...this.#state, request_receipts: [] });
   }
   private alive(): void { if (this.#destroyed) fail("Demo sandbox destroyed"); }
 
@@ -214,6 +216,20 @@ export class DemoSandbox {
         return updated;
       }
       case "product.prices": return saveEntity(state, "products", { id: command.product_id, prices: command.prices }, nextId, this.#images);
+      case "product.save": {
+        requireOwner(state);
+        const value = record(command.value), existing = value.id ? find(state.products, value.id) : undefined;
+        const outlet_id = scope(state, value.outlet_id ?? existing?.outlet_id ?? state.session.outlet_id, !!existing);
+        if (existing && existing.outlet_id !== outlet_id) fail("Cannot move resource between outlets");
+        return withRequestReceipt(state, command.request_id, command.type, { ...value, outlet_id }, () => {
+          // Explicit composition replaces the draft; omitted composition retains existing rows.
+          if (value.recipe !== undefined) for (const raw of list(value.recipe)) {
+            const ingredient = find(state.ingredients, record(raw).ingredient_id);
+            if (ingredient.outlet_id !== outlet_id || !ingredient.is_active) fail("Invalid recipe ingredient scope or inactive ingredient");
+          }
+          return saveEntity(state, "products", { ...value, outlet_id }, nextId, this.#images);
+        });
+      }
       case "modifier.save": {
         requireMenu(state, "products"); const product = find(state.products, command.product_id); scope(state, product.outlet_id); const value = record(command.value);
         const existing = value.id ? find(product.modifiers, value.id) : null;
@@ -331,30 +347,41 @@ export class DemoSandbox {
       case "stock.adjust": {
         requireMenu(state, "ingredients"); this.feature(state, "inventory_advanced");
         const ingredient = find(state.ingredients, command.ingredient_id); scope(state, ingredient.outlet_id);
-        const quantity = number(command.quantity, "absolute stock"), note = optionalText(command.note), previous_stock = ingredient.stock_quantity;
-        this.movement(state, ingredient.id, quantity - previous_stock, "adjustment", null, note, nextId);
-        ingredient.stock_quantity = quantity;
-        return { previous_stock, new_stock: quantity, quantity_change: quantity - previous_stock };
+        if (command.outlet_id !== undefined && command.outlet_id !== ingredient.outlet_id) fail("Invalid ingredient outlet scope");
+        const quantity = number(command.quantity, "absolute stock"), note = owner(state) ? text(command.note, "opname note", 1000) : optionalText(command.note);
+        return withRequestReceipt(state, command.request_id, command.type, { ingredient_id: ingredient.id, outlet_id: ingredient.outlet_id, quantity, note }, () => {
+          const previous_stock = ingredient.stock_quantity;
+          this.movement(state, ingredient.id, quantity - previous_stock, "adjustment", null, note, nextId);
+          ingredient.stock_quantity = quantity;
+          return { previous_stock, new_stock: quantity, quantity_change: quantity - previous_stock };
+        });
       }
       case "purchase.create": {
         requireMenu(state, "purchases"); this.feature(state, "inventory_advanced");
-        const outlet_id = scope(state, command.outlet_id), id = nextId("purchase");
-        const purchase_date = date(command.purchase_date ?? jakartaDate(state.now)); if (purchase_date > jakartaDate(state.now)) fail("Future purchase date");
+        const outlet_id = scope(state, command.outlet_id);
         const supplier_name = optionalText(command.supplier_name, 100), note = optionalText(command.note);
-        const items = list(command.items).map(raw => {
-          const r = record(raw), ingredient = find(state.ingredients, r.ingredient_id);
-          if (ingredient.outlet_id !== outlet_id || !ingredient.is_active) fail("Invalid purchase ingredient");
-          const quantity = number(r.quantity, "purchase quantity", 0.000001), unit_cost = number(r.unit_cost, "unit cost");
-          return { id: nextId("purchase-item"), purchase_id: id, ingredient_id: ingredient.id, quantity, unit_cost, subtotal: money(Math.round(quantity * unit_cost)) };
+        return withRequestReceipt(state, command.request_id, command.type, { outlet_id, supplier_name, note, purchase_date: command.purchase_date, items: command.items }, () => {
+          const purchase_date = date(command.purchase_date ?? jakartaDate(state.now)); if (purchase_date > jakartaDate(state.now)) fail("Future purchase date");
+          const inputs = list(command.items).map(raw => {
+            const r = record(raw), ingredient = find(state.ingredients, r.ingredient_id);
+            if (ingredient.outlet_id !== outlet_id || !ingredient.is_active) fail("Invalid purchase ingredient scope or inactive ingredient");
+            const quantity = decimal(r.quantity, "purchase quantity", 0.01), unit_cost = decimal(r.unit_cost, "unit cost");
+            // Exact decimal(…,2) inputs: round the four-decimal product half-up to cents.
+            const cents = (BigInt(Math.round(quantity * 100)) * BigInt(Math.round(unit_cost * 100)) + BigInt(50)) / BigInt(100);
+            return { ingredient_id: ingredient.id, quantity, unit_cost, subtotal: number(Number(cents) / 100, "purchase subtotal") };
+          });
+          if (!inputs.length || inputs.length > 100 || new Set(inputs.map(i => i.ingredient_id)).size !== inputs.length) fail("Invalid or duplicate purchase items");
+          const totalCents = inputs.reduce((sum, item) => sum + BigInt(Math.round(item.subtotal * 100)), BigInt(0));
+          const total_amount = number(Number(totalCents) / 100, "purchase total");
+          const id = nextId("purchase"), items = inputs.map(item => ({ ...item, id: nextId("purchase-item"), purchase_id: id }));
+          const purchase = { id, company_id: state.company.id, outlet_id, supplier_name, note, purchase_date, total_amount, items, created_by: auditActorId(state), created_at: state.now };
+          state.purchases.push(purchase);
+          for (const item of items) {
+            find(state.ingredients, item.ingredient_id).cost_per_unit = item.unit_cost;
+            this.movement(state, item.ingredient_id, item.quantity, "purchase", id, note, nextId);
+          }
+          return purchase;
         });
-        if (!items.length || items.length > 100 || new Set(items.map(i => i.ingredient_id)).size !== items.length) fail("Invalid or duplicate purchase items");
-        const purchase = { id, company_id: state.company.id, outlet_id, supplier_name, note, purchase_date, total_amount: money(items.reduce((s, i) => s + i.subtotal, 0)), items, created_by: state.session.employee_id, created_at: state.now };
-        state.purchases.push(purchase);
-        for (const item of items) {
-          find(state.ingredients, item.ingredient_id).cost_per_unit = item.unit_cost;
-          this.movement(state, item.ingredient_id, item.quantity, "purchase", id, note, nextId);
-        }
-        return purchase;
       }
       case "tables.generate": {
         requireMenu(state, "tables"); const outlet_id = scope(state, command.outlet_id), count = number(command.count, "table count", 1, true);
@@ -543,7 +570,7 @@ export class DemoSandbox {
   private movement(state: DemoState, ingredientId: string, quantity_change: number, type: DemoState["movements"][number]["type"], reference_id: string | null, note: string | null, nextId: (kind: string) => string): void {
     const ingredient = find(state.ingredients, ingredientId);
     ingredient.stock_quantity += quantity_change; ingredient.updated_at = state.now;
-    state.movements.push({ id: nextId("movement"), company_id: state.company.id, outlet_id: ingredient.outlet_id, ingredient_id: ingredient.id, type, quantity_change, reference_id, note, created_by: state.session.employee_id, created_at: state.now });
+    state.movements.push({ id: nextId("movement"), company_id: state.company.id, outlet_id: ingredient.outlet_id, ingredient_id: ingredient.id, type, quantity_change, reference_id, note, created_by: auditActorId(state), created_at: state.now });
   }
   private transactionLimit(state: DemoState): void {
     const plan = state.plans.find(p => p.slug === state.plan)!, max = plan.max_transactions_month;

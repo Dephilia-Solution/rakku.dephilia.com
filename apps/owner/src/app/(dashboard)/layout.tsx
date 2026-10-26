@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
 import { getUsageSummary } from "@rakku/plans";
+import { getOwnerOutlets } from "@/lib/supabase/queries.owner";
 import OwnerShell from "@/components/layout/OwnerShell";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,14 @@ export default async function OwnerDashboardLayout({
     companyCode: company.code,
   };
 
-  const summary = await getUsageSummary(supabase, company.id);
+  const [summary, outlets] = await Promise.all([
+    getUsageSummary(supabase, company.id),
+    getOwnerOutlets(company.id),
+  ]);
 
-  return <OwnerShell owner={ownerData} summary={summary}>{children}</OwnerShell>;
+  return (
+    <OwnerShell owner={ownerData} summary={summary} outlets={outlets}>
+      {children}
+    </OwnerShell>
+  );
 }

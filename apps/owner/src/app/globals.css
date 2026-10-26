@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 
@@ -27,7 +27,7 @@ body {
   font-family: "DM Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 input,
@@ -121,6 +121,11 @@ html:not([data-sidebar-ready]) .owner-main {
 
 .form-card-shadow {
   box-shadow: 0 10px 40px -10px rgba(11, 28, 48, 0.08);
+}
+
+.onboarding-password-input::-ms-reveal,
+.onboarding-password-input::-ms-clear {
+  display: none;
 }
 
 @keyframes bounce-in {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
 interface SlideOverProps {
@@ -14,6 +14,10 @@ interface SlideOverProps {
   widthClassName?: string;
 }
 
+// Nested editors share one scroll lock; Escape belongs to the topmost panel.
+const panels: symbol[] = [];
+let originalOverflow = "";
+
 export default function SlideOver({
   open,
   onClose,
@@ -23,19 +27,28 @@ export default function SlideOver({
   footer,
   widthClassName = "max-w-md",
 }: SlideOverProps) {
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
+    const token = Symbol("slide-over");
+    if (panels.length === 0) originalOverflow = document.body.style.overflow;
+    panels.push(token);
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !e.defaultPrevented && panels[panels.length - 1] === token) {
+        e.preventDefault();
+        close.current();
+      }
     };
     document.addEventListener("keydown", handleKey);
-    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = prevOverflow;
+      const index = panels.indexOf(token);
+      if (index >= 0) panels.splice(index, 1);
+      if (panels.length === 0) document.body.style.overflow = originalOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

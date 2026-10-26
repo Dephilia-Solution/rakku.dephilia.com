@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
 import {
+  checkCompanyCodeAvailability,
   createCompanyWithOnboarding,
   generateCompanyCode,
   generateSlug,
 } from "@/lib/supabase/queries.owner";
+import { isValidCompanyCode, normalizeCompanyCode } from "@/lib/company-code";
 import { sendBillingEmail } from "@rakku/emails";
 import {
   signOwnerSession,
@@ -31,7 +33,14 @@ export async function POST(request: NextRequest) {
   const { companyName, companyCode, companyPassword, outletName, outletAddress } =
     body;
 
-  if (!companyName || !companyPassword || !outletName) {
+  if (
+    typeof companyName !== "string" ||
+    typeof companyPassword !== "string" ||
+    typeof outletName !== "string" ||
+    !companyName.trim() ||
+    !companyPassword ||
+    !outletName.trim()
+  ) {
     return NextResponse.json(
       { error: "Nama perusahaan, password, dan nama outlet harus diisi" },
       { status: 400 }
@@ -45,8 +54,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Gunakan kode yang diinput atau generate dari nama
-  const code = (companyCode || generateCompanyCode(companyName)).toUpperCase();
+  const code = normalizeCompanyCode(
+    typeof companyCode === "string" && companyCode.trim()
+      ? companyCode
+      : generateCompanyCode(companyName),
+  );
+  if (!isValidCompanyCode(code)) {
+    return NextResponse.json(
+      { error: "Kode perusahaan hanya boleh berisi huruf dan angka (1–32 karakter)." },
+      { status: 400 },
+    );
+  }
+
+  const availability = await checkCompanyCodeAvailability(code);
+  if (availability.error) {
+    return NextResponse.json({ error: availability.error }, { status: 503 });
+  }
+  if (!availability.available) {
+    return NextResponse.json(
+      { error: "Kode perusahaan sudah digunakan. Silakan pilih kode lain." },
+      { status: 409 },
+    );
+  }
 
   const { company, error } = await createCompanyWithOnboarding({
     ownerId: session.owner_id,
@@ -58,7 +87,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (error || !company) {
-    return NextResponse.json({ error }, { status: 400 });
+    const status = error?.toLowerCase().includes("kode perusahaan sudah digunakan") ? 409 : 400;
+    return NextResponse.json({ error }, { status });
   }
 
   // Email trial Pro dimulai (idempotent, tidak menggagalkan onboarding).
@@ -120,6 +150,22 @@ export async function GET(request: NextRequest) {
       { error: "Unauthorized" },
       { status: 401 }
     );
+  }
+
+  const requestedCode = request.nextUrl.searchParams.get("code");
+  if (requestedCode !== null) {
+    const code = normalizeCompanyCode(requestedCode);
+    if (!isValidCompanyCode(code)) {
+      return NextResponse.json(
+        { error: "Kode perusahaan hanya boleh berisi huruf dan angka (1–32 karakter)." },
+        { status: 400 },
+      );
+    }
+    const availability = await checkCompanyCodeAvailability(code);
+    if (availability.error) {
+      return NextResponse.json({ error: availability.error }, { status: 503 });
+    }
+    return NextResponse.json({ code, available: availability.available });
   }
 
   const name = request.nextUrl.searchParams.get("name") || "";

@@ -3,7 +3,7 @@
 import { useState, useRef, useMemo, useEffect, type JSX } from "react";
 import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantRuntime, useMerchantToast, useMerchantImages } from "@/lib/merchant-runtime";
 import Image from "next/image";
-import { Category, Modifier, PricingTier } from "@rakku/shared-types";
+import { Category, Modifier, PricingTier, type Ingredient } from "@rakku/shared-types";
 import {
   PageHeader,
   FormField,
@@ -42,6 +42,7 @@ interface OwnerProductFormProps {
   categories: Category[];
   pricingTiers: PricingTier[];
   initialProduct?: {
+    price?: number;
     name: string;
     category_id: string;
     description: string | null;
@@ -77,6 +78,9 @@ export default function OwnerProductForm({
     if (isActive?.() === false) throw new DOMException("Merchant runtime inactive", "AbortError");
   };
   const router = useRouter();
+  const savedProductId = useRef(productId);
+  const saveIdentity = useRef<{ payload: string; id: string } | null>(null);
+  const savedQueuedModifiers = useRef(new Set<number>());
   const { openUpgrade } = usePlan();
 
   const [form, setForm] = useState({
@@ -88,13 +92,15 @@ export default function OwnerProductForm({
   const [catList, setCatList] = useState<Category[]>(initialCategories);
   const [tiers, setTiers] = useState<PricingTier[]>(initialPricingTiers);
   const activeTiers = tiers.filter((t) => t.is_active);
+  const [basePriceInput, setBasePriceInput] = useState(String(initialProduct?.price ?? 0));
   const [tierPrices, setTierPrices] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const t of initialPricingTiers) {
       map[t.id] =
         initialTierPrices[t.id] !== undefined
           ? String(initialTierPrices[t.id])
-          : "";
+          : initialProduct?.price !== undefined && !Object.keys(initialTierPrices).length && t.id === initialPricingTiers.find(tier => tier.is_active)?.id
+            ? String(initialProduct.price) : "";
     }
     return map;
   });
@@ -143,11 +149,21 @@ export default function OwnerProductForm({
 
   const [recipeRows, setRecipeRows] = useState<RecipeRow[]>(initialRecipes);
   const [showRecipeManager, setShowRecipeManager] = useState(false);
+  const [ingredientCosts, setIngredientCosts] = useState<Ingredient[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    request(`/api/owner/ingredients?outlet_id=${encodeURIComponent(outletId)}`, { signal: controller.signal })
+      .then(async response => { if (!response.ok) return; const data = await response.json();
+        if (!controller.signal.aborted && isActive?.() !== false) setIngredientCosts(data); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [outletId, request, isActive]);
+  const recipeCost = recipeRows.reduce((sum, row) => sum + row.quantity_used * (ingredientCosts.find(item => item.id === row.ingredient_id)?.cost_per_unit ?? row.cost_per_unit ?? 0), 0);
 
   const navMode = useNavMode();
   const isMobileBottom = navMode === "bottom";
 
-  const listUrl = `/products?outlet=${encodeURIComponent(outletId)}`;
+  const listUrl = `/outlets/${encodeURIComponent(outletId)}?tab=produk`;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isActive?.() === false) return;
@@ -366,24 +382,27 @@ export default function OwnerProductForm({
     setSaving(true);
 
     try {
-      const basePrice = filledPrices.length > 0 ? Number(filledPrices[0]) : 0;
+      const basePrice = activeTiers.length > 0 ? Number(filledPrices[0]) : Number(basePriceInput);
+      if (!Number.isFinite(basePrice) || basePrice < 0 || basePrice > 99999999.99) throw new Error("Harga produk tidak valid");
       const tierPriceArray = Object.entries(tierPrices)
         .filter(([, v]) => v !== "" && Number(v) >= 0)
         .map(([tierId, price]) => ({ tier_id: tierId, price: Number(price) }));
 
-      let pid = productId;
-
-      if (mode === "edit" && productId) {
+      let pid = savedProductId.current;
+      const payload = {
+        outlet_id: outletId, name: form.name.trim(), price: basePrice, category_id: form.category_id,
+        description: form.description, is_active: form.is_active,
+        ...(previewUrl === null ? { image_url: null } : {}), prices: tierPriceArray,
+        recipes: recipeRows.map(row => ({ ingredient_id: row.ingredient_id, quantity_used: row.quantity_used })),
+      };
+      const signature = JSON.stringify(payload);
+      if (saveIdentity.current?.payload !== signature) saveIdentity.current = { payload: signature, id: crypto.randomUUID() };
+      if (pid) {
         const res = await request("/api/owner/products", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: productId,
-            name: form.name.trim(),
-            price: basePrice,
-            category_id: form.category_id,
-            description: form.description,
-            is_active: form.is_active,
+            ...payload, id: pid,
           }),
         });
         ensureActive();
@@ -395,27 +414,23 @@ export default function OwnerProductForm({
           error.code = data.code;
           throw error;
         }
-        const imageUrl = await uploadImage(productId);
+        const imageUrl = await uploadImage(pid);
         ensureActive();
         if (imageUrl) {
-          await request("/api/owner/products", {
+          const imageResponse = await request("/api/owner/products", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: productId, image_url: imageUrl }),
+            body: JSON.stringify({ id: pid, image_url: imageUrl }),
           });
           ensureActive();
+          if (!imageResponse.ok) throw new Error("Gagal menyimpan gambar produk");
         }
       } else {
         const res = await request("/api/owner/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            outlet_id: outletId,
-            name: form.name.trim(),
-            price: basePrice,
-            category_id: form.category_id,
-            description: form.description,
-            is_active: form.is_active,
+            ...payload, request_id: saveIdentity.current.id,
           }),
         });
         ensureActive();
@@ -430,34 +445,27 @@ export default function OwnerProductForm({
         const created = await res.json();
         ensureActive();
         pid = created.id;
+        savedProductId.current = created.id;
         const imageUrl = await uploadImage(created.id);
         ensureActive();
         if (imageUrl) {
-          await request("/api/owner/products", {
+          const imageResponse = await request("/api/owner/products", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: created.id, image_url: imageUrl }),
           });
           ensureActive();
+          if (!imageResponse.ok) throw new Error("Gagal menyimpan gambar produk");
         }
       }
 
-      if (pid && tierPriceArray.length > 0) {
-        await request("/api/owner/product-tier-prices", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: pid, prices: tierPriceArray }),
-        });
-        ensureActive();
-      }
-
       if (mode === "add" && pid) {
-        for (const mod of queuedModifiers) {
-          try {
+        for (const [index, mod] of queuedModifiers.entries()) {
+          if (savedQueuedModifiers.current.has(index)) continue;
             const prices = Object.entries(mod.tierDeltas).map(
               ([tierId, delta]) => ({ tier_id: tierId, price_delta: delta })
             );
-            await request("/api/owner/modifiers", {
+            const response = await request("/api/owner/modifiers", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -468,29 +476,8 @@ export default function OwnerProductForm({
               }),
             });
             ensureActive();
-          } catch {
-            if (isActive?.() === false) return;
-          }
-        }
-      }
-
-      if (mode === "add" && pid) {
-        for (const recipe of recipeRows) {
-          if (recipe.id) continue;
-          try {
-            await request("/api/owner/recipes", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                product_id: pid,
-                ingredient_id: recipe.ingredient_id,
-                quantity_used: recipe.quantity_used,
-              }),
-            });
-            ensureActive();
-          } catch {
-            if (isActive?.() === false) return;
-          }
+            if (!response.ok) { const data = await response.json(); throw new Error(data.error || "Gagal menyimpan add-on"); }
+            savedQueuedModifiers.current.add(index);
         }
       }
 
@@ -526,6 +513,32 @@ export default function OwnerProductForm({
       <Check size={18} />
       {saving ? "Menyimpan..." : "Simpan Produk"}
     </button>
+  );
+
+  const compositionSection = (
+    <section className="bg-surface-container-lowest rounded-xl overflow-hidden" aria-label="Komposisi Produk">
+      <div className="p-5 md:p-6 flex flex-wrap items-center justify-between gap-3">
+        <div><h3 className="text-headline-sm text-on-surface flex items-center gap-2">
+          <CookingPot size={22} className="text-primary shrink-0" />Komposisi Produk</h3>
+          <p className="text-xs text-on-surface-variant mt-1">Pemakaian bahan untuk satu porsi produk.</p></div>
+        <button type="button" onClick={() => setShowRecipeManager(true)} className="min-h-11 px-3 rounded-xl bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10">Atur Komposisi</button>
+      </div>
+      {recipeRows.length === 0 ? <div className="px-5 md:px-6 pb-5 text-sm text-on-surface-variant">
+        Belum ada komposisi. Pilih bahan baku dan jumlah pemakaian untuk menghitung HPP serta stok otomatis.
+      </div> : <div className="border-t border-surface-container divide-y divide-surface-container">
+        {recipeRows.map(row => <div key={row.ingredient_id} className="px-5 md:px-6 py-3.5 flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-on-surface min-w-0 break-words">{row.ingredient_name}</p>
+          <span className="text-xs font-mono text-on-surface-variant shrink-0">{row.quantity_used.toLocaleString("id-ID", { maximumFractionDigits: 2 })} {row.ingredient_unit} / porsi</span>
+        </div>)}
+      </div>}
+      <div className="p-5 md:px-6 bg-surface-container-low/30 border-t border-surface-container">
+        {recipeRows.length > 0 && <div className="mb-3"><p className="text-xs text-on-surface-variant">Estimasi HPP per porsi</p>
+          <p className="text-lg font-bold text-primary">Rp {recipeCost.toLocaleString("id-ID", { maximumFractionDigits: 2 })}</p>
+          <p className="text-xs text-on-surface-variant">Menggunakan biaya bahan terakhir; belum termasuk biaya operasional.</p></div>}
+        <p className="text-xs text-on-surface-variant flex items-start gap-2"><Info size={14} className="shrink-0 mt-0.5" />
+          Perubahan komposisi disimpan bersama produk. Stok bahan berkurang saat transaksi selesai.</p>
+      </div>
+    </section>
   );
 
   return (
@@ -714,11 +727,9 @@ export default function OwnerProductForm({
               </button>
             </div>
             {activeTiers.length === 0 ? (
-              <p className="text-sm text-on-surface-variant flex items-center gap-2">
-                <Info size={16} />
-                Belum ada tier aktif. Tambahkan tier lewat tombol
-                &quot;Kelola Tier&quot;.
-              </p>
+              <FormField label="Harga Jual (Rp)" htmlFor="product-base-price" required>
+                <input id="product-base-price" type="number" min="0" max="99999999.99" step="0.01" inputMode="decimal" value={basePriceInput} onChange={event => setBasePriceInput(event.target.value)} className={`${fieldInputClass} !text-base md:!text-sm`} />
+              </FormField>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {activeTiers.map((tier) => (
@@ -755,6 +766,8 @@ export default function OwnerProductForm({
               </div>
             )}
           </div>
+
+          {compositionSection}
 
           <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
             <div className="p-6 pb-4 flex items-center justify-between">
@@ -990,57 +1003,6 @@ export default function OwnerProductForm({
             </div>
           </div>
 
-          {/* Resep / Bahan Baku */}
-          <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
-            <div className="p-6 pb-4 flex items-center justify-between">
-              <h3 className="text-headline-sm text-on-surface flex items-center gap-2">
-                <CookingPot size={22} className="text-primary" />
-                Resep / Bahan Baku
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowRecipeManager(true)}
-                className="text-primary text-[10px] font-bold uppercase tracking-wider hover:underline"
-              >
-                Kelola Resep
-              </button>
-            </div>
-
-            {recipeRows.length === 0 ? (
-              <p className="px-6 pb-6 text-sm text-on-surface-variant">
-                Belum ada resep — produk ini dijual tanpa memotong stok bahan.
-              </p>
-            ) : (
-              <div className="border-t border-surface-container divide-y divide-surface-container">
-                {recipeRows.map((r) => (
-                  <div
-                    key={r.id ?? r.ingredient_id}
-                    className="px-6 py-3.5 flex items-center justify-between gap-3"
-                  >
-                    <p className="text-sm font-semibold text-on-surface truncate">
-                      {r.ingredient_name}
-                      {!r.id && (
-                        <span className="ml-2 text-[10px] font-bold uppercase text-warning">
-                          Baru
-                        </span>
-                      )}
-                    </p>
-                    <span className="text-xs font-mono text-on-surface-variant flex-shrink-0">
-                      {r.quantity_used.toLocaleString("id-ID", { maximumFractionDigits: 2 })}{" "}
-                      {r.ingredient_unit} / porsi
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="p-4 px-6 bg-surface-container-low/30 border-t border-surface-container">
-              <p className="text-xs text-on-surface-variant flex items-center gap-2">
-                <Info size={14} className="flex-shrink-0" />
-                Stok bahan otomatis berkurang sesuai resep setiap produk terjual.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 

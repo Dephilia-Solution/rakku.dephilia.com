@@ -4,6 +4,7 @@ import { deleteRole, getRoleGrants, saveRoleGrants, onboardingRoleGrants } from 
 import bcrypt from "bcryptjs";
 import { createAdminClient, sql } from "@rakku/db";
 import { hashPin } from "@rakku/auth-utils";
+import { isValidCompanyCode, normalizeCompanyCode } from "@/lib/company-code";
 import type {
   Owner,
   OwnerWithCompany,
@@ -123,22 +124,23 @@ async function ensureUniqueSlug(baseSlug: string): Promise<string> {
   }
 }
 
-async function ensureUniqueCode(baseCode: string): Promise<string> {
-  const supabase = createAdminClient();
-  let code = baseCode;
-  let counter = 1;
-
-  while (true) {
-    const { data } = await supabase
-      .from("companies")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle();
-
-    if (!data) return code;
-    counter += 1;
-    code = `${baseCode}${counter}`;
+export async function checkCompanyCodeAvailability(
+  value: string,
+): Promise<{ available: boolean; error: string | null }> {
+  const code = normalizeCompanyCode(value);
+  if (!isValidCompanyCode(code)) {
+    return { available: false, error: "Kode perusahaan hanya boleh berisi huruf dan angka (1–32 karakter)." };
   }
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("code", code)
+    .maybeSingle();
+
+  if (error) return { available: false, error: "Ketersediaan kode perusahaan belum dapat diperiksa." };
+  return { available: !data, error: null };
 }
 
 // ============================================================
@@ -341,8 +343,11 @@ export async function createCompanyWithOnboarding(params: {
   error: string | null;
 }> {
   const supabase = createAdminClient();
-  const { ownerId, companyName, companyPassword, outletName, outletAddress } =
-    params;
+  const { ownerId, companyName, companyPassword, outletName, outletAddress } = params;
+  const code = normalizeCompanyCode(params.companyCode);
+  if (!isValidCompanyCode(code)) {
+    return { company: null, error: "Kode perusahaan hanya boleh berisi huruf dan angka (1–32 karakter)." };
+  }
   const passwordHash = await bcrypt.hash(companyPassword, 10);
   return supabase.transaction(async supabase => {
   const owners = await supabase.execute(sql`select id from public.owners where id=${ownerId} and is_active=true for update`);
@@ -359,9 +364,15 @@ export async function createCompanyWithOnboarding(params: {
     return { company: null, error: "Anda sudah memiliki perusahaan" };
   }
 
-  // Generate unique code & slug
-  const baseCode = generateCompanyCode(companyName);
-  const code = await ensureUniqueCode(baseCode);
+  const { data: existingCode, error: codeCheckError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("code", code)
+    .maybeSingle();
+  if (codeCheckError) throw new Error("Ketersediaan kode perusahaan belum dapat diperiksa.");
+  if (existingCode) return { company: null, error: "Kode perusahaan sudah digunakan. Silakan pilih kode lain." };
+
+  // Generate unique slug
   const baseSlug = generateSlug(companyName);
   const slug = await ensureUniqueSlug(baseSlug);
 
@@ -380,6 +391,9 @@ export async function createCompanyWithOnboarding(params: {
     .single();
 
   if (companyError || !company) {
+    if (companyError?.code === "23505" && /code/i.test(`${companyError.message} ${companyError.details ?? ""}`)) {
+      throw new Error("Kode perusahaan sudah digunakan. Silakan pilih kode lain.");
+    }
     throw new Error("Gagal membuat perusahaan");
   }
 
@@ -498,11 +512,13 @@ export async function getOwnerOutlets(
   const outletIds = outlets.map((o) => o.id);
   const { data: userOutlets } = await supabase
     .from("user_outlets")
-    .select("outlet_id, user_id")
+    .select("outlet_id, user_id, users!inner(status, all_outlets)")
     .in("outlet_id", outletIds);
 
   const countMap = new Map<string, Set<string>>();
   for (const uo of userOutlets ?? []) {
+    const user = uo.users as unknown as { status: string; all_outlets: boolean };
+    if (user.status !== "active" || user.all_outlets) continue;
     if (!countMap.has(uo.outlet_id)) countMap.set(uo.outlet_id, new Set());
     countMap.get(uo.outlet_id)!.add(uo.user_id);
   }
@@ -517,6 +533,24 @@ export async function getOwnerOutlets(
 
   const allOutletUserIds = (allOutletUsers ?? []).map((u) => u.id);
 
+  // Statistik catalog per outlet untuk kartu hub
+  const [productRows, tableRows, categoryRows] = await Promise.all([
+    supabase.from("products").select("outlet_id").eq("company_id", companyId),
+    supabase.from("dining_tables").select("outlet_id").in("outlet_id", outletIds),
+    supabase.from("categories").select("outlet_id").in("outlet_id", outletIds),
+  ]);
+  const countByOutlet = (rows: unknown[]): Map<string, number> => {
+    const stats = new Map<string, number>();
+    for (const row of rows ?? []) {
+      const outletId = (row as { outlet_id?: string } | null)?.outlet_id;
+      if (outletId) stats.set(outletId, (stats.get(outletId) ?? 0) + 1);
+    }
+    return stats;
+  };
+  const productCounts = countByOutlet(productRows.data ?? []);
+  const tableCounts = countByOutlet(tableRows.data ?? []);
+  const categoryCounts = countByOutlet(categoryRows.data ?? []);
+
   return outlets.map((o) => {
     const directCount = countMap.get(o.id)?.size ?? 0;
     return {
@@ -527,6 +561,9 @@ export async function getOwnerOutlets(
       created_at: o.created_at,
       qr_menu_slug: (o as Record<string, unknown>).qr_menu_slug as string | null,
       employee_count: directCount + allOutletUserIds.length,
+      products_count: productCounts.get(o.id) ?? 0,
+      tables_count: tableCounts.get(o.id) ?? 0,
+      categories_count: categoryCounts.get(o.id) ?? 0,
     };
   });
 }

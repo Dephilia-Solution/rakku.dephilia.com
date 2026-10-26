@@ -129,16 +129,16 @@ export default function OwnerSettingsPage() {
       });
       const data = await res.json();
       if (isActive?.() === false) return;
-      if (!res.ok) {
-        showToast("error", data.error || "Gagal mengupdate profil");
-        setIsSavingProfile(false);
-        return;
+        if (!res.ok) {
+          showToast("error", data.error || "Gagal mengupdate profil");
+          return;
       }
       showToast("success", "Profil berhasil diupdate");
       fetchCompany();
     } catch {
       if (isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan");
+    } finally {
       setIsSavingProfile(false);
     }
   };
@@ -160,16 +160,16 @@ export default function OwnerSettingsPage() {
       });
       const data = await res.json();
       if (isActive?.() === false) return;
-      if (!res.ok) {
-        showToast("error", data.error || "Gagal mengubah password");
-        setIsSavingPassword(false);
-        return;
+        if (!res.ok) {
+          showToast("error", data.error || "Gagal mengubah password");
+          return;
       }
       showToast("success", "Password perusahaan berhasil diubah");
       setNewPassword("");
     } catch {
       if (isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan");
+    } finally {
       setIsSavingPassword(false);
     }
   };

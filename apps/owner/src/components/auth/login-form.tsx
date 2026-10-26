@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { showToast, ToastContainer } from "@rakku/ui";
@@ -10,23 +10,42 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_token: "Token tidak valid atau sudah kadaluarsa. Coba minta link verifikasi baru.",
   verify_failed: "Verifikasi email gagal. Coba lagi atau hubungi dukungan.",
 };
+const REMEMBER_STORAGE_KEY = "rakku-owner-remember-me";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const verifiedParam = searchParams.get("verified");
   const errorParam = searchParams.get("error");
+  const handledNotification = useRef<string | null>(null);
 
   useEffect(() => {
-    if (searchParams.get("verified") === "1") showToast("success", "Email berhasil diverifikasi. Silakan login.");
+    try {
+      const storedPreference = window.localStorage.getItem(REMEMBER_STORAGE_KEY);
+      if (storedPreference === null) {
+        window.localStorage.setItem(REMEMBER_STORAGE_KEY, "1");
+      } else if (storedPreference === "0") {
+        const timer = window.setTimeout(() => setRemember(false), 0);
+        return () => window.clearTimeout(timer);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const notificationKey = `${verifiedParam ?? ""}:${errorParam ?? ""}`;
+    if (handledNotification.current === notificationKey) return;
+    handledNotification.current = notificationKey;
+
+    if (verifiedParam === "1") showToast("success", "Email berhasil diverifikasi. Silakan login.");
     if (errorParam && ERROR_MESSAGES[errorParam]) {
       showToast("error", ERROR_MESSAGES[errorParam]);
     }
-  }, [errorParam, searchParams]);
+  }, [errorParam, verifiedParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,7 +176,13 @@ function LoginForm() {
               <input
                 type="checkbox"
                 checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setRemember(checked);
+                  try {
+                    window.localStorage.setItem(REMEMBER_STORAGE_KEY, checked ? "1" : "0");
+                  } catch {}
+                }}
                 className="w-[14px] h-[14px] accent-leaf cursor-pointer"
               />
               Ingat saya

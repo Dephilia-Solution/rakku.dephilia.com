@@ -3,6 +3,7 @@ import { DEMO_MENUS, demoMenuId } from "./constants";
 import { clone, fail, find } from "./business";
 
 export function owner(state: DemoState): boolean { return state.session.authenticated && state.session.mode === "owner"; }
+export function auditActorId(state: DemoState): string | null { return owner(state) ? `demo-owner:${state.generation}` : state.session.employee_id; }
 export function fullMenusGrant(menus: readonly string[]): DemoMenuGrant[] {
   return [...new Set(menus)].sort().map(slug => ({
     menu_id: demoMenuId(slug), can_view: true, can_create: true, can_edit: true, can_delete: true,
@@ -48,6 +49,7 @@ export function validateSession(state: DemoState): void {
 }
 export function projectSnapshot(raw: DemoState): DemoState {
   const state = clone(raw);
+  delete state.request_receipts;
   state.menus = sessionMenus(raw);
   if (owner(raw)) return state;
   const can = (...menus: string[]) => raw.session.authenticated && menus.some(m => state.menus.includes(m));

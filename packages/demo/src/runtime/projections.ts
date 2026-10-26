@@ -25,7 +25,10 @@ export function createDemoProjections(sandbox: DemoSandbox) {
     const company = stable("company", { id: s.company.id, name: s.company.name, code: s.company.code, slug: "rakku-demo-cafe", logo_url: s.company.logo_url ?? null, status: "active", created_at: opened });
     const outlets = stable<OwnerDashboardOutlet[]>("outlets", s.outlets.map(row => ({ id: row.id, name: row.name, address: row.address, status: row.is_active ? "active" : "inactive", created_at: opened,
       qr_menu_slug: row.id === "fixture:pusat" ? "pusat" : row.id === "fixture:taman" ? "taman" : row.id,
-      employee_count: s.employees.filter(e => (e.all_outlets && e.is_active) || (!e.all_outlets && e.outlet_ids.includes(row.id))).length })));
+      employee_count: s.employees.filter(e => e.is_active && (e.all_outlets || e.outlet_ids.includes(row.id))).length,
+      products_count: s.products.filter(p => p.outlet_id === row.id).length,
+      tables_count: s.tables.filter(t => t.outlet_id === row.id).length,
+      categories_count: s.categories.filter(c => c.outlet_id === row.id).length })));
     const employees = stable<OwnerDashboardEmployee[]>("employees", s.employees.map(row => ({ id: row.id, name: row.name, username: row.username, role_id: row.role_id,
       role_name: s.roles.find(role => role.id === row.role_id)?.name ?? "", all_outlets: row.all_outlets ?? false, status: row.is_active ? "active" : "inactive", avatar_url: null,
       outlets: row.outlet_ids.map(id => { const outlet = find(s.outlets, id); return { id, name: outlet.name }; }), created_at: opened })));

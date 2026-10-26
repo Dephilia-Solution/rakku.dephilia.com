@@ -2,17 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { MerchantLink as Link, useRouter, useSearchParams, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
+import { MerchantLink as Link, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { ProductWithCategory, Category } from "@rakku/shared-types";
-import {
-  PageHeader,
-  Badge,
-  EmptyState,
-  fieldSelectClass,
-} from "@rakku/ui";
+import { Badge, EmptyState, fieldSelectClass } from "@rakku/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CategoryManagerSlideOver from "@/components/products/CategoryManagerSlideOver";
 import TierManagerSlideOver from "@/components/products/TierManagerSlideOver";
+import ImportExcelPanel from "@/components/outlet/ImportExcelPanel";
+import { useOutletScope } from "./OutletScopeProvider";
 import {
   Plus,
   Search,
@@ -24,35 +21,25 @@ import {
   Trash2,
   FolderCog,
   Layers,
-  Building2,
+  Upload,
   Loader2,
 } from "lucide-react";
 
-interface OutletOption {
-  id: string;
-  name: string;
-}
-
 interface Props {
-  outlets: OutletOption[];
+  outletId: string;
+  outletName: string;
 }
 
 function formatRupiah(value: number) {
   return `Rp ${value.toLocaleString("id-ID")}`;
 }
 
-export default function OwnerProductsClient({ outlets }: Props) {
+/** Tab produk dari workspace outlet (katalog, kategori, tier). */
+export default function OutletProductsSection({ outletId, outletName }: Props) {
   const request = useMerchantRequest();
+  const { refreshOutlets } = useOutletScope();
   const showToast = useMerchantToast();
   const isActive = useMerchantRuntime()?.active;
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const outletParam = searchParams.get("outlet");
-  const outletId =
-    outletParam && outlets.find((o) => o.id === outletParam)
-      ? outletParam
-      : (outlets[0]?.id ?? "");
-  const outletName = outlets.find((o) => o.id === outletId)?.name ?? "";
 
   const [productList, setProductList] = useState<ProductWithCategory[]>([]);
   const [catList, setCatList] = useState<Category[]>([]);
@@ -64,6 +51,7 @@ export default function OwnerProductsClient({ outlets }: Props) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showCatManager, setShowCatManager] = useState(false);
   const [showTierManager, setShowTierManager] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -108,15 +96,11 @@ export default function OwnerProductsClient({ outlets }: Props) {
     return () => controller.abort();
   }, [fetchData]);
 
-  const handleOutletChange = (id: string) => {
-    router.replace(`/products?outlet=${encodeURIComponent(id)}`);
-  };
-
-  const getPriceDisplay = (productId: string): string => {
+  const getPriceDisplay = (productId: string, basePrice: number): string => {
     const prices = tierPrices
       .filter((p) => p.product_id === productId)
       .map((p) => p.price);
-    if (prices.length === 0) return "-";
+    if (prices.length === 0) return formatRupiah(Number(basePrice));
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     if (min === max) return formatRupiah(min);
@@ -166,6 +150,7 @@ export default function OwnerProductsClient({ outlets }: Props) {
       if (res.ok) {
         setProductList((prev) => prev.filter((p) => p.id !== id));
         showToast("success", "Produk berhasil dihapus");
+        void refreshOutlets();
       } else {
         const data = await res.json();
         if (isActive?.() === false) return;
@@ -177,74 +162,61 @@ export default function OwnerProductsClient({ outlets }: Props) {
     }
   };
 
-  if (outlets.length === 0) {
-    return (
-      <div className="p-4 md:p-6 max-w-6xl mx-auto">
-        <PageHeader title="Produk" />
-        <EmptyState
-          icon={Building2}
-          title="Belum ada outlet"
-          description="Buat outlet terlebih dahulu sebelum mengelola produk"
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      <PageHeader
-        title="Produk"
-        subtitle="Kelola menu, kategori, dan tier harga per outlet."
-        actions={
-          <>
-            <button
-              type="button"
-              onClick={() => setShowCatManager(true)}
-              className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all flex items-center gap-2"
-            >
-              <FolderCog size={16} />
-              <span className="hidden sm:inline">Kategori</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowTierManager(true)}
-              className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-all flex items-center gap-2"
-            >
-              <Layers size={16} />
-              <span className="hidden sm:inline">Tier</span>
-            </button>
-            <Link
-              href={`/products/add?outlet=${encodeURIComponent(outletId)}`}
-              className="px-4 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center gap-2 hover:bg-primary/90 transition-all"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">Tambah Produk</span>
-              <span className="sm:hidden">Tambah</span>
-            </Link>
-          </>
-        }
-      />
-
-      {/* Outlet Selector + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <div className="relative w-full sm:max-w-[220px]">
-          <Building2
-            size={16}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
-          />
-          <select
-            value={outletId}
-            onChange={(e) => handleOutletChange(e.target.value)}
-            aria-label="Pilih outlet"
-            className={`${fieldSelectClass} !pl-11 font-semibold`}
-          >
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+    <div>
+      {/* Section header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-on-surface">Katalog Produk</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            Menu, kategori, dan tier harga untuk {outletName}.
+          </p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="min-h-11 px-3.5 py-2 rounded-lg text-xs font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high active:bg-surface-container-high transition-all flex items-center gap-1.5"
+          >
+            <Upload size={14} />
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCatManager(true)}
+            className="min-h-11 px-3.5 py-2 rounded-lg text-xs font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high active:bg-surface-container-high transition-all flex items-center gap-1.5"
+          >
+            <FolderCog size={14} />
+            Kategori
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTierManager(true)}
+            className="min-h-11 px-3.5 py-2 rounded-lg text-xs font-semibold bg-surface-container text-on-surface-variant hover:bg-surface-container-high active:bg-surface-container-high transition-all flex items-center gap-1.5"
+          >
+            <Layers size={14} />
+            Tier
+          </button>
+          <Link
+            href={`/products/add?outlet=${encodeURIComponent(outletId)}`}
+            className="min-h-11 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-on-primary shadow-md shadow-primary/20 flex items-center gap-1.5 hover:bg-primary/90 active:bg-primary/90 transition-all"
+          >
+            <Plus size={14} />
+            Tambah Produk
+          </Link>
+        </div>
+      </div>
+
+      {showImport && (
+        <div className="mb-5">
+          <ImportExcelPanel domain="products" outletId={outletId} outletName={outletName}
+            onClose={() => setShowImport(false)}
+            onImported={() => { setShowImport(false); void fetchData(); void refreshOutlets(); }} />
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1 w-full sm:max-w-xs">
           <Search
             size={16}
@@ -255,13 +227,13 @@ export default function OwnerProductsClient({ outlets }: Props) {
             placeholder="Cari produk..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-surface-container-lowest border-none rounded-lg pl-11 pr-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:ring-2 focus:ring-primary outline-none transition-all"
+            className="w-full bg-surface-container-lowest border-none rounded-lg pl-11 pr-4 py-3 text-base md:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:ring-2 focus:ring-primary outline-none transition-all"
           />
         </div>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className={`w-full sm:w-auto ${fieldSelectClass}`}
+          className={`w-full sm:w-auto ${fieldSelectClass} !text-base md:!text-sm`}
         >
           <option value="all">Semua Kategori</option>
           {catList.map((c) => (
@@ -343,7 +315,7 @@ export default function OwnerProductsClient({ outlets }: Props) {
                       {product.category_name}
                     </td>
                     <td className="px-6 py-4 font-mono text-sm font-semibold text-on-surface">
-                      {getPriceDisplay(product.id)}
+                      {getPriceDisplay(product.id, product.price)}
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={product.is_active ? "active" : "inactive"}>
@@ -421,15 +393,15 @@ export default function OwnerProductsClient({ outlets }: Props) {
                       {product.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
+                  <div className="flex flex-col items-start gap-2 mt-2">
                     <span className="font-mono text-sm font-bold text-primary">
-                      {getPriceDisplay(product.id)}
+                      {getPriceDisplay(product.id, product.price)}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 self-end">
                       <Link
                         href={`/products/${product.id}/edit?outlet=${encodeURIComponent(outletId)}`}
                         aria-label={`Edit ${product.name}`}
-                        className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                        className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
                       >
                         <Pencil size={18} />
                       </Link>
@@ -437,7 +409,7 @@ export default function OwnerProductsClient({ outlets }: Props) {
                         type="button"
                         onClick={() => handleToggleActive(product)}
                         aria-label="Ubah status"
-                        className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                        className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
                       >
                         {product.is_active ? (
                           <EyeOff size={18} />
@@ -449,7 +421,7 @@ export default function OwnerProductsClient({ outlets }: Props) {
                         type="button"
                         onClick={() => setPendingDeleteId(product.id)}
                         aria-label={`Hapus ${product.name}`}
-                        className="p-2 text-error hover:bg-error-container/20 rounded-full transition-colors"
+                        className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 text-error hover:bg-error-container/20 rounded-full transition-colors"
                       >
                         <Trash2 size={18} />
                       </button>

@@ -18,10 +18,10 @@ export default function BottomNav() {
         aria-label="Navigasi utama"
       >
         {ownerPrimaryItems.map((item) => {
-          const active =
-            item.href === "/"
+          const active = (item.href === "/outlets" && pathname.startsWith("/products/")) ||
+            (item.href === "/"
               ? pathname === "/"
-              : pathname.startsWith(item.href);
+              : pathname.startsWith(item.href));
           const Icon = item.icon;
 
           return (

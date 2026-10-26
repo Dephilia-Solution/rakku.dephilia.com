@@ -68,7 +68,9 @@ interface Outlet {
   status: string;
 }
 
-export default function OwnerEmployeesPage() {
+export default function OwnerEmployeesPage({ embedded = false }: {
+  embedded?: boolean;
+}) {
   const request = useMerchantRequest();
   const showToast = useMerchantToast();
   const isActive = useMerchantRuntime()?.active;
@@ -240,7 +242,6 @@ export default function OwnerEmployeesPage() {
         if (isActive?.() === false) return;
         if (!res.ok) {
           showToast("error", data.error || "Gagal mengupdate karyawan");
-          setIsSubmitting(false);
           return;
         }
         showToast("success", "Karyawan berhasil diupdate");
@@ -261,7 +262,6 @@ export default function OwnerEmployeesPage() {
         if (isActive?.() === false) return;
         if (!res.ok) {
           showToast("error", data.error || "Gagal membuat karyawan");
-          setIsSubmitting(false);
           return;
         }
         showToast("success", "Karyawan berhasil dibuat");
@@ -271,6 +271,7 @@ export default function OwnerEmployeesPage() {
     } catch {
       if (isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -517,15 +518,17 @@ export default function OwnerEmployeesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-display-title text-on-surface">Karyawan</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Kelola akun karyawan dan hak aksesnya.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeTab === "karyawan" ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {!embedded && (
+          <div>
+            <h1 className="font-display text-display-title text-on-surface">Karyawan</h1>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Kelola akun karyawan dan hak aksesnya.
+            </p>
+          </div>
+          )}
+          <div className="flex items-center gap-2">
+            {activeTab === "karyawan" ? (
             <button
               onClick={openCreateForm}
               className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
@@ -552,8 +555,8 @@ export default function OwnerEmployeesPage() {
               Tambah Role
             </button>
           )}
+          </div>
         </div>
-      </div>
 
       <Tabs
         active={activeTab}
@@ -787,8 +790,10 @@ export default function OwnerEmployeesPage() {
                 {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
               </h2>
               <button
+                type="button"
                 onClick={() => setShowForm(false)}
-                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg"
+                disabled={isSubmitting}
+                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg disabled:opacity-50"
               >
                 <X size={20} />
               </button>
@@ -916,7 +921,8 @@ export default function OwnerEmployeesPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
+                  disabled={isSubmitting}
+                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
                 >
                   Batal
                 </button>

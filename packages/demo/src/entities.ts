@@ -1,7 +1,7 @@
 import type { DemoEntity, DemoMenuGrant, DemoRole, DemoState } from "./models";
 import { INGREDIENT_UNITS, DEMO_MENUS, demoMenuId } from "./constants";
 import { bool, date, discountDate, fail, find, jakartaDate, list, money, number, optionalText, recipeId, record, text, uniqueStrings } from "./business";
-import { entityAccess, fullMenusGrant, roleGrants, scope } from "./access";
+import { auditActorId, entityAccess, fullMenusGrant, roleGrants, scope } from "./access";
 
 export type NewId = (kind: string) => string;
 type Row = { id: string; company_id: string; outlet_id?: string; [key: string]: unknown };
@@ -121,7 +121,7 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
     }
     case "ingredients": {
       const unit = text(v.unit, "unit"); if (!(INGREDIENT_UNITS as readonly string[]).includes(unit)) fail("Invalid ingredient unit");
-      if (existing && unit !== existing.unit && state.products.some(p => p.recipe.some(r => r.ingredient_id === id))) fail("Cannot change unit used by recipe");
+      if (existing && unit !== existing.unit && (existing.stock_quantity !== 0 || state.movements.some(m => m.ingredient_id === id) || state.products.some(p => p.recipe.some(r => r.ingredient_id === id)))) fail("Cannot change unit with stock, movements, or recipes");
       const stock_quantity = number(v.stock_quantity ?? 0, "stock", existing ? -Infinity : 0);
       if (existing && stock_quantity !== existing.stock_quantity) fail("Use stock.adjust for stock changes");
       row = { ...scopedBase, name: name(), unit, stock_quantity, min_stock_alert: number(v.min_stock_alert ?? 0, "minimum stock"),
@@ -161,7 +161,7 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
   if (entity === "ingredients" && !existing) {
     const ingredient = find(state.ingredients, id);
     state.movements.push({ id: nextId("movement"), company_id: state.company.id, outlet_id: outlet_id!, ingredient_id: id, type: "adjustment", quantity_change: ingredient.stock_quantity,
-      reference_id: null, note: "Opening stock", created_by: state.session.employee_id, created_at: state.now });
+      reference_id: null, note: "Opening stock", created_by: auditActorId(state), created_at: state.now });
   }
   if (entity === "outlets" && !existing) {
     for (const [index, tier] of [{ name: "Dine In", slug: "dine-in" }, { name: "Take Away", slug: "take-away" }].entries()) state.tiers.push({ id: nextId("tier"), company_id: state.company.id, outlet_id: id, ...tier, is_active: true, sort_order: index + 1 });
@@ -187,14 +187,13 @@ export function deleteEntity(state: DemoState, entity: DemoEntity, id: string): 
     case "roles": linked = state.employees.some(e => e.role_id === id); break;
     case "categories": linked = state.products.some(p => p.category_id === id); break;
     case "products": linked = state.orders.some(o => o.items.some(i => i.product_id === id)) || state.discounts.some(d => d.product_id === id); break;
-    case "ingredients": linked = state.products.some(p => p.recipe.some(r => r.ingredient_id === id)) || state.purchases.some(p => p.items.some(i => i.ingredient_id === id)) || state.movements.some(m => m.ingredient_id === id && m.note !== "Opening stock"); break;
+    case "ingredients": linked = row.stock_quantity !== 0 || state.products.some(p => p.recipe.some(r => r.ingredient_id === id)) || state.purchases.some(p => p.items.some(i => i.ingredient_id === id)) || state.movements.some(m => m.ingredient_id === id); break;
     case "tiers": linked = state.orders.some(o => o.tier_id === id); break;
     case "tables": linked = state.orders.some(o => o.table_id === id); break;
     case "banks": linked = state.withdrawals.some(w => w.bank_account_id === id && ["requested", "processing"].includes(w.status)); break;
   }
   if (linked) fail("Resource is referenced; deactivate instead");
   rows.splice(rows.indexOf(row), 1);
-  if (entity === "ingredients") state.movements = state.movements.filter(m => m.ingredient_id !== id);
   if (entity === "products") state.pricing_options = (state.pricing_options ?? []).filter(row => row.product_id !== id);
   if (entity === "banks") for (const withdrawal of state.withdrawals) if (withdrawal.bank_account_id === id) withdrawal.bank_account_id = null;
   if (entity === "outlets") { state.tiers = state.tiers.filter(row => row.outlet_id !== id); state.categories = state.categories.filter(row => row.outlet_id !== id); }

@@ -7,14 +7,11 @@ import {
   OrderDiscount,
 } from "@rakku/shared-types";
 import {
-  PageHeader,
   Tabs,
   Badge,
   Toggle,
-  EmptyState,
-  fieldSelectClass,
-  showToast,
 } from "@rakku/ui";
+import { useMerchantRequest, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import TaxFormSlideOver from "@/components/charges/TaxFormSlideOver";
 import DiscountFormSlideOver from "@/components/charges/DiscountFormSlideOver";
@@ -24,20 +21,14 @@ import {
   Trash2,
   Percent,
   Landmark,
-  Building2,
   Loader2,
 } from "lucide-react";
 
 type TabKey = "pajak" | "produk" | "order";
 
-interface OutletOption {
-  id: string;
-  name: string;
-}
-
 interface Props {
-  outlets: OutletOption[];
-  initialTab?: TabKey;
+  outletId: string;
+  initialTab?: string;
 }
 
 function formatValue(type: "percentage" | "fixed", value: number) {
@@ -46,9 +37,11 @@ function formatValue(type: "percentage" | "fixed", value: number) {
     : `Rp ${value.toLocaleString("id-ID")}`;
 }
 
-export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Props) {
-  const [tab, setTab] = useState<TabKey>(initialTab);
-  const [outletId, setOutletId] = useState(outlets[0]?.id ?? "");
+/** Tab pajak & diskon dari workspace outlet. */
+export default function OutletChargesSection({ outletId, initialTab }: Props) {
+  const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const [tab, setTab] = useState<TabKey>(initialTab === "produk" || initialTab === "order" ? initialTab : "pajak");
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [productDiscounts, setProductDiscounts] = useState<ProductDiscount[]>([]);
   const [orderDiscounts, setOrderDiscounts] = useState<OrderDiscount[]>([]);
@@ -66,7 +59,7 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
     kind: "tax" | "product" | "order";
   } | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     if (!outletId) {
       setLoading(false);
       return;
@@ -75,34 +68,40 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
     try {
       const q = `outlet_id=${encodeURIComponent(outletId)}`;
       const [taxRes, discRes, prodRes] = await Promise.all([
-        fetch(`/api/owner/taxes?${q}`),
-        fetch(`/api/owner/discounts?${q}`),
-        fetch(`/api/owner/products?${q}`),
+        request(`/api/owner/taxes?${q}`, { signal }),
+        request(`/api/owner/discounts?${q}`, { signal }),
+        request(`/api/owner/products?${q}`, { signal }),
       ]);
       if (taxRes.ok) {
         const data = await taxRes.json();
+        if (signal?.aborted) return;
         setTaxes(data.taxes ?? []);
       }
       if (discRes.ok) {
         const data = await discRes.json();
+        if (signal?.aborted) return;
         setProductDiscounts(data.productDiscounts ?? []);
         setOrderDiscounts(data.orderDiscounts ?? []);
       }
       if (prodRes.ok) {
         const data = await prodRes.json();
+        if (signal?.aborted) return;
         const names: Record<string, string> = {};
         for (const p of data.products ?? []) names[p.id] = p.name;
         setProductNames(names);
       }
     } catch {
+      if (signal?.aborted) return;
       showToast("error", "Gagal memuat data");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [outletId]);
+  }, [outletId, request, showToast]);
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    void fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
 
   const handleAdd = () => {
@@ -117,7 +116,7 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
 
   const handleToggleTax = async (tax: Tax) => {
     try {
-      const res = await fetch(`/api/owner/taxes/${tax.id}`, {
+      const res = await request(`/api/owner/taxes/${tax.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !tax.is_active }),
@@ -143,7 +142,7 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
     scope: "product" | "order"
   ) => {
     try {
-      const res = await fetch(
+      const res = await request(
         `/api/owner/discounts/${discount.id}?scope=${scope}`,
         {
           method: "PATCH",
@@ -183,10 +182,10 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
         kind === "tax"
           ? `/api/owner/taxes/${id}`
           : `/api/owner/discounts/${id}?scope=${kind}`;
-      const res = await fetch(url, { method: "DELETE" });
+      const res = await request(url, { method: "DELETE" });
       if (res.ok) {
         showToast("success", "Berhasil dihapus");
-        fetchData();
+        void fetchData();
       } else {
         const data = await res.json();
         showToast("error", data.error ?? "Gagal menghapus");
@@ -199,19 +198,6 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
   const now = new Date();
   const inPeriod = (start: string, end: string) =>
     now >= new Date(start) && now <= new Date(end);
-
-  if (outlets.length === 0) {
-    return (
-      <div className="p-4 md:p-6 max-w-4xl mx-auto">
-        <PageHeader title="Pajak & Diskon" />
-        <EmptyState
-          icon={Building2}
-          title="Belum ada outlet"
-          description="Buat outlet terlebih dahulu sebelum mengatur pajak & diskon"
-        />
-      </div>
-    );
-  }
 
   const discountList = (
     list: (ProductDiscount | OrderDiscount)[],
@@ -292,51 +278,34 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto">
-      <PageHeader
-        title="Pajak & Diskon"
-        subtitle="Atur pajak dan diskon yang berlaku di kasir per outlet."
-        actions={
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="px-4 md:px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 flex items-center gap-2 hover:bg-primary/90 transition-all"
-          >
-            <Plus size={16} />
-            Tambah
-          </button>
-        }
-      />
-
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <div className="relative w-full sm:max-w-[220px]">
-          <Building2
-            size={16}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
-          />
-          <select
-            value={outletId}
-            onChange={(e) => setOutletId(e.target.value)}
-            aria-label="Pilih outlet"
-            className={`${fieldSelectClass} !pl-11 font-semibold`}
-          >
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+    <div className="space-y-5">
+      {/* Section header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-on-surface">Pajak & Diskon</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            Atur pajak dan diskon yang berlaku di kasir outlet ini.
+          </p>
         </div>
-        <Tabs
-          active={tab}
-          onChange={(k) => setTab(k as TabKey)}
-          tabs={[
-            { key: "pajak", label: "Pajak", count: taxes.length },
-            { key: "produk", label: "Diskon Produk", count: productDiscounts.length },
-            { key: "order", label: "Diskon Pesanan", count: orderDiscounts.length },
-          ]}
-        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-on-primary shadow-md shadow-primary/20 flex items-center gap-1.5 hover:bg-primary/90 transition-all"
+        >
+          <Plus size={14} />
+          Tambah
+        </button>
       </div>
+
+      <Tabs
+        active={tab}
+        onChange={(k) => setTab(k as TabKey)}
+        tabs={[
+          { key: "pajak", label: "Pajak", count: taxes.length },
+          { key: "produk", label: "Diskon Produk", count: productDiscounts.length },
+          { key: "order", label: "Diskon Pesanan", count: orderDiscounts.length },
+        ]}
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-24 text-on-surface-variant">
@@ -419,7 +388,7 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
         onSuccess={() => {
           setShowTaxForm(false);
           setEditingTax(null);
-          fetchData();
+          void fetchData();
         }}
       />
       <DiscountFormSlideOver
@@ -434,7 +403,7 @@ export default function TaxDiscountsClient({ outlets, initialTab = "pajak" }: Pr
         onSuccess={() => {
           setShowDiscountForm(false);
           setEditingDiscount(null);
-          fetchData();
+          void fetchData();
         }}
       />
       <ConfirmDialog

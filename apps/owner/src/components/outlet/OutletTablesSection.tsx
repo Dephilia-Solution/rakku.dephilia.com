@@ -7,12 +7,13 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Building2,
   X,
   Search,
   AlertCircle,
 } from "lucide-react";
 import { showToast } from "@rakku/ui";
+import { useMerchantRequest } from "@/lib/merchant-runtime";
+import { useOutletScope } from "./OutletScopeProvider";
 
 interface DiningTable {
   id: string;
@@ -24,24 +25,21 @@ interface DiningTable {
   outlet_name?: string | null;
 }
 
-interface OutletOption {
-  id: string;
-  name: string;
-}
-
 interface Props {
-  outlets: OutletOption[];
+  outletId: string;
+  outletName: string;
 }
 
-export default function OwnerTablesClient({ outlets }: Props) {
+/** Tab meja dari workspace outlet: daftar meja + status kosong/terisi. */
+export default function OutletTablesSection({ outletId, outletName }: Props) {
+  const request = useMerchantRequest();
+  const { refreshOutlets } = useOutletScope();
   const [tables, setTables] = useState<DiningTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [outletId, setOutletId] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingTable, setEditingTable] = useState<DiningTable | null>(null);
   const [formName, setFormName] = useState("");
-  const [formOutletId, setFormOutletId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DiningTable | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -61,28 +59,32 @@ export default function OwnerTablesClient({ outlets }: Props) {
     };
   }, [showForm, deleteTarget]);
 
-  const fetchTables = useCallback(async () => {
+  const fetchTables = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const url = outletId
         ? `/api/owner/tables?outlet_id=${encodeURIComponent(outletId)}`
         : "/api/owner/tables";
-      const res = await fetch(url);
+      const res = await request(url, { signal });
       const data = await res.json();
+      if (signal?.aborted) return;
       if (res.ok) {
         setTables(data.tables ?? []);
       } else {
         showToast("error", data.error || "Gagal memuat data meja");
       }
     } catch {
+      if (signal?.aborted) return;
       showToast("error", "Gagal memuat data meja");
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
-  }, [outletId]);
+  }, [outletId, request]);
 
   useEffect(() => {
-    fetchTables();
+    const controller = new AbortController();
+    void fetchTables(controller.signal);
+    return () => controller.abort();
   }, [fetchTables]);
 
   const filtered = tables.filter((t) => {
@@ -96,14 +98,12 @@ export default function OwnerTablesClient({ outlets }: Props) {
   const openCreateForm = () => {
     setEditingTable(null);
     setFormName("");
-    setFormOutletId(outletId || outlets[0]?.id || "");
     setShowForm(true);
   };
 
   const openEditForm = (table: DiningTable) => {
     setEditingTable(table);
     setFormName(table.name);
-    setFormOutletId(table.outlet_id);
     setShowForm(true);
   };
 
@@ -113,16 +113,12 @@ export default function OwnerTablesClient({ outlets }: Props) {
       showToast("error", "Nama meja harus diisi");
       return;
     }
-    if (!editingTable && !formOutletId) {
-      showToast("error", "Pilih outlet untuk meja");
-      return;
-    }
 
     setIsSubmitting(true);
 
     try {
       if (editingTable) {
-        const res = await fetch("/api/owner/tables", {
+        const res = await request("/api/owner/tables", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editingTable.id, name: formName.trim() }),
@@ -135,10 +131,10 @@ export default function OwnerTablesClient({ outlets }: Props) {
         }
         showToast("success", "Meja berhasil diupdate");
       } else {
-        const res = await fetch("/api/owner/tables", {
+        const res = await request("/api/owner/tables", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formName.trim(), outlet_id: formOutletId }),
+          body: JSON.stringify({ name: formName.trim(), outlet_id: outletId }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -149,7 +145,8 @@ export default function OwnerTablesClient({ outlets }: Props) {
         showToast("success", "Meja berhasil ditambahkan");
       }
       setShowForm(false);
-      fetchTables();
+      void fetchTables();
+      void refreshOutlets();
     } catch {
       showToast("error", "Terjadi kesalahan");
     } finally {
@@ -160,7 +157,7 @@ export default function OwnerTablesClient({ outlets }: Props) {
   const handleToggleStatus = async (table: DiningTable) => {
     const next = table.status === "available" ? "occupied" : "available";
     try {
-      const res = await fetch("/api/owner/tables", {
+      const res = await request("/api/owner/tables", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: table.id, status: next }),
@@ -171,7 +168,7 @@ export default function OwnerTablesClient({ outlets }: Props) {
         return;
       }
       showToast("success", next === "occupied" ? "Meja ditandai terisi" : "Meja tersedia kembali");
-      fetchTables();
+      void fetchTables();
     } catch {
       showToast("error", "Terjadi kesalahan");
     }
@@ -180,7 +177,7 @@ export default function OwnerTablesClient({ outlets }: Props) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetch(`/api/owner/tables?id=${deleteTarget.id}`, {
+      const res = await request(`/api/owner/tables?id=${deleteTarget.id}`, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -190,7 +187,8 @@ export default function OwnerTablesClient({ outlets }: Props) {
       }
       showToast("success", "Meja berhasil dihapus");
       setDeleteTarget(null);
-      fetchTables();
+      void fetchTables();
+      void refreshOutlets();
     } catch {
       showToast("error", "Terjadi kesalahan");
     }
@@ -205,54 +203,37 @@ export default function OwnerTablesClient({ outlets }: Props) {
     status === "available" ? "Tersedia" : "Terisi";
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5">
+      {/* Section header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Meja</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Kelola meja dan status kosong/terisi untuk order dine-in.
+          <h2 className="text-lg font-bold text-on-surface">Meja</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            Meja dine-in untuk {outletName}.
           </p>
         </div>
         <button
           onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary text-xs font-semibold rounded-lg shadow-md shadow-primary/20 hover:bg-primary/90 transition-all"
         >
-          <Plus size={16} />
+          <Plus size={14} />
           Tambah Meja
         </button>
       </div>
 
-      {/* Filters: outlet + search */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2">
-          <Building2 size={16} className="text-on-surface-variant flex-shrink-0" />
-          <select
-            value={outletId}
-            onChange={(e) => setOutletId(e.target.value)}
-            className="bg-surface-container-lowest border border-surface-container rounded-xl px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          >
-            <option value="">Semua Outlet</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search
-            size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
-          />
-          <input
-            type="text"
-            placeholder="Cari nama meja..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-surface-container-lowest border border-surface-container rounded-xl pl-10 pr-4 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          />
-        </div>
+      {/* Search */}
+      <div className="relative w-full sm:max-w-xs">
+        <Search
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+        />
+        <input
+          type="text"
+          placeholder="Cari nama meja..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-surface-container rounded-xl pl-10 pr-4 py-2.5 text-base md:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+        />
       </div>
 
       {/* Summary */}
@@ -289,11 +270,11 @@ export default function OwnerTablesClient({ outlets }: Props) {
           </div>
           <h3 className="font-bold text-on-surface mb-1">Belum ada meja</h3>
           <p className="text-sm text-on-surface-variant mb-4">
-            Tambahkan meja untuk outlet Anda.
+            Tambahkan meja untuk melayani pesanan dine-in di outlet ini.
           </p>
           <button
             onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
           >
             <Plus size={16} />
             Tambah Meja
@@ -307,7 +288,6 @@ export default function OwnerTablesClient({ outlets }: Props) {
               <thead className="bg-surface-container-low border-b border-surface-container">
                 <tr>
                   <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Nama</th>
-                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Outlet</th>
                   <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Status</th>
                   <th className="text-right text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Aksi</th>
                 </tr>
@@ -317,11 +297,6 @@ export default function OwnerTablesClient({ outlets }: Props) {
                   <tr key={table.id} className="hover:bg-surface-container-low">
                     <td className="px-6 py-4">
                       <span className="text-sm font-semibold text-on-surface">{table.name}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-on-surface-variant">
-                        {table.outlet_name || "-"}
-                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <button type="button" onClick={() => handleToggleStatus(table)}>
@@ -365,10 +340,7 @@ export default function OwnerTablesClient({ outlets }: Props) {
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                       <Grid3X3 size={18} />
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">{table.name}</p>
-                      <p className="text-xs text-on-surface-variant">{table.outlet_name || "-"}</p>
-                    </div>
+                    <p className="text-sm font-semibold text-on-surface">{table.name}</p>
                   </div>
                   <button type="button" onClick={() => handleToggleStatus(table)}>
                     <span
@@ -414,38 +386,19 @@ export default function OwnerTablesClient({ outlets }: Props) {
                   <p className="text-xs text-on-surface-variant">
                     {editingTable
                       ? "Ubah nama meja."
-                      : "Buat meja baru untuk salah satu outlet."}
+                      : `Buat meja baru untuk ${outletName}.`}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
-                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg"
+                disabled={isSubmitting}
+                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg disabled:opacity-50"
               >
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]">
-              {!editingTable && (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                    Outlet
-                  </label>
-                  <select
-                    value={formOutletId}
-                    onChange={(e) => setFormOutletId(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  >
-                    <option value="">Pilih outlet...</option>
-                    {outlets.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                   Nama Meja
@@ -463,7 +416,8 @@ export default function OwnerTablesClient({ outlets }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
+                  disabled={isSubmitting}
+                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
                 >
                   Batal
                 </button>
@@ -505,7 +459,7 @@ export default function OwnerTablesClient({ outlets }: Props) {
             <p className="text-sm text-on-surface-variant mb-6">
               Anda akan menghapus meja{" "}
               <span className="font-bold">{deleteTarget.name}</span> dari outlet{" "}
-              <span className="font-bold">{deleteTarget.outlet_name || "-"}</span>.
+              <span className="font-bold">{outletName}</span>.
             </p>
             <div className="flex gap-3">
               <button

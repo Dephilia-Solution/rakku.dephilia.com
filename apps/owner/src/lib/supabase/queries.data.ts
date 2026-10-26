@@ -796,11 +796,11 @@ export async function getCompanyPricingTiersSimple(
 export async function getCompanyProductById(
   companyId: string,
   productId: string
-): Promise<(Product & { image_url: string | null; description: string | null }) | null> {
+): Promise<(Product & { outlet_id: string; image_url: string | null; description: string | null }) | null> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("products")
-    .select("id, name, price, category_id, image_url, is_active, description")
+    .select("id, name, price, category_id, image_url, is_active, description, outlet_id")
     .eq("id", productId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -809,6 +809,7 @@ export async function getCompanyProductById(
   const p = data as JsonLike;
   return {
     id: p.id as string,
+    outlet_id: p.outlet_id as string,
     name: p.name as string,
     price: Number(p.price),
     category_id: p.category_id as string,
@@ -913,12 +914,13 @@ export async function getProductRecipes(
     created_at: string;
     ingredient_name: string;
     ingredient_unit: Ingredient["unit"];
+    ingredient_cost_per_unit: number;
   }[]
 > {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("product_recipes")
-    .select("*, ingredients(name, unit), products!inner(company_id)")
+    .select("*, ingredients(name, unit, cost_per_unit), products!inner(company_id)")
     .eq("product_id", productId)
     .eq("products.company_id", companyId);
 
@@ -929,6 +931,7 @@ export async function getProductRecipes(
     quantity_used: Number(r.quantity_used),
     created_at: r.created_at as string,
     ingredient_name: ((r.ingredients as JsonLike)?.name as string) ?? "",
+    ingredient_cost_per_unit: Number((r.ingredients as JsonLike)?.cost_per_unit ?? 0),
     ingredient_unit:
       (((r.ingredients as JsonLike)?.unit as Ingredient["unit"]) ?? "pcs"),
   })) ?? [];

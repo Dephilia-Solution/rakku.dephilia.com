@@ -83,6 +83,3 @@ supabase/.temp/
 /index.html
 /landing.css
 /scripts/generate-pwa-icons.mjs
-/scripts/run-migration.js
-/scripts/run-migration.ts
-/scripts/migration-004.ts
