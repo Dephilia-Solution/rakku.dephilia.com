@@ -20,7 +20,7 @@ export function Header() {
     <HeaderFrame>
       <Container className="relative flex min-h-[4.75rem] items-center justify-between gap-4">
           <MotionLink href="#top" className="flex shrink-0 items-center gap-2.5" aria-label="Rakku, kembali ke atas">
-            <Image src="/images/rakku_logotype.png" alt="Rakku" width={85} height={10} className="w-[clamp(5.9rem,10vw,7.25rem)] object-contain" priority />
+            <Image src="/images/rakku_logotype.png" alt="Rakku" width={803} height={250} sizes="116px" className="h-auto w-[clamp(5.9rem,10vw,7.25rem)] object-contain" priority />
           </MotionLink>
 
         <nav className="ml-auto hidden items-center gap-[clamp(1rem,2.2vw,1.75rem)] text-[0.8125rem] font-semibold text-muted lg:flex" aria-label="Navigasi utama">

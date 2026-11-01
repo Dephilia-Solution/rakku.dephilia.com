@@ -1,12 +1,13 @@
 import { createAdminClient } from "@rakku/db";
 import type { Menu } from "@rakku/shared-types";
+import { cache } from "react";
 export async function getTenantHome(roleId: string) {
   const menu = (await getAllowedMenus(roleId))[0];
   if (!menu) return "/access-denied";
   return menu.slug === "products" ? "/products" : menu.path.startsWith("/") && !menu.path.startsWith("//") ? menu.path : `/${menu.slug}`;
 }
 
-export async function getAllowedMenus(roleId: string): Promise<Menu[]> {
+export const getAllowedMenus = cache(async (roleId: string): Promise<Menu[]> => {
   const supabase = createAdminClient();
 
   const { data } = await supabase
@@ -29,7 +30,7 @@ export async function getAllowedMenus(roleId: string): Promise<Menu[]> {
       sort_order: m.sort_order,
     };
   });
-}
+});
 
 export async function getAllMenus(): Promise<Menu[]> {
   const supabase = createAdminClient();

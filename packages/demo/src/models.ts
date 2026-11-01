@@ -4,6 +4,7 @@ import type {
   Expense, Tax, Plan, PlanSlug, BillingCycle, Subscription, SubscriptionStatus, SubscriptionInvoice, PaymentIntent,
   BalanceTransaction, MerchantBalance, MerchantBankAccount, Withdrawal, Role, PricingOption,
 } from "@rakku/shared-types";
+import type { DemoImportCommand } from "./import-models";
 export type { PublicMenu, PricingTier, Ingredient, DiningTable, StockMovement, Expense, Plan, Subscription, SubscriptionStatus, BillingCycle, SubscriptionInvoice } from "@rakku/shared-types";
 
 export interface DemoCompany { id: string; name: string; code: string; email: string; owner_name: string; password: string; logo_url?: string | null }
@@ -76,6 +77,7 @@ export type DemoEmailPreviewCommand = {
   | { email?: never; to: string }
 );
 export type DemoCommand =
+  | DemoImportCommand
   | { type: "entity.save"; entity: DemoEntity; value: Record<string, unknown> }
   | { type: "entity.delete"; entity: DemoEntity; id: string }
   | { type: "entity.reorder"; entity: DemoEntity; ids: string[] }

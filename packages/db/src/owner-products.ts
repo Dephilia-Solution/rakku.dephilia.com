@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { DatabaseClient, Row } from "./query";
 import { checked, replaceProductTierPrices } from "./merchant";
-import { assertOwnerOutlet, InventoryError, inventoryNumber, type OwnerOutletScope } from "./owner-inventory";
+import { assertOwnerOutlet, InventoryError, inventoryNumber, normalizeBusinessCode, type OwnerOutletScope } from "./owner-inventory";
 
 export interface ProductRecipeInput { ingredient_id: string; quantity_used: number; }
 export async function saveOwnerProduct(db: DatabaseClient, scope: OwnerOutletScope, input: Record<string, unknown>, options: {
@@ -16,6 +16,11 @@ export async function saveOwnerProduct(db: DatabaseClient, scope: OwnerOutletSco
     if (options.productId && !previous) throw new InventoryError("Produk tidak ditemukan", 404);
     if (!previous && options.checkQuota && !(await options.checkQuota(tx))) throw new InventoryError("Kuota produk paket Anda sudah penuh", 403, "PLAN_LIMIT");
     const values: Row = {};
+    if (input.code !== undefined) {
+      const next = normalizeBusinessCode(input.code, "PRD")!;
+      if (previous && next !== previous.code) throw new InventoryError("Kode produk tidak dapat diubah; kode adalah identifier tetap", 409);
+      values.code = next;
+    } else if (!previous) values.code = normalizeBusinessCode(null, "PRD");
     if (input.name !== undefined || !previous) {
       if (typeof input.name !== "string" || !input.name.trim() || input.name.trim().length > 100) throw new InventoryError("Nama produk wajib diisi, maksimal 100 karakter");
       values.name = input.name.trim();
@@ -61,7 +66,12 @@ export async function saveOwnerProduct(db: DatabaseClient, scope: OwnerOutletSco
     }
     const product = previous
       ? Object.keys(values).length ? checked(await tx.from("products").update(values).eq("id", previous.id).select().single()) : previous
-      : checked(await tx.from("products").insert({ ...values, company_id: scope.companyId, outlet_id: scope.outletId }).select().single());
+      : await (async () => {
+        const duplicate = await tx.execute(sql`select id from public.products where company_id=${scope.companyId}
+          and outlet_id=${scope.outletId} and lower(code)=lower(${values.code})`);
+        if (duplicate.length) throw new InventoryError("Kode produk sudah dipakai di outlet ini", 409, "IMPORT_CODE_CONFLICT");
+        return checked(await tx.from("products").insert({ ...values, company_id: scope.companyId, outlet_id: scope.outletId }).select().single());
+      })();
     if (input.prices !== undefined) {
       if (!Array.isArray(input.prices) || input.prices.length > 100 || input.prices.some(row => !row || typeof row.tier_id !== "string")) throw new InventoryError("Harga tier tidak valid");
       await replaceProductTierPrices(tx, scope.companyId, product.id, input.prices.map(row => ({ tier_id: row.tier_id,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Ingredient, IngredientUnit } from "@rakku/shared-types";
-import { SlideOver } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { Pencil, Plus, Trash2, Loader2, Check, X } from "lucide-react";
 import { useMerchantRequest, useMerchantRuntime } from "@/lib/merchant-runtime";
 import IngredientFormSlideOver from "@/components/inventory/IngredientFormSlideOver";

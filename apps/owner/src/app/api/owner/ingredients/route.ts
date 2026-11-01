@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null);
     if (!body) throw new InventoryError("Body tidak valid");
     const scope = await ownerInventoryScope(body.outlet_id);
-    const values = { name: body.name, unit: body.unit, stock_quantity: body.stock_quantity ?? 0,
+    const values = { code: body.code ?? null, name: body.name, unit: body.unit, stock_quantity: body.stock_quantity ?? 0,
       min_stock_alert: body.min_stock_alert ?? 0, cost_per_unit: body.cost_per_unit ?? 0 };
     const result = await runFinancialCommand(createAdminClient(), {
       companyId: scope.companyId, requestId: body.request_id == null ? null : inventoryId(body.request_id, "Request ID"),

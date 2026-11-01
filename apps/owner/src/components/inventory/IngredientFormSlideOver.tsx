@@ -2,7 +2,8 @@
 
 import { useId, useRef, useState, type FormEvent } from "react";
 import type { Ingredient, IngredientUnit } from "@rakku/shared-types";
-import { FormField, SlideOver } from "@rakku/ui";
+import { FormField } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { usePlan } from "@/components/billing/PlanProvider";
 import { useMerchantRuntime } from "@/lib/merchant-runtime";
 import {
@@ -33,6 +34,7 @@ function IngredientForm({ onClose, outletId, ingredient, onSaved }: IngredientFo
   const id = useId();
   const formId = `${id}-ingredient`;
   const [name, setName] = useState(ingredient?.name ?? "");
+  const [code, setCode] = useState(ingredient?.code ?? "");
   const [unit, setUnit] = useState<IngredientUnit>(ingredient?.unit ?? "gram");
   const [stock, setStock] = useState(String(ingredient?.stock_quantity ?? 0));
   const [minimum, setMinimum] = useState(String(ingredient?.min_stock_alert ?? 0));
@@ -41,6 +43,7 @@ function IngredientForm({ onClose, outletId, ingredient, onSaved }: IngredientFo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
+  const createReceipt = useRef<{ signature: string; id: string } | null>(null);
 
   const close = () => { if (!pending.current) onClose(); };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -63,11 +66,15 @@ function IngredientForm({ onClose, outletId, ingredient, onSaved }: IngredientFo
     setSaving(true);
     setError(null);
     try {
-      const fields = { outlet_id: outletId, name: name.trim(), unit, min_stock_alert: minimumValue, cost_per_unit: costValue };
+      const fields = { outlet_id: outletId, code: code.trim() || undefined, name: name.trim(), unit, min_stock_alert: minimumValue, cost_per_unit: costValue };
+      if (!ingredient) {
+        const signature = JSON.stringify({ ...fields, stock_quantity: stockValue });
+        if (createReceipt.current?.signature !== signature) createReceipt.current = { signature, id: crypto.randomUUID() };
+      }
       const response = await request("/api/owner/ingredients", {
         method: ingredient ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ingredient ? { ...fields, id: ingredient.id, is_active: active } : { ...fields, stock_quantity: stockValue }),
+        body: JSON.stringify(ingredient ? { ...fields, id: ingredient.id, is_active: active } : { ...fields, stock_quantity: stockValue, request_id: createReceipt.current!.id }),
         signal: session.signal,
       });
       const data = await response.json();
@@ -99,6 +106,9 @@ function IngredientForm({ onClose, outletId, ingredient, onSaved }: IngredientFo
           <fieldset disabled={saving} className="space-y-5">
             <FormField label="Nama Bahan" htmlFor={`${id}-name`} required>
               <input id={`${id}-name`} required autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Contoh: Biji kopi arabika" className={inventoryInputClass} />
+            </FormField>
+            <FormField label="Kode Bahan" htmlFor={`${id}-code`} hint={ingredient ? "Kode adalah identifier tetap bahan." : "Opsional. Kosongkan untuk membuat kode outlet otomatis."}>
+              <input id={`${id}-code`} value={code} readOnly={!!ingredient} onChange={(event) => setCode(event.target.value)} placeholder="Contoh: BHN001" className={`${inventoryInputClass} read-only:opacity-70`} />
             </FormField>
             <FormField label="Satuan" htmlFor={`${id}-unit`} required hint={ingredient ? "Perubahan satuan dapat ditolak jika bahan sudah dipakai dalam resep atau riwayat stok." : "Gunakan satuan yang sama saat mengisi resep dan pembelian."}>
               <select id={`${id}-unit`} value={unit} onChange={(event) => setUnit(event.target.value as IngredientUnit)} className={inventorySelectClass}>

@@ -59,6 +59,7 @@ export default async function OwnerEditProductPage({
       categories={categories}
       pricingTiers={pricingTiers as PricingTier[]}
       initialProduct={{
+        code: product.code,
         name: product.name,
         price: product.price,
         category_id: product.category_id,

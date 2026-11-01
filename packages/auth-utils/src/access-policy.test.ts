@@ -100,20 +100,20 @@ test("subscription bootstrap stays authenticated while ungranted admin data does
   assert.equal(hasMenuCapability([grant("tables", { can_view: false, can_edit: true })], "tables", "can_edit"), false);
 });
 
-test("onboarding cashier defaults allow checkout but not order creation, report email or tax management", () => {
+test("onboarding cashier defaults grant full access to enabled menus", () => {
   const cashier = [
     grant("register", { can_create: true, can_edit: true, can_delete: true }),
-    grant("orders", { can_edit: true, can_delete: true }),
-    grant("reports"),
-    grant("tax-discounts"),
+    grant("orders", { can_create: true, can_edit: true, can_delete: true }),
+    grant("reports", { can_create: true, can_edit: true, can_delete: true }),
+    grant("tax-discounts", { can_create: true, can_edit: true, can_delete: true }),
   ];
   assert.equal(allowed("/api/admin/orders", "POST", cashier), true);
   assert.equal(allowed("/api/admin/products", "GET", cashier), true);
   assert.equal(allowed("/api/admin/orders/draft", "GET", cashier), true);
   assert.equal(allowed("/api/admin/orders/draft", "DELETE", cashier), true);
   assert.equal(allowed("/api/admin/orders/qris/abc/retry", "POST", cashier), true);
-  assert.equal(allowed("/api/reports/send-email", "POST", cashier), false);
-  assert.equal(allowed("/api/admin/taxes", "POST", cashier), false);
+  assert.equal(allowed("/api/reports/send-email", "POST", cashier), true);
+  assert.equal(allowed("/api/admin/taxes", "POST", cashier), true);
   assert.equal(allowed("/api/admin/ingredients", "GET", cashier), false);
 });
 

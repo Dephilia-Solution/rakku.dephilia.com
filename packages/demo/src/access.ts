@@ -10,7 +10,14 @@ export function fullMenusGrant(menus: readonly string[]): DemoMenuGrant[] {
   }));
 }
 export function roleGrants(role: DemoRole): DemoMenuGrant[] {
-  return role.grants ?? fullMenusGrant(role.menus);
+  const grants = role.grants ?? fullMenusGrant(role.menus);
+  return grants.map(grant => ({
+    menu_id: grant.menu_id,
+    can_view: grant.can_view,
+    can_create: grant.can_view,
+    can_edit: grant.can_view,
+    can_delete: grant.can_view,
+  }));
 }
 export function roleRevision(role: DemoRole): string {
   return JSON.stringify(roleGrants(role).slice().sort((a, b) => a.menu_id.localeCompare(b.menu_id)));

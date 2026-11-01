@@ -111,14 +111,14 @@ try {
     await page.getByRole('button', { name: 'Tambah Outlet', exact: true }).first().click();
     await page.getByPlaceholder('Outlet Utama').fill('Route Cafe Test');
     await page.getByPlaceholder('Jl. Contoh No. 1, Jakarta').fill('Alamat sementara');
-    await page.locator('form').getByRole('button', { name: 'Tambah Outlet', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Tambah Outlet', exact: true }).getByRole('button', { name: 'Tambah Outlet', exact: true }).click();
     await page.getByRole('heading', { name: 'Tambah Outlet', exact: true }).waitFor({ state: 'hidden' });
     assert.match(await page.locator('main').innerText(), /Route Cafe Test/);
-    await navigate(page, 'Karyawan', '/demo/owner/employees');
+    await navigate(page, 'Laporan', '/demo/owner/reports');
     await navigate(page, 'Outlet', '/demo/owner/outlets');
     assert.match(await page.locator('main').innerText(), /Route Cafe Test/);
     await page.goBack();
-    await page.waitForURL('**/demo/owner/employees');
+    await page.waitForURL('**/demo/owner/reports');
     await page.goForward();
     await page.waitForURL('**/demo/owner/outlets');
     await page.getByText('Route Cafe Test', { exact: true }).filter({ visible: true }).waitFor();
@@ -204,6 +204,9 @@ try {
     assert.ok(!env.requests.some(request => /owner\/(?:outlets|products)\/page-/.test(request.url)), 'Dashboard must not load feature page bundles');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: /Lainnya/ }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'Pengaturan', exact: true }).click();
+    await page.waitForURL('**/demo/owner/settings');
+    await page.getByRole('heading', { name: 'Menu Lainnya', exact: true }).waitFor({ state: 'hidden' });
     await page.getByRole('link', { name: 'Outlet', exact: true }).filter({ visible: true }).click();
     await page.waitForURL('**/demo/owner/outlets');
     await page.getByRole('heading', { name: 'Menu Lainnya', exact: true }).waitFor({ state: 'hidden' });

@@ -13,7 +13,7 @@ import { deductStockForOrder } from "@rakku/inventory";
 import { sql } from "@rakku/db";
 import type { SplitPayment } from "@rakku/shared-types";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getTenantSessionFromCookies();
 
   if (!session) {
@@ -21,6 +21,13 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
+
+  if (request.nextUrl.searchParams.get("count_only") === "1") {
+    const result = await supabase.from("orders").select("id", { count: "exact", head: true })
+      .eq("company_id", session.company_id).eq("outlet_id", session.outlet_id).eq("status", "draft");
+    if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+    return NextResponse.json({ count: result.count ?? 0 }, { headers: { "Cache-Control": "private, no-store" } });
+  }
 
   const { data, error } = await supabase
     .from("orders")

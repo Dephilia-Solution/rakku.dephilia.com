@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   Tax,
   ProductDiscount,
@@ -9,20 +10,26 @@ import {
 import {
   Tabs,
   Badge,
-  Toggle,
 } from "@rakku/ui";
-import { useMerchantRequest, useMerchantToast } from "@/lib/merchant-runtime";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import TaxFormSlideOver from "@/components/charges/TaxFormSlideOver";
-import DiscountFormSlideOver from "@/components/charges/DiscountFormSlideOver";
+import { OwnerEmpty, OwnerError, OwnerSection, OwnerSkeleton } from "@/components/ui/OwnerPrimitives";
 import {
   Plus,
   Pencil,
   Trash2,
-  Percent,
-  Landmark,
-  Loader2,
 } from "lucide-react";
+
+const editorLoading = () => <OwnerSkeleton rows={2} />;
+const TaxFormSlideOver = dynamic(() => import("@/components/charges/TaxFormSlideOver"), { loading: editorLoading });
+const DiscountFormSlideOver = dynamic(() => import("@/components/charges/DiscountFormSlideOver"), { loading: editorLoading });
+const iconClass = "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors";
+
+function ChargeToggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: () => void; label: string; disabled: boolean }) {
+  return <button type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={onChange} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg disabled:opacity-50">
+    <span aria-hidden="true" className={`inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors ${checked ? "bg-primary" : "bg-surface-container-high"}`}><span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`} /></span>
+  </button>;
+}
 
 type TabKey = "pajak" | "produk" | "order";
 
@@ -41,12 +48,15 @@ function formatValue(type: "percentage" | "fixed", value: number) {
 export default function OutletChargesSection({ outletId, initialTab }: Props) {
   const request = useMerchantRequest();
   const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const [tab, setTab] = useState<TabKey>(initialTab === "produk" || initialTab === "order" ? initialTab : "pajak");
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [productDiscounts, setProductDiscounts] = useState<ProductDiscount[]>([]);
   const [orderDiscounts, setOrderDiscounts] = useState<OrderDiscount[]>([]);
   const [productNames, setProductNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const [showTaxForm, setShowTaxForm] = useState(false);
   const [editingTax, setEditingTax] = useState<Tax | null>(null);
@@ -60,11 +70,13 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
   } | null>(null);
 
   const fetchData = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     if (!outletId) {
       setLoading(false);
       return;
     }
     setLoading(true);
+    setLoadError(null);
     try {
       const q = `outlet_id=${encodeURIComponent(outletId)}`;
       const [taxRes, discRes, prodRes] = await Promise.all([
@@ -72,31 +84,37 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
         request(`/api/owner/discounts?${q}`, { signal }),
         request(`/api/owner/products?${q}`, { signal }),
       ]);
+      for (const response of [taxRes, discRes, prodRes]) {
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Gagal memuat pajak dan diskon");
+        }
+      }
       if (taxRes.ok) {
         const data = await taxRes.json();
-        if (signal?.aborted) return;
+        if (signal?.aborted || isActive?.() === false) return;
         setTaxes(data.taxes ?? []);
       }
       if (discRes.ok) {
         const data = await discRes.json();
-        if (signal?.aborted) return;
+        if (signal?.aborted || isActive?.() === false) return;
         setProductDiscounts(data.productDiscounts ?? []);
         setOrderDiscounts(data.orderDiscounts ?? []);
       }
       if (prodRes.ok) {
         const data = await prodRes.json();
-        if (signal?.aborted) return;
+        if (signal?.aborted || isActive?.() === false) return;
         const names: Record<string, string> = {};
         for (const p of data.products ?? []) names[p.id] = p.name;
         setProductNames(names);
       }
-    } catch {
-      if (signal?.aborted) return;
-      showToast("error", "Gagal memuat data");
+    } catch (error) {
+      if (signal?.aborted || isActive?.() === false) return;
+      setLoadError(error instanceof Error ? error.message : "Gagal memuat pajak dan diskon. Silakan coba lagi.");
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId, request, showToast]);
+  }, [outletId, request, isActive]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,12 +133,15 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
   };
 
   const handleToggleTax = async (tax: Tax) => {
+    if (busyId || isActive?.() === false) return;
+    setBusyId(tax.id);
     try {
       const res = await request(`/api/owner/taxes/${tax.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !tax.is_active }),
       });
+      if (isActive?.() === false) return;
       if (res.ok) {
         setTaxes((prev) =>
           prev.map((t) =>
@@ -131,9 +152,16 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           "success",
           `${tax.name} ${tax.is_active ? "dinonaktifkan" : "diaktifkan"}`
         );
+      } else {
+        const data = await res.json();
+        if (isActive?.() === false) return;
+        showToast("error", data.error ?? "Gagal mengubah status");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal mengubah status");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -141,6 +169,8 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
     discount: ProductDiscount | OrderDiscount,
     scope: "product" | "order"
   ) => {
+    if (busyId || isActive?.() === false) return;
+    setBusyId(discount.id);
     try {
       const res = await request(
         `/api/owner/discounts/${discount.id}?scope=${scope}`,
@@ -150,6 +180,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           body: JSON.stringify({ is_active: !discount.is_active }),
         }
       );
+      if (isActive?.() === false) return;
       if (res.ok) {
         if (scope === "product") {
           setProductDiscounts((prev) =>
@@ -168,14 +199,21 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           "success",
           `${discount.name} ${discount.is_active ? "diblokir" : "diizinkan"}`
         );
+      } else {
+        const data = await res.json();
+        if (isActive?.() === false) return;
+        showToast("error", data.error ?? "Gagal mengubah status");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal mengubah status");
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleDelete = async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || isActive?.() === false) return;
     const { id, kind } = pendingDelete;
     try {
       const url =
@@ -183,14 +221,17 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           ? `/api/owner/taxes/${id}`
           : `/api/owner/discounts/${id}?scope=${kind}`;
       const res = await request(url, { method: "DELETE" });
+      if (isActive?.() === false) return;
       if (res.ok) {
         showToast("success", "Berhasil dihapus");
         void fetchData();
       } else {
         const data = await res.json();
+        if (isActive?.() === false) return;
         showToast("error", data.error ?? "Gagal menghapus");
       }
     } catch {
+      if (isActive?.() === false) return;
       showToast("error", "Gagal menghapus");
     }
   };
@@ -205,32 +246,28 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
   ) => {
     if (list.length === 0) {
       return (
-        <div className="text-center py-12 text-on-surface-variant text-sm bg-surface-container-lowest rounded-xl">
-          <Percent size={32} className="mx-auto mb-2 opacity-50" />
-          Belum ada {scope === "product" ? "diskon produk" : "diskon pesanan"}.
-          Klik &quot;Tambah&quot; untuk memulai.
-        </div>
+        <OwnerEmpty title={`Belum ada ${scope === "product" ? "diskon produk" : "diskon pesanan"}`} description="Tambahkan diskon dan tentukan periode berlakunya di kasir." action={<button type="button" onClick={handleAdd} className="owner-button owner-button--primary"><Plus size={16} />Tambah Diskon</button>} />
       );
     }
     return (
-      <div className="space-y-2">
+      <div className="grid gap-3">
         {list.map((d) => {
           const active = inPeriod(d.start_date, d.end_date);
           return (
             <div
               key={d.id}
-              className="bg-surface-container-lowest rounded-xl p-4 flex items-center justify-between gap-3"
+              className="min-w-0 rounded-xl border border-surface-container p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-on-surface">
+                  <p className="text-sm font-semibold text-on-surface break-words">
                     {d.name}
                   </p>
                   <Badge variant={active ? "active" : "inactive"}>
-                    {active ? "Berjalan" : "Kadaluarsa"}
+                    {active ? "Berjalan" : now < new Date(d.start_date) ? "Terjadwal" : "Kadaluarsa"}
                   </Badge>
                 </div>
-                <p className="text-xs text-on-surface-variant font-mono mt-0.5">
+                <p className="text-sm text-on-surface tabular-nums mt-2 break-words">
                   {formatValue(d.type, d.value)}
                   {scope === "product" &&
                     (d as ProductDiscount).product_id &&
@@ -239,16 +276,18 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
                       "Produk"
                     }`}
                 </p>
-                <p className="text-[10px] text-on-surface-variant mt-0.5">
+                <p className="text-xs text-on-surface-variant mt-1">
                   {new Date(d.start_date).toLocaleDateString("id-ID")} —{" "}
                   {new Date(d.end_date).toLocaleDateString("id-ID")}
                 </p>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Toggle
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-surface-container pt-2 lg:shrink-0 lg:border-0 lg:pt-0">
+                <span className="mr-auto text-xs text-on-surface-variant lg:mr-1">{d.is_active ? "Diizinkan" : "Diblokir"}</span>
+                <ChargeToggle
                   checked={d.is_active}
                   onChange={() => handleToggleDiscount(d, scope)}
-                  ariaLabel={`Status ${d.name}`}
+                  label={`Status ${d.name}`}
+                  disabled={!!busyId}
                 />
                 <button
                   type="button"
@@ -257,7 +296,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
                     setShowDiscountForm(true);
                   }}
                   aria-label={`Edit ${d.name}`}
-                  className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                  className={iconClass}
                 >
                   <Pencil size={18} />
                 </button>
@@ -265,7 +304,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
                   type="button"
                   onClick={() => setPendingDelete({ id: d.id, kind: scope })}
                   aria-label={`Hapus ${d.name}`}
-                  className="p-2 text-error hover:bg-error-container/20 rounded-full transition-colors"
+                  className={`${iconClass} text-error`}
                 >
                   <Trash2 size={18} />
                 </button>
@@ -278,25 +317,18 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
   };
 
   return (
-    <div className="space-y-5">
-      {/* Section header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-on-surface">Pajak & Diskon</h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            Atur pajak dan diskon yang berlaku di kasir outlet ini.
-          </p>
-        </div>
+    <OwnerSection title="Pajak & Diskon" description="Atur pajak dan diskon yang berlaku di kasir outlet ini." actions={
         <button
           type="button"
           onClick={handleAdd}
-          className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-on-primary shadow-md shadow-primary/20 flex items-center gap-1.5 hover:bg-primary/90 transition-all"
+          className="owner-button owner-button--primary"
         >
           <Plus size={14} />
-          Tambah
+          {tab === "pajak" ? "Tambah Pajak" : "Tambah Diskon"}
         </button>
-      </div>
+      }>
 
+      <div className="mb-5 max-w-full overflow-x-auto pb-1">
       <Tabs
         active={tab}
         onChange={(k) => setTab(k as TabKey)}
@@ -306,44 +338,44 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           { key: "order", label: "Diskon Pesanan", count: orderDiscounts.length },
         ]}
       />
+      </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-on-surface-variant">
-          <Loader2 size={28} className="animate-spin" />
-        </div>
+        <OwnerSkeleton />
+      ) : loadError ? (
+        <OwnerError message={loadError} retry={() => void fetchData()} />
       ) : (
         <>
           {tab === "pajak" &&
             (taxes.length === 0 ? (
-              <div className="text-center py-12 text-on-surface-variant text-sm bg-surface-container-lowest rounded-xl">
-                <Landmark size={32} className="mx-auto mb-2 opacity-50" />
-                Belum ada pajak. Klik &quot;Tambah&quot; untuk memulai.
-              </div>
+              <OwnerEmpty title="Belum ada pajak" description="Tambahkan pajak dan atur urutan penerapannya pada transaksi." action={<button type="button" onClick={handleAdd} className="owner-button owner-button--primary"><Plus size={16} />Tambah Pajak</button>} />
             ) : (
-              <div className="space-y-2">
+              <div className="grid gap-3">
                 {taxes.map((tax) => (
                   <div
                     key={tax.id}
-                    className="bg-surface-container-lowest rounded-xl p-4 flex items-center justify-between gap-3"
+                    className="min-w-0 rounded-xl border border-surface-container p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-on-surface">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-on-surface break-words">
                           {tax.name}
                         </p>
-                        <Badge variant="info">
+                        <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
                           {formatValue(tax.type, tax.value)}
-                        </Badge>
+                        </span>
                       </div>
                       <p className="text-xs text-on-surface-variant mt-0.5">
                         Urutan: {tax.sort_order}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Toggle
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-surface-container pt-2 lg:shrink-0 lg:border-0 lg:pt-0">
+                      <span className="mr-auto text-xs text-on-surface-variant lg:mr-1">{tax.is_active ? "Aktif" : "Nonaktif"}</span>
+                      <ChargeToggle
                         checked={tax.is_active}
                         onChange={() => handleToggleTax(tax)}
-                        ariaLabel={`Status ${tax.name}`}
+                        label={`Status ${tax.name}`}
+                        disabled={!!busyId}
                       />
                       <button
                         type="button"
@@ -352,7 +384,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
                           setShowTaxForm(true);
                         }}
                         aria-label={`Edit ${tax.name}`}
-                        className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                        className={iconClass}
                       >
                         <Pencil size={18} />
                       </button>
@@ -362,7 +394,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
                           setPendingDelete({ id: tax.id, kind: "tax" })
                         }
                         aria-label={`Hapus ${tax.name}`}
-                        className="p-2 text-error hover:bg-error-container/20 rounded-full transition-colors"
+                        className={`${iconClass} text-error`}
                       >
                         <Trash2 size={18} />
                       </button>
@@ -377,7 +409,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
         </>
       )}
 
-      <TaxFormSlideOver
+      {showTaxForm && <TaxFormSlideOver
         open={showTaxForm}
         onClose={() => {
           setShowTaxForm(false);
@@ -390,8 +422,8 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           setEditingTax(null);
           void fetchData();
         }}
-      />
-      <DiscountFormSlideOver
+      />}
+      {showDiscountForm && <DiscountFormSlideOver
         open={showDiscountForm}
         onClose={() => {
           setShowDiscountForm(false);
@@ -405,7 +437,7 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
           setEditingDiscount(null);
           void fetchData();
         }}
-      />
+      />}
       <ConfirmDialog
         isOpen={!!pendingDelete}
         onClose={() => setPendingDelete(null)}
@@ -416,6 +448,6 @@ export default function OutletChargesSection({ outletId, initialTab }: Props) {
         title={pendingDelete?.kind === "tax" ? "Hapus Pajak" : "Hapus Diskon"}
         message="Apakah kamu yakin ingin menghapus item ini? Tindakan ini tidak dapat dibatalkan."
       />
-    </div>
+    </OwnerSection>
   );
 }

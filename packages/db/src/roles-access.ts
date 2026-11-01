@@ -23,7 +23,7 @@ function validateScope(companyId: string, roleId: string) {
 }
 
 // A single statement snapshot keeps grants and revision consistent, including
-// raw DB writes. Return explicit flags even when can_view=false (runtime denies).
+// raw DB writes. Persisted grants are all-on or all-off for the entire menu.
 export async function getRoleGrants(db: DatabaseClient, companyId: string, roleId: string): Promise<RoleGrants> {
   validateScope(companyId, roleId);
   const [row] = await db.execute(sql`select r.grants_revision::text as revision,
@@ -45,13 +45,13 @@ function validateGrants(value: unknown): RoleGrant[] {
     const g = entry as Record<string, unknown>;
     if (!validId(g.menu_id) || flags.some(flag => typeof g[flag] !== "boolean")
       || Object.keys(g).some(key => key !== "menu_id" && !flags.includes(key as typeof flags[number]))) {
-      throw new RoleAccessError("INVALID_GRANTS", "Setiap grant wajib memiliki menu_id dan boolean V/C/E/D eksplisit", 400);
+      throw new RoleAccessError("INVALID_GRANTS", "Setiap grant wajib memiliki menu_id dan boolean izin yang valid", 400);
     }
     const menu_id = g.menu_id.toLowerCase();
     if (seen.has(menu_id)) throw new RoleAccessError("DUPLICATE_MENU", "Menu duplikat", 400);
     seen.add(menu_id);
-    if (!g.can_view && (g.can_create || g.can_edit || g.can_delete)) {
-      throw new RoleAccessError("VIEW_REQUIRED", "Create/edit/delete memerlukan view. Tinjau flag legacy secara eksplisit sebelum menyimpan", 400);
+    if (flags.some(flag => g[flag] !== g.can_view)) {
+      throw new RoleAccessError("ALL_OR_NONE_REQUIRED", "Akses setiap menu harus penuh atau nonaktif; semua izin harus bernilai sama", 400);
     }
     return { menu_id, can_view: g.can_view as boolean, can_create: g.can_create as boolean,
       can_edit: g.can_edit as boolean, can_delete: g.can_delete as boolean };
@@ -129,11 +129,10 @@ export async function deleteRole(db: DatabaseClient, companyId: string, roleId: 
 
 // ONLY for new onboarding, never infer privileges for existing roles by name.
 const full = { can_view: true, can_create: true, can_edit: true, can_delete: true };
-const view = { can_view: true, can_create: false, can_edit: false, can_delete: false };
 export const ONBOARDING_GRANTS = {
   owner: { register: full, orders: full, reports: full, products: full, "tax-discounts": full,
     ingredients: full, purchases: full, expenses: full, tables: full, taxes: full, discounts: full },
-  kasir: { register: full, orders: { ...full, can_create: false }, reports: view, "tax-discounts": view },
+  kasir: { register: full, orders: full, reports: full, "tax-discounts": full },
 } as const;
 export function onboardingRoleGrants(kind: keyof typeof ONBOARDING_GRANTS, menus: { id: string; slug: string }[]): RoleGrant[] {
   const policy: Record<string, Omit<RoleGrant, "menu_id">> = ONBOARDING_GRANTS[kind];

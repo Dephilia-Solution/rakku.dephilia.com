@@ -34,6 +34,9 @@ jobs:
       - run: pnpm test:observability
       - run: pnpm test:provider
       - run: pnpm test:db
+      - run: pnpm test:owner-import
+      - run: pnpm test:owner-cache
+      - run: pnpm test:reporting-dates
       - run: pnpm test:demo
       - run: pnpm build:isolated owner pos superadmin landing
         env:

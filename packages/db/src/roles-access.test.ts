@@ -30,7 +30,7 @@ let originalRows: Row[];
 let menus: { id: string; slug: string }[];
 const actor = { kind: "owner" as const, id: randomUUID() };
 const grant = (menu_id: string, flags: Partial<RoleGrant> = {}): RoleGrant =>
-  ({ menu_id, can_view: true, can_create: false, can_edit: false, can_delete: false, ...flags });
+  ({ menu_id, can_view: true, can_create: true, can_edit: true, can_delete: true, ...flags });
 async function role(name: string = randomUUID()) {
   const [row] = await execute(sql`insert into public.roles(company_id,name) values (${companyId},${name}) returning id`);
   return String(row.id);
@@ -81,7 +81,7 @@ before(async () => {
 });
 after(() => pg.close());
 
-test("0009 snapshots ALL flags including NULL, normalizes only NULL, and does not revoke for normalization", async () => {
+test("0009 snapshots legacy grants; 0018 maps visible menus to full access and enforces all-or-none", async () => {
   const snapshot = await execute(sql`select role_id,menu_id,can_view,can_create,can_edit,can_delete
     from app_private.role_grants_0009_snapshot order by role_id,menu_id`);
   assert.deepEqual(snapshot, originalRows);
@@ -94,6 +94,26 @@ test("0009 snapshots ALL flags including NULL, normalizes only NULL, and does no
   assert.equal(result.grants.length, 18);
   assert.ok(result.grants.some(g => !g.can_view && g.can_create));
   assert.equal((await audits(legacyRole)).length, 0);
+
+  await pg.transaction(async tx => {
+    await tx.exec(readFileSync(new URL("../migrations/0018_role_access_all_or_none.sql", import.meta.url), "utf8"));
+  });
+  const collapsed = await current(legacyRole);
+  assert.ok(BigInt(collapsed.revision) > 0n);
+  const expected: RoleGrant[] = originalRows.map(row => {
+    const enabled = row.can_view === true;
+    return { menu_id: String(row.menu_id), can_view: enabled, can_create: enabled, can_edit: enabled, can_delete: enabled };
+  }).filter(grant => grant.menu_id);
+  assert.deepEqual(collapsed.grants, expected.sort((a, b) => a.menu_id.localeCompare(b.menu_id)));
+  const migrationSnapshot = await execute(sql`select role_id,company_id,menu_id,can_view,can_create,can_edit,can_delete
+    from app_private.role_grants_0018_snapshot order by role_id,menu_id`);
+  const snapshotExpected = originalRows.map(row => ({ role_id: row.role_id, company_id: companyId,
+    menu_id: row.menu_id, can_view: row.can_view === true, can_create: row.can_create === true,
+    can_edit: row.can_edit === true, can_delete: row.can_delete === true }));
+  assert.deepEqual(migrationSnapshot, snapshotExpected);
+  assert.equal(await isSessionActive(db, legacySession, "pos", legacyUser), false);
+  await assert.rejects(() => execute(sql`update public.role_menu_access set can_create = not can_view
+    where role_id=${legacyRole} and menu_id=${collapsed.grants[0].menu_id}`));
 });
 
 test("new DB flags default false and reject NULL without erasing legacy explicit grants", async () => {
@@ -111,7 +131,7 @@ test("full replacement returns canonical grants/revision, audits before/after an
   const other = await user(await role());
   const sessions = await Promise.all([uid,uid2,other].map(subject => issueSession(db, "pos", subject, 3600)));
   const ownerSession = await issueSession(db, "owner", uid, 3600);
-  const first = await save(id, [grant(menus[1].id, { can_edit: true, can_delete: true }), grant(menus[0].id, { can_create: true })]);
+  const first = await save(id, [grant(menus[1].id), grant(menus[0].id)]);
   assert.deepEqual(first, await current(id));
   assert.ok(BigInt(first.revision) > 0n);
   assert.equal(await isSessionActive(db, sessions[0], "pos", uid), false);
@@ -126,7 +146,7 @@ test("full replacement returns canonical grants/revision, audits before/after an
   assert.equal(audit[0].after_revision, first.revision);
   assert.equal(audit[0].actor_id, actor.id);
   const second = await save(id, [grant(menus[0].id)]);
-  assert.deepEqual(second.grants, [grant(menus[0].id)]); // omitted menu removed, CRUD not inferred
+  assert.deepEqual(second.grants, [grant(menus[0].id)]); // omitted menu removed; active menu always has full access
   const cleared = await save(id, []);
   assert.deepEqual(cleared.grants, []);
   assert.equal((await audits(id)).length, 3);
@@ -154,9 +174,9 @@ test("stale revision rejects full replacement without clearing flags, auditing o
   assert.equal(await isSessionActive(db, session, "pos", uid), true);
 });
 
-test("ownership, unknown menus, duplicates, nonboolean/missing flags, legacy writes and view prerequisite fail closed", async () => {
+test("ownership, unknown menus, duplicates, nonboolean/missing flags and partial grants fail closed", async () => {
   const id = await role();
-  const first = await save(id, [grant(menus[0].id, { can_edit: true })]);
+  const first = await save(id, [grant(menus[0].id)]);
   const input = { companyId, roleId: id, grants: first.grants, expectedRevision: first.revision, actor };
   await assert.rejects(() => getRoleGrants(db, otherCompany, id), errorCode("ROLE_NOT_FOUND"));
   await assert.rejects(() => saveRoleGrants(db, { ...input, companyId: otherCompany }), errorCode("ROLE_NOT_FOUND"));
@@ -167,14 +187,14 @@ test("ownership, unknown menus, duplicates, nonboolean/missing flags, legacy wri
   }
   await assert.rejects(() => saveRoleGrants(db, { ...input, grants: undefined }), errorCode("INVALID_GRANTS"));
   await assert.rejects(() => saveRoleGrants(db, { ...input, expectedRevision: undefined }), errorCode("REVISION_REQUIRED"));
-  await assert.rejects(() => save(id, [grant(menus[0].id, { can_view: false, can_create: true })]), errorCode("VIEW_REQUIRED"));
+  await assert.rejects(() => save(id, [grant(menus[0].id, { can_create: false })]), errorCode("ALL_OR_NONE_REQUIRED"));
   assert.deepEqual(await current(id), first);
   assert.equal((await audits(id)).length, 1);
 });
 
 test("late audit failure rolls back grant deletion/insertion, revision and session revocation together", async () => {
   const id = await role();
-  const first = await save(id, [grant(menus[0].id, { can_create: true })]);
+  const first = await save(id, [grant(menus[0].id)]);
   const uid = await user(id);
   const session = await issueSession(db, "pos", uid, 3600);
   await pg.exec(`CREATE FUNCTION app_private.reject_rbac_audit() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -196,8 +216,10 @@ test("raw grant insert/update/delete invalidate in-transaction; raw no-op and ro
     const session = await issueSession(db, "pos", uid, 3600);
     const before = await current(id);
     await db.transaction(async tx => {
-      if (action === "insert") await tx.execute(sql`insert into public.role_menu_access(role_id,menu_id,can_view) values (${id},${menus[0].id},true)`);
-      if (action === "update") await tx.execute(sql`update public.role_menu_access set can_edit=true where role_id=${id}`);
+      if (action === "insert") await tx.execute(sql`insert into public.role_menu_access(role_id,menu_id,can_view,can_create,can_edit,can_delete)
+        values (${id},${menus[0].id},true,true,true,true)`);
+      if (action === "update") await tx.execute(sql`update public.role_menu_access
+        set can_view=false,can_create=false,can_edit=false,can_delete=false where role_id=${id}`);
       if (action === "delete") await tx.execute(sql`delete from public.role_menu_access where role_id=${id}`);
       assert.equal(await isSessionActive(tx, session, "pos", uid), false);
     });
@@ -252,15 +274,15 @@ test("role delete checks ownership/in-use and rolls back grants when the final d
   assert.equal((await audits(unused)).length, 1); // audit survives role deletion
 });
 
-test("onboarding has explicit per-slug Owner/Kasir defaults; unknown future menus stay ungranted", async () => {
+test("onboarding has explicit full-access per-menu Owner/Kasir defaults; unknown future menus stay ungranted", async () => {
   const owner = onboardingRoleGrants("owner", menus);
   assert.equal(owner.length, 11);
   assert.ok(owner.every(g => g.can_view && g.can_create && g.can_edit && g.can_delete));
   const kasir = onboardingRoleGrants("kasir", menus);
   assert.equal(kasir.length, 4);
   const bySlug = (slug: string) => kasir.find(g => g.menu_id === menus.find(m => m.slug === slug)?.id);
-  assert.deepEqual(bySlug("register"), grant(menus[0].id, { can_create: true, can_edit: true, can_delete: true }));
-  assert.deepEqual(bySlug("orders"), grant(menus[1].id, { can_edit: true, can_delete: true }));
+  assert.deepEqual(bySlug("register"), grant(menus[0].id));
+  assert.deepEqual(bySlug("orders"), grant(menus[1].id));
   assert.deepEqual(bySlug("reports"), grant(menus[2].id));
   assert.deepEqual(bySlug("tax-discounts"), grant(menus[4].id));
   assert.equal(owner.some(g => g.menu_id === menus[11].id), false);
@@ -272,15 +294,18 @@ test("private snapshot/audit enforce RLS even with SELECT grants and same-compan
   await pg.exec(`CREATE ROLE rbac_tenant_test;
     GRANT USAGE ON SCHEMA app_private TO rbac_tenant_test;
     GRANT EXECUTE ON FUNCTION app_private.platform() TO rbac_tenant_test;
-    GRANT SELECT ON app_private.role_grants_0009_snapshot,app_private.role_grants_audit TO rbac_tenant_test`);
+    GRANT SELECT ON app_private.role_grants_0009_snapshot,app_private.role_grants_0018_snapshot,app_private.role_grants_audit TO rbac_tenant_test`);
   await pg.transaction(async tx => {
     await tx.exec("SET LOCAL ROLE rbac_tenant_test");
-    await executor(tx)(sql`select set_config('app.scope','tenant',true),set_config('app.company_id',${companyId},true)`);
-    assert.deepEqual((await tx.query("select * from app_private.role_grants_0009_snapshot")).rows, []);
-    assert.deepEqual((await tx.query("select * from app_private.role_grants_audit")).rows, []);
+      await executor(tx)(sql`select set_config('app.scope','tenant',true),set_config('app.company_id',${companyId},true)`);
+      assert.deepEqual((await tx.query("select * from app_private.role_grants_0009_snapshot")).rows, []);
+      assert.deepEqual((await tx.query("select * from app_private.role_grants_0018_snapshot")).rows, []);
+      assert.deepEqual((await tx.query("select * from app_private.role_grants_audit")).rows, []);
   });
   const protection = await execute(sql`select relrowsecurity,relforcerowsecurity,
     not exists(select 1 from aclexplode(relacl) a where a.grantee=0) as public_revoked
-    from pg_class where oid in ('app_private.role_grants_0009_snapshot'::regclass,'app_private.role_grants_audit'::regclass)`);
+    from pg_class where oid in ('app_private.role_grants_0009_snapshot'::regclass,'app_private.role_grants_0018_snapshot'::regclass,
+      'app_private.role_grants_audit'::regclass)`);
+  assert.equal(protection.length, 3);
   assert.ok(protection.every(r => r.relrowsecurity && r.relforcerowsecurity && r.public_revoked));
 });

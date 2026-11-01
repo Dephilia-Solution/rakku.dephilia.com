@@ -42,9 +42,11 @@ export function useOutletScope(): OutletScopeContextValue {
  */
 export default function OutletScopeProvider({
   initialOutlets,
+  preferenceScope,
   children,
 }: {
   initialOutlets: OwnerDashboardOutlet[];
+  preferenceScope: string;
   children: React.ReactNode;
 }) {
   const request = useMerchantRequest();
@@ -52,6 +54,7 @@ export default function OutletScopeProvider({
   const runtime = useMerchantRuntime();
   const isActive = runtime?.active;
   const isDemo = Boolean(runtime);
+  const storageKey = `${ACTIVE_OUTLET_STORAGE_KEY}:${preferenceScope}`;
   const [outlets, setOutlets] = useState(initialOutlets);
   const [previousInitial, setPreviousInitial] = useState(initialOutlets);
   if (previousInitial !== initialOutlets) {
@@ -63,12 +66,12 @@ export default function OutletScopeProvider({
 
   useEffect(() => {
     try {
-      setRawActiveId(isDemo ? null : window.localStorage.getItem(ACTIVE_OUTLET_STORAGE_KEY));
+      setRawActiveId(isDemo ? null : window.localStorage.getItem(storageKey));
     } catch {
       setRawActiveId(null);
     }
     setHydrated(true);
-  }, [isDemo]);
+  }, [isDemo, storageKey]);
 
   const activeOutletId = useMemo(() => {
     if (hydrated && rawActiveId && outlets.some((o) => o.id === rawActiveId)) {
@@ -82,14 +85,14 @@ export default function OutletScopeProvider({
     if (isDemo) return;
     try {
       if (id) {
-        window.localStorage.setItem(ACTIVE_OUTLET_STORAGE_KEY, id);
+        window.localStorage.setItem(storageKey, id);
       } else {
-        window.localStorage.removeItem(ACTIVE_OUTLET_STORAGE_KEY);
+        window.localStorage.removeItem(storageKey);
       }
     } catch {
       // Storage bisa gagal (private mode / kuota); pilihan tetap bekerja untuk sesi ini.
     }
-  }, [isDemo]);
+  }, [isDemo, storageKey]);
 
   const refreshOutlets = useCallback(async () => {
     if (isActive?.() === false) return;

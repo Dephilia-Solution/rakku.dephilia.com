@@ -28,6 +28,7 @@ export default function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 ${
                 active
                   ? "text-primary"
@@ -46,6 +47,7 @@ export default function BottomNav() {
         })}
 
         <button
+          type="button" aria-expanded={showMore} aria-label="Lainnya"
           onClick={() => setShowMore(true)}
           className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-on-surface-variant hover:text-on-surface`}
         >

@@ -37,7 +37,7 @@ Company **Rakku Demo Cafe** (`DEMO_CAFE`), Owner **Owner Demo Rakku**, email `ow
 | Rakku Demo Cafe — Pusat | Jl. Contoh Raya No. 10 | Rani / `rani_pusat` / Manager Outlet / `111111`; Bima / `bima_pusat` / Kasir / `222222` |
 | Rakku Demo Cafe — Taman | Jl. Contoh Taman No. 25 | Dita / `dita_taman` / Manager Outlet / `333333`; Raka / `raka_taman` / Kasir / `444444` |
 
-Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS dengan CRUD penuh; Kasir memiliki Register (CRUD), Orders (view/edit/delete), Reports dan Tax & Discounts (view-only). Role, grant V/C/E/D, revision, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
+Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS dengan akses penuh; Kasir memiliki akses penuh ke Register, Orders, Reports, dan Tax & Discounts. Setiap menu memakai satu checkbox akses penuh; Role, revision, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
 
 Setiap outlet mempunyai sepuluh produk, tiga kategori, empat tier, 15 bahan, delapan meja, 60 order completed dalam 30 hari, dua draft, satu pending QRIS, satu cancelled, empat pembelian multi-item, enam pengeluaran, dua opname. Produk: Espresso, Americano, Cappuccino, Caffe Latte, Kopi Susu Gula Aren, Matcha Latte, Chocolate Latte, Lemon Tea, Butter Croissant, French Fries. Harga/BOM/unit menggunakan `packages/demo/src/fixture.ts`.
 
@@ -120,9 +120,19 @@ Subscription invoice/retry/expiry/aktivasi/renewal di memori mengikuti period/gr
 
 Upload JPG/PNG/WebP maksimum 2 MiB disimpan melalui object URL terdaftar di sandbox, tidak ke Silos/Sharp/server. Seed assets tidak terhapus oleh remove image. Public QR mengarah ke dua outlet fixture awal di origin Owner, tidak membawa generation/session capability. Produk/resep/cost/PIN/internal stock tidak menjadi payload menu publik.
 
-Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Editor role demo memakai kontrak grant `{ grants, revision }` yang sama dengan produksi. Dispatcher POS demo masih mensimulasikan visibilitas menu dan belum menegakkan seluruh capability V/C/E/D; enforcement produksi ada di server POS dan tidak dibuktikan oleh demo.
+Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Editor role demo memakai kontrak grant `{ grants, revision }` yang sama dengan produksi dan menormalkan seluruh capability sesuai checkbox penuh/nonaktif. Dispatcher POS demo mensimulasikan akses per menu; enforcement request produksi tetap dilakukan oleh server POS.
 
 ## Pengujian
+
+### Dashboard dan import Owner terbaru
+
+Dashboard demo memakai analitik periode WIB dan filter outlet yang sama dengan presentasi merchant: completed orders, tren harian, produk terlaris, metode utama pembayaran, bahan menipis, dan pembelian. Angka fixture dihasilkan dari state sandbox; tidak ada query Neon.
+
+Panel import asli kini aktif pada demo, termasuk unduhan template/contoh terisi, unggah XLSX, preview nilai/error, konflik kode, persetujuan kategori, konfirmasi atomik, replay, serta riwayat di memori. Produk v2 memetakan tier melalui UUID surrogate yang hanya berlaku pada generasi sandbox; template generasi/outlet lain ditolak. ZIP gambar dibaca lokal dan dikonversi WebP memakai decoder/Canvas browser; tidak mengakses Silos atau server upload. Template pembelian mensimulasikan beberapa transaksi dan deduplikasi referensi, tanpa menggandakan stok.
+
+Parsing spreadsheet dimuat dinamis pada pemakaian import pertama. Reset/logout/refresh membuang batch, receipt, dan gambar lokal. PIN import tidak muncul di preview, history, atau snapshot publik. Harga katalog dua desimal tetap dipertahankan hingga pembulatan final rupiah saat checkout.
+
+`node packages/demo/e2e/run-production.mjs --owner-upgrade --isolated-build` menambahkan pemeriksaan dashboard, viewport 360–1920px, sheet/fokus/Back, XLSX+ZIP gambar, pembelian massal, serta emulasi sentuh iPhone/Android/iPad. Prasyarat build, port loopback, dan Playwright mengikuti runner routed. Rincian kontrak serta batas verifikasi ada di [OWNER_UPGRADE.md](OWNER_UPGRADE.md).
 
 ```powershell
 pnpm test:demo

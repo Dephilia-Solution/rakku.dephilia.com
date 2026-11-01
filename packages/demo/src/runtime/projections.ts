@@ -1,8 +1,9 @@
-import type { Menu, OwnerDashboardEmployee, OwnerDashboardOutlet } from "@rakku/shared-types";
+import type { Menu, OwnerDashboardAnalytics, OwnerDashboardEmployee, OwnerDashboardOutlet, OwnerDashboardQuery } from "@rakku/shared-types";
 import type { DemoSandbox } from "../engine";
 import { clone, deepFreeze, discountActive, fail, find } from "../business";
 import { DEMO_MENUS, demoMenuId } from "../constants";
 import { roleGrants, roleRevision } from "../access";
+import { aggregateDemoOwnerDashboard } from "./owner-dashboard";
 export { demoMenuId } from "../constants";
 
 const menuNames = ["Kasir", "Pesanan", "Laporan", "Produk", "Pajak & Diskon", "Bahan Baku", "Meja", "Pengeluaran", "Pembelian"];
@@ -76,5 +77,9 @@ export function getOwnerDashboardData(sandbox: DemoSandbox) {
   const completed = view.orders.filter(row => row.status === "completed");
   return { owner: view.owner, session: view.owner, outlets: view.outlets, employees: view.employees, totalRevenue: completed.reduce((sum, row) => sum + row.total_price, 0), totalTransactions: completed.length,
     activeOutlets: view.outlets.filter(row => row.status === "active").length, activeEmployees: view.employees.filter(row => row.status === "active").length };
+}
+/** Initial demo-route payload; the local GET uses the identical pure helper. */
+export function getDemoOwnerDashboardAnalytics(sandbox: DemoSandbox, query: OwnerDashboardQuery = {}): OwnerDashboardAnalytics {
+  return deepFreeze(aggregateDemoOwnerDashboard(sandbox.getSnapshot(), query));
 }
 export type DemoViewData = ReturnType<typeof demoViewData>;

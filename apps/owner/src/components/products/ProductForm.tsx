@@ -42,6 +42,7 @@ interface OwnerProductFormProps {
   categories: Category[];
   pricingTiers: PricingTier[];
   initialProduct?: {
+    code?: string | null;
     price?: number;
     name: string;
     category_id: string;
@@ -89,6 +90,7 @@ export default function OwnerProductForm({
     description: initialProduct?.description ?? "",
     is_active: initialProduct?.is_active ?? true,
   });
+  const [productCode, setProductCode] = useState(initialProduct?.code ?? "");
   const [catList, setCatList] = useState<Category[]>(initialCategories);
   const [tiers, setTiers] = useState<PricingTier[]>(initialPricingTiers);
   const activeTiers = tiers.filter((t) => t.is_active);
@@ -390,7 +392,7 @@ export default function OwnerProductForm({
 
       let pid = savedProductId.current;
       const payload = {
-        outlet_id: outletId, name: form.name.trim(), price: basePrice, category_id: form.category_id,
+        outlet_id: outletId, code: productCode.trim() || undefined, name: form.name.trim(), price: basePrice, category_id: form.category_id,
         description: form.description, is_active: form.is_active,
         ...(previewUrl === null ? { image_url: null } : {}), prices: tierPriceArray,
         recipes: recipeRows.map(row => ({ ingredient_id: row.ingredient_id, quantity_used: row.quantity_used })),
@@ -600,7 +602,7 @@ export default function OwnerProductForm({
                   alt="Preview produk"
                   width={400}
                   height={400}
-                  className="w-full aspect-square object-cover"
+                  className="w-full aspect-square bg-surface-container-low object-contain"
                 />
                 <div className="absolute top-3 right-3 flex gap-2">
                   <button
@@ -661,7 +663,10 @@ export default function OwnerProductForm({
                   className={fieldInputClass}
                 />
               </FormField>
-
+              <FormField label="Kode Produk" htmlFor="product-code" hint={mode === "edit" ? "Kode ini menjadi identifier tetap produk." : "Opsional. Kosongkan untuk membuat kode outlet otomatis."}>
+                <input id="product-code" type="text" value={productCode} onChange={(event) => setProductCode(event.target.value)}
+                  readOnly={mode === "edit"} placeholder="Contoh: PRD001" className={`${fieldInputClass} !text-base md:!text-sm read-only:opacity-70`} />
+              </FormField>
               <FormField
                 label="Kategori"
                 htmlFor="product-category"

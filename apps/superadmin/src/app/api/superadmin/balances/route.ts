@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/auth/database";
 import { listBalanceTransactions } from "@rakku/ledger";
 
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-  });
-}
-
 interface BalanceRow {
   available_balance: number;
   pending_balance: number;
@@ -24,10 +17,9 @@ function embedded<T>(value: T | T[] | null | undefined): T | null {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("company_id");
-    const supabase = await createClient();
 
     if (companyId) {
       const transactions = await listBalanceTransactions(supabase, companyId, {

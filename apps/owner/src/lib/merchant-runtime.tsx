@@ -5,7 +5,18 @@ import { usePathname as useNextPathname, useRouter as useNextRouter, useSearchPa
 import { useMemo, type AnchorHTMLAttributes, type FormHTMLAttributes } from "react";
 import { showToast as productionToast } from "@rakku/ui";
 import { useMerchantRuntime } from "@rakku/ui/merchant-runtime";
-export { useMerchantRuntime, useMerchantRequest } from "@rakku/ui/merchant-runtime";
+import { useMerchantRequest as useRawRequest } from "@rakku/ui/merchant-runtime";
+import { useOwnerDataCache } from "@/components/data/OwnerDataCache";
+import { createCachedOwnerRequest } from "@/lib/data/cached-request";
+export { useMerchantRuntime } from "@rakku/ui/merchant-runtime";
+
+export function useMerchantRequest(): typeof fetch {
+  const request = useRawRequest();
+  const cache = useOwnerDataCache();
+  const runtime = useMerchantRuntime();
+  // Demo has its own generation/revision semantics and never uses production cache.
+  return useMemo(() => cache && !runtime ? createCachedOwnerRequest(cache, request) : request, [cache, request, runtime]);
+}
 
 export function useRouter() {
   const fallback = useNextRouter();

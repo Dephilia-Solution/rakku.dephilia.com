@@ -43,12 +43,6 @@ interface RoleWithAccess extends Role {
   revision: string;
 }
 
-const grantColumns = [
-  { key: "can_view", label: "V", title: "Lihat" },
-  { key: "can_create", label: "C", title: "Tambah" },
-  { key: "can_edit", label: "E", title: "Ubah" },
-  { key: "can_delete", label: "D", title: "Hapus" },
-] as const;
 function emptyGrant(menu_id: string): RoleGrant {
   return { menu_id, can_view: false, can_create: false, can_edit: false, can_delete: false };
 }
@@ -73,7 +67,8 @@ export default function OwnerEmployeesPage({ embedded = false }: {
 }) {
   const request = useMerchantRequest();
   const showToast = useMerchantToast();
-  const isActive = useMerchantRuntime()?.active;
+  const merchantRuntime = useMerchantRuntime();
+  const isActive = merchantRuntime?.active;
   const { hasFeature, openUpgrade } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -456,7 +451,6 @@ export default function OwnerEmployeesPage({ embedded = false }: {
   const handleDraftGrant = (
     roleId: string,
     menuId: string,
-    flag: typeof grantColumns[number]["key"],
     checked: boolean
   ) => {
     if (isActive?.() === false || grantSaveLock.current) return;
@@ -470,8 +464,14 @@ export default function OwnerEmployeesPage({ embedded = false }: {
     if (!role) return;
     setGrantDrafts(prev => {
       const grants = prev[roleId] ?? role.grants;
-      const current = grants.find(g => g.menu_id === menuId) ?? emptyGrant(menuId);
-      return { ...prev, [roleId]: [...grants.filter(g => g.menu_id !== menuId), { ...current, [flag]: checked }] };
+      const next: RoleGrant = {
+        menu_id: menuId,
+        can_view: checked,
+        can_create: checked,
+        can_edit: checked,
+        can_delete: checked,
+      };
+      return { ...prev, [roleId]: [...grants.filter(g => g.menu_id !== menuId), next] };
     });
     setGrantError("");
   };
@@ -481,8 +481,8 @@ export default function OwnerEmployeesPage({ embedded = false }: {
     const role = rolesWithAccess.find(r => r.id === selectedRoleId);
     const grants = grantDrafts[selectedRoleId];
     if (!role || !grants) return;
-    if (grants.some(g => !g.can_view && (g.can_create || g.can_edit || g.can_delete))) {
-      setGrantError("Create/edit/delete memerlukan V (lihat). Flag legacy tetap ditampilkan: aktifkan V atau hapus flag tersebut secara sengaja.");
+    if (grants.some(g => [g.can_view, g.can_create, g.can_edit, g.can_delete].some(flag => flag !== g.can_view))) {
+      setGrantError("Setiap menu hanya bisa memiliki akses penuh atau tanpa akses. Ubah checkbox lalu simpan kembali.");
       return;
     }
     grantSaveLock.current = true;
@@ -505,7 +505,11 @@ export default function OwnerEmployeesPage({ embedded = false }: {
       setRolesWithAccess(prev => prev.map(r => r.id === role.id ? { ...r, grants: data.grants,
         revision: data.revision, menu_access: (data.grants as RoleGrant[]).filter(g => g.can_view).map(g => g.menu_id) } : r));
       setGrantDrafts(prev => { const next = { ...prev }; delete next[role.id]; return next; });
-      showToast("success", "Akses tersimpan. Sesi POS role yang berubah telah dicabut.");
+      showToast("success", data.revision === role.revision
+        ? "Akses sudah sesuai; tidak ada perubahan."
+        : merchantRuntime
+          ? "Akses tersimpan. Perubahan berlaku saat akun POS login kembali."
+          : "Akses tersimpan. Sesi POS role yang berubah telah dicabut.");
     } catch {
       if (isActive?.() === false) return;
       setGrantError("Gagal menyimpan akses. Muat ulang untuk memeriksa hasil sebelum mencoba kembali.");
@@ -1122,34 +1126,32 @@ export default function OwnerEmployeesPage({ embedded = false }: {
                 <div className="bg-surface-container-lowest rounded-xl p-4 md:p-5">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-on-surface">Atur Akses Menu</h3>
-                    <span className="text-xs text-on-surface-variant">V lihat · C tambah · E ubah · D hapus</span>
+                    <span className="text-xs text-on-surface-variant">Satu centang memberikan akses penuh pada menu.</span>
                   </div>
-                  <p className="text-xs text-on-surface-variant mb-3">Perubahan disimpan sekaligus. V tidak otomatis memberi C/E/D. Mutasi memerlukan V; sesi POS role dicabut saat akses berubah.</p>
+                  <p className="text-xs text-on-surface-variant mb-3">Centang memberikan izin melihat, menambah, mengubah, dan menghapus. Kosongkan untuk menutup seluruh akses menu. Perubahan disimpan sekaligus; pengguna POS pada role ini perlu login kembali setelah akses berubah.</p>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[420px]">
+                    <table className="w-full min-w-[320px]">
                       <thead><tr className="bg-surface-container-low">
                         <th className="text-left text-xs px-3 py-3">Menu</th>
-                        {grantColumns.map(column => <th key={column.key} scope="col" title={column.title} className="text-center text-xs px-3 py-3">{column.label}</th>)}
+                        <th scope="col" className="text-center text-xs px-3 py-3">Akses penuh</th>
                       </tr></thead>
                       <tbody>{menusList.map(menu => {
                         const role = rolesWithAccess.find(r => r.id === selectedRoleId);
                         const grants = grantDrafts[selectedRoleId] ?? role?.grants ?? [];
                         const grant = grants.find(g => g.menu_id === menu.id) ?? emptyGrant(menu.id);
-                        const invalid = !grant.can_view && (grant.can_create || grant.can_edit || grant.can_delete);
                         return <tr key={menu.id} className="border-b border-surface-container">
                           <td className="px-3 py-3">
                             <p className="text-sm font-medium text-on-surface">{menu.name}</p>
                             <p className="text-xs text-on-surface-variant">{menuDescriptions[menu.slug] || `Akses menu ${menu.path}`}</p>
-                            {invalid && <p className="text-xs text-error">Flag mutasi tersimpan tanpa V; perlu tinjauan eksplisit.</p>}
                           </td>
-                          {grantColumns.map(column => <td key={column.key} className="text-center">
+                          <td className="text-center">
                             <label className="inline-flex items-center justify-center min-h-11 min-w-11">
-                              <input type="checkbox" checked={grant[column.key]} disabled={isSavingGrants}
-                                aria-label={`${menu.name}: ${column.title}`}
-                                onChange={e => handleDraftGrant(selectedRoleId, menu.id, column.key, e.target.checked)}
+                              <input type="checkbox" checked={grant.can_view} disabled={isSavingGrants}
+                                aria-label={`${menu.name}: akses penuh`}
+                                onChange={e => handleDraftGrant(selectedRoleId, menu.id, e.target.checked)}
                                 className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" />
                             </label>
-                          </td>)}
+                          </td>
                         </tr>;
                       })}</tbody>
                     </table>

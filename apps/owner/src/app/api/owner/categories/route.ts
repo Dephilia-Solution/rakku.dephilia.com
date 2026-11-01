@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
+import { ensureOutletCategory } from "@rakku/db/categories";
 import type { OwnerSession } from "@rakku/shared-types";
 import { verifyOutletBelongsToCompany } from "@/lib/supabase/queries.data";
 
@@ -63,33 +64,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nama kategori wajib diisi" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-  const { data: existing } = await supabase
-    .from("categories")
-    .select("sort_order")
-    .eq("company_id", session.company_id)
-    .eq("outlet_id", String(outlet_id))
-    .order("sort_order", { ascending: false })
-    .limit(1);
-
-  const nextSort = ((existing?.[0]?.sort_order as number) ?? 0) + 1;
-
-  const { data, error } = await supabase
-    .from("categories")
-    .insert({
-      company_id: session.company_id,
-      outlet_id: String(outlet_id),
-      name: String(name).trim(),
-      sort_order: nextSort,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
+  try {
+    const result = await ensureOutletCategory(createAdminClient(), { companyId: session.company_id, outletId: String(outlet_id), name: String(name) });
+    if (!result.created) return NextResponse.json({ error: "Kategori dengan nama ini sudah tersedia di outlet." }, { status: 409 });
+    return NextResponse.json(result.category, { status: 201 });
+  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal membuat kategori" }, { status: 400 }); }
 }
 
 export async function PATCH(request: NextRequest) {

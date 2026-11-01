@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import type { DatabaseClient, Row } from "./query";
 import { checked } from "./merchant";
 
@@ -8,6 +9,18 @@ export class InventoryError extends Error {
 }
 export const INGREDIENT_UNITS = ["gram", "ml", "pcs", "kg", "liter"] as const;
 export const INVENTORY_MAX = 9999999999.99;
+export function normalizeBusinessCode(value: unknown, prefix: "BHN" | "PRD", optional = false): string | null {
+  if (value == null || value === "") {
+    if (optional) return null;
+    return `${prefix}-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+  }
+  if (typeof value !== "string") throw new InventoryError("Kode harus berupa teks");
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9._-]{0,63}$/.test(code) || /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(code)) {
+    throw new InventoryError("Kode wajib 1–64 karakter dan bukan UUID: huruf, angka, titik, garis bawah, atau tanda hubung");
+  }
+  return code;
+}
 export function inventoryNumber(value: unknown, label: string, positive = false, max = INVENTORY_MAX): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || (positive && value === 0)
     || value > max || Math.abs(value * 100 - Math.round(value * 100)) > 0.001) {
@@ -32,19 +45,20 @@ function unit(value: unknown): string {
   return String(value);
 }
 export interface IngredientValues {
-  name: string; unit: string; stock_quantity: number; min_stock_alert: number; cost_per_unit: number;
+  code?: string | null; name: string; unit: string; stock_quantity: number; min_stock_alert: number; cost_per_unit: number;
 }
 export async function createOwnerIngredient(db: DatabaseClient, scope: OwnerOutletScope, input: IngredientValues) {
-  const values = { name: name(input.name), unit: unit(input.unit),
+  const code = normalizeBusinessCode(input.code, "BHN")!;
+  const values = { code, name: name(input.name), unit: unit(input.unit),
     stock_quantity: inventoryNumber(input.stock_quantity, "Stok awal"),
     min_stock_alert: inventoryNumber(input.min_stock_alert, "Batas stok minimum"),
     cost_per_unit: inventoryNumber(input.cost_per_unit, "Biaya per satuan") };
   return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${scope.companyId},0))`);
     await assertOwnerOutlet(tx, scope);
-    const duplicate = await tx.execute(sql`select id from public.ingredients where company_id=${scope.companyId}
-      and outlet_id=${scope.outletId} and lower(trim(name))=lower(${values.name}) and unit=${values.unit}`);
-    if (duplicate.length) throw new InventoryError("Bahan dengan nama dan satuan ini sudah ada", 409);
+    const duplicateCode = await tx.execute(sql`select id from public.ingredients where company_id=${scope.companyId}
+      and outlet_id=${scope.outletId} and lower(code)=lower(${code})`);
+    if (duplicateCode.length) throw new InventoryError("Kode bahan sudah dipakai di outlet ini", 409, "IMPORT_CODE_CONFLICT");
     const ingredient = checked(await tx.from("ingredients").insert({ company_id: scope.companyId,
       outlet_id: scope.outletId, ...values, is_active: true }).select().single());
     if (values.stock_quantity > 0) checked(await tx.from("stock_movements").insert({
@@ -68,6 +82,10 @@ export async function updateOwnerIngredient(db: DatabaseClient, scope: OwnerOutl
     }
     const values: Row = {};
     if (input.name !== undefined) values.name = name(input.name);
+    if (input.code !== undefined) {
+      const next = normalizeBusinessCode(input.code, "BHN")!;
+      if (next !== previous.code) throw new InventoryError("Kode bahan tidak dapat diubah; kode adalah identifier tetap", 409);
+    }
     if (input.unit !== undefined) values.unit = unit(input.unit);
     if (input.min_stock_alert !== undefined) values.min_stock_alert = inventoryNumber(input.min_stock_alert, "Batas stok minimum");
     if (input.cost_per_unit !== undefined) values.cost_per_unit = inventoryNumber(input.cost_per_unit, "Biaya per satuan");

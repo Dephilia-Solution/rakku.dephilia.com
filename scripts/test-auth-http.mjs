@@ -65,6 +65,21 @@ try {
   await verify("owner", "/api/auth/owner/login", [403], { method: "POST" });
   await verify("owner", "/api/webhooks/vessel", [503], { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   await verify("superadmin", "/companies", [307]);
+  for (const path of ["companies", "outlets", "menus", "plans", "balances", "subscriptions", "withdrawals", "reconciliation", "payments-analytics", "audit-logs"]) {
+    await verify("superadmin", `/api/superadmin/${path}`, [401]);
+  }
+  await verify("owner", "/api/owner/reports/sales", [403]);
+  await verify("owner", "/api/owner/dashboard", [403]);
+  await verify("owner", "/api/owner/import/template?domain=products", [401]);
+  await verify("owner", "/api/owner/import/batches", [403]);
+  for (const action of ["validate", "confirm", "cleanup"]) {
+    // Both the exact-origin proxy and the handler's absent-session guard may reject
+    // loopback aliases. The invariant here is that anonymous imports never execute.
+    await verify("owner", `/api/owner/import/${action}`, [401, 403], { method: "POST", headers: { origin: origins.owner } });
+  }
+  await verify("owner", "/api/owner/import/confirm", [403], { method: "POST", headers: { origin: "https://foreign.example" } });
+  await verify("owner", "/api/cron/import-cleanup", [401]);
+  await verify("pos", "/api/admin/orders/draft?count_only=1", [401]);
   await verify("superadmin", "/api/auth/sign-up/email", [404], { method: "POST", headers: { origin: origins.superadmin } });
   const encodedSecret = new TextEncoder().encode(secret);
   const wrongPurpose = await new SignJWT({ owner_id: "owner", session_id: "session", email: "owner@example.test", name: "Owner" })

@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import ts from "typescript";
 import { DEMO_IMAGE_MIME_TYPES, MAX_DEMO_IMAGE_BYTES, QRIS_MDR_RATE, ORDER_QR_EXPIRY_MINUTES, MIN_WITHDRAWAL, WITHDRAWAL_FEE, WITHDRAWAL_DAILY_LIMIT, MAX_PENDING_WITHDRAWALS, TRANSACTION_GRACE_RATIO, TRANSACTION_GRACE_DAYS } from "./constants";
 import { fixturePlans } from "./fixture";
+import { IMAGE_LIMITS } from "../../../apps/owner/src/lib/import/import-images";
 const root = new URL("../../", import.meta.url);
 const source = (path: string) => readFileSync(new URL(path, root), "utf8");
 
@@ -19,7 +20,8 @@ test("audited constants and migration plan defaults cannot silently drift", () =
   for (const [name, expected] of Object.entries({ MIN_WITHDRAWAL, WITHDRAWAL_FEE, WITHDRAWAL_DAILY_LIMIT, MAX_PENDING_WITHDRAWALS })) assert.equal(expected, value("../apps/owner/src/lib/billing/withdrawals.ts", name));
   assert.equal(TRANSACTION_GRACE_RATIO, value("plans/src/index.ts", "TRANSACTION_GRACE_RATIO"));
   assert.equal(TRANSACTION_GRACE_DAYS, value("plans/src/index.ts", "TRANSACTION_GRACE_DAYS"));
-  for (const path of ["../apps/owner/src/app/api/owner/products/upload/route.ts", "../apps/pos/src/app/api/admin/products/upload/route.ts"]) {
+  assert.equal(MAX_DEMO_IMAGE_BYTES, IMAGE_LIMITS.fileBytes);
+  for (const path of ["../apps/pos/src/app/api/admin/products/upload/route.ts"]) {
     const upload = source(path), types = upload.match(/(\[[^\n]+\])\.includes\(file\.type\)/);
     assert.ok(types, "upload MIME contract"); assert.deepEqual(JSON.parse(types[1]), [...DEMO_IMAGE_MIME_TYPES]);
     const size = upload.match(/file\.size > (\d+) \* (\d+) \* (\d+)/); assert.ok(size, "upload size contract");

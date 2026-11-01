@@ -24,11 +24,15 @@
     "./runtime-flags": "./src/runtime-flags.ts",
     "./imports": "./src/imports.ts",
     "./owner-inventory": "./src/owner-inventory.ts",
-    "./owner-products": "./src/owner-products.ts"
+    "./owner-products": "./src/owner-products.ts",
+    "./categories": "./src/categories.ts",
+    "./owner-dashboard": "./src/owner-dashboard.ts",
+    "./platform-analytics": "./src/platform-analytics.ts",
+    "./owner-session": "./src/owner-session.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --wasm-num-compilation-tasks=1 --test --test-isolation=none src/*.test.ts"
+    "test": "tsx --wasm-num-compilation-tasks=1 --test --test-concurrency=1 src/*.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",

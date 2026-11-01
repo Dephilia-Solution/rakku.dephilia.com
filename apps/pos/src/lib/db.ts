@@ -2,8 +2,9 @@ import { createTenantClient } from "@rakku/db";
 import { headers } from "next/headers";
 import { getTenantSessionFromCookies } from "./auth/tenant-session";
 import { AccessDeniedError, assertApiAccess } from "./auth/authorize";
+import { cache } from "react";
 
-export function createAdminClient() {
+export const createAdminClient = cache(function createRequestClient() {
   return createTenantClient(async () => {
     const session = await getTenantSessionFromCookies();
     if (!session) return null;
@@ -19,4 +20,4 @@ export function createAdminClient() {
     }
     return session;
   });
-}
+});

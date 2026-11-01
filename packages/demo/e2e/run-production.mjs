@@ -14,8 +14,8 @@ const devOwner = rawInput.includes('--dev-owner');
 const isolatedBuild = rawInput.includes('--isolated-build');
 const isolatedDirectory = process.env.RAKKU_BUILD_DIRECTORY || '.next-hardening';
 if (!/^\.next-hardening(?:-[a-z0-9]+)*$/.test(isolatedDirectory)) throw new Error('Invalid isolated build directory');
-const args = rawInput.filter(value => !['--dev-owner', '--routed', '--isolated-build'].includes(value));
-const runner = resolve(root, 'packages/demo/e2e/routed.mjs');
+const args = rawInput.filter(value => !['--dev-owner', '--routed', '--isolated-build', '--owner-upgrade'].includes(value));
+const runner = resolve(root, rawInput.includes('--owner-upgrade') ? 'packages/demo/e2e/owner-upgrade.mjs' : 'packages/demo/e2e/routed.mjs');
 const children = [];
 const stop = new AbortController();
 let cleaning = false;
@@ -105,7 +105,7 @@ async function main() {
   // Listing/help must never launch Next servers, read builds, or contact an application.
   if (args.some((arg) => ['--list', '--help', '-h'].includes(arg))) {
     if (args.includes('--list')) {
-      const source = await readFile(resolve(root, 'packages/demo/e2e/routed.mjs'), 'utf8');
+      const source = await readFile(runner, 'utf8');
       for (const match of source.matchAll(/await check\('([^']+)'/g)) console.log(match[1]);
     } else {
       console.log('node packages/demo/e2e/run-production.mjs [--dev-owner] [--list] [--help]\nSee packages/demo/e2e/README.md for production prerequisites and environment variables.');

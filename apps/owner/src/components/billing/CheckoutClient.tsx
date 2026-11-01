@@ -158,7 +158,7 @@ export default function CheckoutClient({
   const isFailed = status === "failed" || status === "cancelled";
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div data-owner-compact className="max-w-lg mx-auto">
       <Link
         href="/subscription"
         className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 mb-4"

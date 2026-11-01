@@ -5,6 +5,8 @@ import { addTime, calculateReport, clone, date, decimal, deepFreeze, deriveBalan
 import { auditActorId, owner, projectSnapshot, requireMenu, requireOwner, scope, sessionMenus, validateSession } from "./access";
 import { deleteEntity, reorderEntity, saveEntity } from "./entities";
 import { withRequestReceipt } from "./receipts";
+import { DemoImportIdentities, demoPurchaseSignature, importKey, type DemoImportBook, type DemoImportRow } from "./import-models";
+import { executeDemoImport, publicImportBatch, publicImportPayload } from "./import-engine";
 import { addSubscriptionPeriod, DEMO_IMAGE_MIME_TYPES, DRAFT_EXPIRY_HOURS, GRACE_DAYS, MAX_DEMO_IMAGE_BYTES, MAX_PENDING_WITHDRAWALS, MIN_WITHDRAWAL, ORDER_QR_EXPIRY_MINUTES, QRIS_MDR_RATE, TRANSACTION_GRACE_DAYS, TRANSACTION_GRACE_RATIO, WITHDRAWAL_DAILY_LIMIT, WITHDRAWAL_FEE } from "./constants";
 
 /** One visitor's disposable domain. No network, timers, storage, or global instance. */
@@ -17,6 +19,8 @@ export class DemoSandbox {
   #sequence = 0;
   #images = new Set<string>();
   #ownerPassword: string;
+  #imports: DemoImportBook = { batches: [], references: [], secretEmployeeIds: [] };
+  readonly importIdentities = new DemoImportIdentities();
 
   constructor(now: Date = new Date()) {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) fail("Invalid sandbox date");
@@ -38,9 +42,35 @@ export class DemoSandbox {
     this.#destroyed = true; this.#listeners.clear();
     for (const url of this.#images) URL.revokeObjectURL(url);
     this.#images.clear();
+    this.#imports = { batches: [], references: [], secretEmployeeIds: [] }; this.importIdentities.clear();
     this.#state = deepFreeze({ ...this.#state, request_receipts: [] });
   }
   private alive(): void { if (this.#destroyed) fail("Demo sandbox destroyed"); }
+
+  getImportHistory(filters: { batch_id?: string; domain?: string; outlet_id?: string } = {}) {
+    this.alive(); requireOwner(this.#state);
+    if (filters.outlet_id) scope(this.#state, filters.outlet_id);
+    if (filters.batch_id) {
+      const batch = this.#imports.batches.find(row => row.id === filters.batch_id);
+      if (!batch) return null;
+      return deepFreeze({ batch: publicImportBatch(batch, this.#state, true), rows: batch.rows.map(row => ({ row_number: row.rowNumber,
+        payload: clone(publicImportPayload(row.payload)), is_valid: !row.errors.length, errors: clone(row.errors), warnings: clone(row.warnings) })) });
+    }
+    return deepFreeze({ batches: this.#imports.batches.filter(row => (!filters.domain || row.domain === filters.domain) && (!filters.outlet_id || row.outlet_id === filters.outlet_id))
+      .slice(-20).reverse().map(batch => publicImportBatch(batch, this.#state)) });
+  }
+
+  getImportPurchaseReplay(outletId: string, header: DemoImportRow, rows: DemoImportRow[]) {
+    this.alive(); requireOwner(this.#state); scope(this.#state, outletId);
+    const previous = this.#imports.references.find(row => row.outlet_id === outletId && importKey(row.reference) === importKey(header.payload.code));
+    return previous ? { id: previous.purchase_id, identical: previous.signature === demoPurchaseSignature(header, rows) } : null;
+  }
+
+  private snapshot(state: DemoState): DemoState {
+    const projected = projectSnapshot(state);
+    for (const employee of projected.employees) if (this.#imports.secretEmployeeIds.includes(employee.id)) employee.pin = "";
+    return deepFreeze(projected);
+  }
 
   getLoginContext(outletId?: string) {
     this.alive(); const outlet = outletId === undefined ? this.#state.outlets.find(row => row.id === this.#state.session.outlet_id && row.is_active) ?? this.#state.outlets.find(row => row.is_active) : find(this.#state.outlets, outletId);
@@ -111,18 +141,24 @@ export class DemoSandbox {
     record(command);
     // Clone-on-write makes every command atomic, including multi-item validation.
     const state = clone(this.#state), oldSequence = this.#sequence;
+    const imports = command.type.startsWith("import.") ? clone(this.#imports) : this.#imports;
     const nextId = (kind: string) => `${this.generation}:${kind}:${++this.#sequence}`;
     let result: unknown;
     try {
-      result = this.dispatch(state, command, nextId);
+      result = command.type === "import.stage" || command.type === "import.confirm" || command.type === "import.cleanup"
+        ? executeDemoImport(state, imports, command, nextId, this.#images, this.importIdentities)
+        : this.dispatch(state, command, nextId);
       validateSession(state);
       state.menus = sessionMenus(state);
       state.balance = deriveBalance(state.ledger, state.company.id, state.now);
       if (state.balance.available_balance < 0 || state.balance.pending_balance < 0) fail("Negative merchant balance");
     } catch (error) { this.#sequence = oldSequence; throw error; }
-    if (JSON.stringify(state) !== JSON.stringify(this.#state)) {
+    const importsChanged = imports !== this.#imports;
+    this.#imports = deepFreeze(imports);
+    if (JSON.stringify(state) !== JSON.stringify(this.#state) || importsChanged) {
       this.#state = deepFreeze(state);
-      this.#snapshot = deepFreeze(projectSnapshot(state));
+      this.#snapshot = this.snapshot(state);
+      if (importsChanged) for (const batch of imports.batches) for (const asset of batch.assets) if (asset.state === "deleted") this.removeImage(asset.url);
       // Subscribers observe a committed snapshot. A bad subscriber cannot roll back
       // a completed transaction or prevent other subscribers from being notified.
       for (const listener of [...this.#listeners]) { if (this.#destroyed) break; try { listener(); } catch { /* independent subscribers */ } }

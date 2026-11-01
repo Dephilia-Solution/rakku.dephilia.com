@@ -1,8 +1,9 @@
 "use client";
 
 import { useId, useRef, useState, type FormEvent } from "react";
-import type { Ingredient } from "@rakku/shared-types";
-import { FormField, SlideOver } from "@rakku/ui";
+import { jakartaDateKey, type Ingredient } from "@rakku/shared-types";
+import { FormField } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { Plus, Trash2 } from "lucide-react";
 import { usePlan } from "@/components/billing/PlanProvider";
 import {
@@ -110,8 +111,7 @@ interface PurchaseLine {
 }
 
 function todayLocal() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return jakartaDateKey(new Date());
 }
 
 export function IngredientPurchaseSlideOver({ outletId, ingredients, onClose, onSaved }: StockFormProps & { ingredients: Ingredient[] }) {
@@ -143,7 +143,7 @@ export function IngredientPurchaseSlideOver({ outletId, ingredients, onClose, on
     const session = begin();
     if (!session || pending.current) return;
     if (!hasFeature("inventory_advanced")) { openUpgrade(ADVANCED_MESSAGE); return; }
-    const purchasedAt = new Date(`${date}T00:00:00`);
+    const purchasedAt = new Date(`${date}T00:00:00+07:00`);
     if (!date || Number.isNaN(purchasedAt.getTime())) { setError("Tanggal pembelian wajib diisi dengan tanggal yang valid."); return; }
     const items: { ingredient_id: string; quantity: number; unit_cost: number }[] = [];
     for (const [index, line] of lines.entries()) {

@@ -11,7 +11,7 @@
     "./runtime": "./src/runtime/index.ts"
   },
   "scripts": {
-    "test": "tsx --wasm-num-compilation-tasks=1 --test --test-isolation=none src/*.test.ts && node --test e2e/network-policy.test.mjs",
+    "test": "tsx --wasm-num-compilation-tasks=1 --test --test-concurrency=1 src/*.test.ts && node --test e2e/network-policy.test.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",
     "lint": "eslint src/ui --ext .tsx"
   },

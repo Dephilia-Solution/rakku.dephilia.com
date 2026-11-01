@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
+import { ensureOutletCategory } from "@rakku/db/categories";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -9,28 +10,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nama, company_id, dan outlet_id harus diisi" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-
-  const { data: max } = await supabase
-    .from("categories")
-    .select("sort_order")
-    .eq("company_id", company_id)
-    .eq("outlet_id", outlet_id)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .single();
-
-  const { data, error } = await supabase
-    .from("categories")
-    .insert({ name, sort_order: (max?.sort_order ?? 0) + 1, company_id, outlet_id })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
+  try {
+    const result = await ensureOutletCategory(createAdminClient(), { companyId: company_id, outletId: outlet_id, name });
+    if (!result.created) return NextResponse.json({ error: "Category already exists at this outlet" }, { status: 409 });
+    return NextResponse.json(result.category, { status: 201 });
+  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create category" }, { status: 400 }); }
 }
 
 export async function PATCH(request: NextRequest) {

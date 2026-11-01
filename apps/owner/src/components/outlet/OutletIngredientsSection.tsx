@@ -1,21 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Ingredient, StockMovementType } from "@rakku/shared-types";
-import { Badge, EmptyState, Tabs } from "@rakku/ui";
-import { ClipboardCheck, Eye, EyeOff, History, LockKeyhole, Package, Pencil, Plus, Search, ShoppingCart, Trash2, Upload } from "lucide-react";
+import { Badge, Tabs } from "@rakku/ui";
+import { ClipboardCheck, Eye, EyeOff, LockKeyhole, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useMerchantRuntime } from "@/lib/merchant-runtime";
 import { usePlan } from "@/components/billing/PlanProvider";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import IngredientFormSlideOver from "@/components/inventory/IngredientFormSlideOver";
-import { IngredientOpnameSlideOver, IngredientPurchaseSlideOver } from "@/components/inventory/InventoryStockForms";
+import { OwnerEmpty, OwnerError, OwnerSection, OwnerSkeleton } from "@/components/ui/OwnerPrimitives";
 import {
   InventoryError, inventoryInputClass, inventoryNumber,
-  inventoryPrimaryClass, inventoryRupiah, inventorySecondaryClass,
+  inventoryRupiah,
   inventorySelectClass, useInventorySession,
 } from "@/components/inventory/InventoryFormUI";
-import ImportExcelPanel from "./ImportExcelPanel";
 import { useOutletScope } from "./OutletScopeProvider";
+
+const editorLoading = () => <OwnerSkeleton rows={2} />;
+const IngredientFormSlideOver = dynamic(() => import("@/components/inventory/IngredientFormSlideOver"), { loading: editorLoading });
+const IngredientOpnameSlideOver = dynamic(() => import("@/components/inventory/InventoryStockForms").then((module) => module.IngredientOpnameSlideOver), { loading: editorLoading });
+const IngredientPurchaseSlideOver = dynamic(() => import("@/components/inventory/InventoryStockForms").then((module) => module.IngredientPurchaseSlideOver), { loading: editorLoading });
+const ImportExcelPanel = dynamic(() => import("./ImportExcelPanel"), { loading: editorLoading });
+const inventoryPrimaryClass = "owner-button owner-button--primary";
+const inventorySecondaryClass = "owner-button owner-button--secondary";
 
 interface Props { outletId: string; outletName: string }
 type View = "ingredients" | "purchases" | "history";
@@ -50,7 +57,7 @@ const iconButtonClass = "min-h-11 min-w-11 inline-flex items-center justify-cent
 
 function formatDate(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Tanggal tidak tersedia" : date.toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? "Tanggal tidak tersedia" : date.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric", ...(!/^\d{4}-\d{2}-\d{2}$/.test(value) ? { hour: "2-digit" as const, minute: "2-digit" as const } : {}) });
 }
 function isLow(ingredient: Ingredient) { return ingredient.is_active && Number(ingredient.stock_quantity) <= Number(ingredient.min_stock_alert); }
 
@@ -87,13 +94,10 @@ function useInventoryLoad<T>(outletId: string, url: string, revision = 0) {
 
 function LoadFeedback({ loading, error, planLimited, retry }: { loading: boolean; error: string | null; planLimited: boolean; retry: () => void }) {
   const { openUpgrade } = usePlan();
-  if (loading) return <div role="status" aria-label="Memuat inventori" className="space-y-3">
-    {[0, 1, 2].map((key) => <div key={key} className="h-24 rounded-xl bg-surface-container motion-safe:animate-pulse" />)}
-    <span className="sr-only">Memuat data...</span>
-  </div>;
+  if (loading) return <OwnerSkeleton />;
   if (!error) return null;
-  return <div className="space-y-3"><InventoryError message={error} />
-    <button type="button" className={inventorySecondaryClass} onClick={planLimited ? () => openUpgrade(error) : retry}>{planLimited ? "Lihat Paket" : "Coba Lagi"}</button>
+  return <div className="space-y-3"><OwnerError message={error} retry={planLimited ? undefined : retry} />
+    {planLimited && <button type="button" className={inventorySecondaryClass} onClick={() => openUpgrade(error)}>Lihat Paket</button>}
   </div>;
 }
 
@@ -130,7 +134,7 @@ function IngredientsWorkspace({ outletId, outletName }: Props) {
   const [form, setForm] = useState<{ ingredient: Ingredient | null } | null>(null);
   const [opname, setOpname] = useState<Ingredient | null>(null);
   const [showPurchase, setShowPurchase] = useState(false);
-  const [showImport, setShowImport] = useState(false);
+  const [importDomain, setImportDomain] = useState<"ingredients" | "purchases" | null>(null);
   const [deleting, setDeleting] = useState<Ingredient | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -183,7 +187,7 @@ function IngredientsWorkspace({ outletId, outletName }: Props) {
   };
 
   const filtered = ingredients.filter((ingredient) => {
-    if (!ingredient.name.toLocaleLowerCase("id-ID").includes(search.trim().toLocaleLowerCase("id-ID"))) return false;
+    if (!`${ingredient.name} ${ingredient.code ?? ""}`.toLocaleLowerCase("id-ID").includes(search.trim().toLocaleLowerCase("id-ID"))) return false;
     if (filter === "active") return ingredient.is_active;
     if (filter === "inactive") return !ingredient.is_active;
     if (filter === "low") return isLow(ingredient);
@@ -198,72 +202,76 @@ function IngredientsWorkspace({ outletId, outletName }: Props) {
   </div>;
   const stockBadge = (ingredient: Ingredient) => isLow(ingredient) ? <span className="text-xs font-semibold text-error">{Number(ingredient.stock_quantity) <= 0 ? "Stok habis" : "Stok menipis"}</span> : null;
 
-  return <section className="min-w-0 space-y-5" aria-label={`Bahan baku ${outletName}`}>
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-lg font-bold text-on-surface">Bahan Baku</h2><p className="mt-1 text-sm text-on-surface-variant">Kelola bahan dan pergerakan stok untuk {outletName}.</p></div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => { setView("ingredients"); setShowImport((value) => !value); }} className={inventorySecondaryClass}><Upload size={16} />Import Excel</button>
+  return <OwnerSection title="Bahan Baku" description={`Kelola bahan dan pergerakan stok untuk ${outletName}.`} actions={
+      <>
+        <button type="button" onClick={() => {
+          if (view === "purchases") guardAdvanced(() => setImportDomain("purchases"));
+          else { setView("ingredients"); setImportDomain("ingredients"); }
+        }} className={inventorySecondaryClass}>{view === "purchases" && !advanced ? <LockKeyhole size={16} /> : <Upload size={16} />}{view === "purchases" ? "Import Pembelian" : "Import Excel"}</button>
         {view === "purchases" ? <button type="button" disabled={list.loading || !!list.error} onClick={startPurchase} className={inventoryPrimaryClass}>{advanced ? <Plus size={16} /> : <LockKeyhole size={16} />}Catat Pembelian</button>
           : <button type="button" onClick={() => setForm({ ingredient: null })} className={inventoryPrimaryClass}><Plus size={16} />Tambah Bahan</button>}
-      </div>
-    </div>
-    <div className="overflow-x-auto pb-1">
-      <Tabs active={view} onChange={(key) => setView(key as View)} className="[&_button]:min-h-11" tabs={[
+      </>
+    }>
+    <div className="min-w-0 space-y-5">
+    <div className="max-w-full overflow-x-auto pb-1">
+      <Tabs active={view} onChange={(key) => { setView(key as View); setImportDomain(null); }} className="[&_button]:min-h-11" tabs={[
         { key: "ingredients", label: "Daftar Bahan" }, { key: "purchases", label: "Pembelian" }, { key: "history", label: "Riwayat Stok" },
       ]} />
     </div>
-    {showImport && <ImportExcelPanel key={outletId} domain="ingredients" outletId={outletId} outletName={outletName} onClose={() => setShowImport(false)} onImported={() => { setShowImport(false); refresh(); }} />}
+    {importDomain && (importDomain !== "purchases" || advanced) && <ImportExcelPanel key={`${outletId}:${importDomain}`} domain={importDomain} outletId={outletId} outletName={outletName} onClose={() => setImportDomain(null)} onImported={() => { setImportDomain(null); refresh(); }} />}
     <InventoryError message={mutationError} />
 
     {view === "ingredients" && <>
-      {!list.loading && !list.error && <div className="grid grid-cols-3 gap-2 sm:gap-4 rounded-xl bg-surface-container-lowest p-4">
+      {!list.loading && !list.error && <div className="grid grid-cols-3 gap-2 sm:gap-4 rounded-xl border border-surface-container bg-surface-container-low/50 p-4">
         <div><p className="text-xs text-on-surface-variant">Total Bahan</p><p className="mt-1 text-xl font-bold text-on-surface tabular-nums">{inventoryNumber(ingredients.length)}</p></div>
         <div><p className="text-xs text-on-surface-variant">Bahan Aktif</p><p className="mt-1 text-xl font-bold text-primary tabular-nums">{inventoryNumber(ingredients.filter((ingredient) => ingredient.is_active).length)}</p></div>
         <button type="button" onClick={() => setFilter("low")} className="min-h-11 text-left rounded-lg hover:bg-surface-container-low active:scale-[0.98]" aria-label={`Tampilkan ${lowCount} bahan dengan stok menipis`}><span className="text-xs text-on-surface-variant">Stok Menipis</span><span className={`mt-1 block text-xl font-bold tabular-nums ${lowCount ? "text-error" : "text-on-surface"}`}>{inventoryNumber(lowCount)}</span></button>
       </div>}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1"><Search size={17} aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+      <div className="owner-toolbar">
+        <div className="owner-search relative min-w-0"><Search size={17} aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input type="search" aria-label="Cari bahan baku" placeholder="Cari nama bahan..." value={search} onChange={(event) => setSearch(event.target.value)} className={`${inventoryInputClass} pl-11`} />
         </div>
-        <select aria-label="Filter status bahan" value={filter} onChange={(event) => setFilter(event.target.value as IngredientFilter)} className={`${inventorySelectClass} sm:max-w-[210px]`}>
+        <select aria-label="Filter status bahan" value={filter} onChange={(event) => setFilter(event.target.value as IngredientFilter)} className={`${inventorySelectClass} w-full sm:!w-auto sm:max-w-[210px]`}>
           <option value="all">Semua Bahan</option><option value="active">Aktif</option><option value="inactive">Nonaktif</option><option value="low">Stok Menipis</option>
         </select>
       </div>
       <LoadFeedback {...list} />
       {!list.loading && !list.error && (filtered.length ? <>
-        <div className="hidden lg:block rounded-xl bg-surface-container-lowest overflow-x-auto">
+        <div className="hidden lg:block rounded-xl border border-surface-container overflow-x-auto">
           <table className="w-full text-sm"><caption className="sr-only">Daftar bahan baku {outletName}</caption>
-            <thead className="bg-surface-container-low text-on-surface-variant"><tr>{["Bahan", "Stok / Minimum", "Harga per Satuan", "Aksi"].map((label) => <th scope="col" key={label} className={`px-4 py-3 text-xs font-semibold ${label === "Aksi" ? "text-right" : "text-left"}`}>{label}</th>)}</tr></thead>
+             <thead className="bg-surface-container-low text-on-surface-variant"><tr>{["Kode", "Bahan", "Stok / Minimum", "Harga per Satuan", "Aksi"].map((label) => <th scope="col" key={label} className={`px-4 py-3 text-xs font-semibold ${label === "Aksi" ? "text-right" : "text-left"}`}>{label}</th>)}</tr></thead>
             <tbody className="divide-y divide-surface-container">{filtered.map((ingredient) => <tr key={ingredient.id} aria-busy={busyId === ingredient.id}>
-              <td className="px-4 py-4"><p className="font-semibold text-on-surface break-words">{ingredient.name}</p><div className="mt-1"><Badge variant={ingredient.is_active ? "active" : "inactive"}>{ingredient.is_active ? "Aktif" : "Nonaktif"}</Badge></div></td>
+               <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{ingredient.code}</td>
+               <td className="px-4 py-4"><p className="font-semibold text-on-surface break-words">{ingredient.name}</p><div className="mt-1"><Badge variant={ingredient.is_active ? "active" : "inactive"}>{ingredient.is_active ? "Aktif" : "Nonaktif"}</Badge></div></td>
               <td className="px-4 py-4"><p className="font-semibold tabular-nums text-on-surface">{inventoryNumber(ingredient.stock_quantity)} {ingredient.unit}</p><p className="text-xs text-on-surface-variant">Min. {inventoryNumber(ingredient.min_stock_alert)} {ingredient.unit}</p>{stockBadge(ingredient)}</td>
               <td className="px-4 py-4 text-on-surface tabular-nums">{inventoryRupiah(ingredient.cost_per_unit)}<span className="block text-xs text-on-surface-variant">per {ingredient.unit}</span></td>
               <td className="px-3 py-3">{actions(ingredient)}</td>
             </tr>)}</tbody>
           </table>
         </div>
-        <div className="grid gap-3 lg:hidden">{filtered.map((ingredient) => <article key={ingredient.id} className="rounded-xl bg-surface-container-lowest p-4" aria-busy={busyId === ingredient.id}>
-          <div className="flex items-start justify-between gap-3"><h3 className="font-semibold text-on-surface break-words min-w-0">{ingredient.name}</h3><Badge variant={ingredient.is_active ? "active" : "inactive"}>{ingredient.is_active ? "Aktif" : "Nonaktif"}</Badge></div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 lg:hidden">{filtered.map((ingredient) => <article key={ingredient.id} className="min-w-0 rounded-xl border border-surface-container p-4" aria-busy={busyId === ingredient.id}>
+           <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-[11px] text-on-surface-variant">{ingredient.code}</p><h3 className="font-semibold text-on-surface break-words">{ingredient.name}</h3></div><Badge variant={ingredient.is_active ? "active" : "inactive"}>{ingredient.is_active ? "Aktif" : "Nonaktif"}</Badge></div>
           <dl className="my-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-on-surface-variant">Stok / Minimum</dt><dd className="mt-1 text-on-surface tabular-nums">{inventoryNumber(ingredient.stock_quantity)} / {inventoryNumber(ingredient.min_stock_alert)} {ingredient.unit}</dd>{stockBadge(ingredient)}</div><div><dt className="text-xs text-on-surface-variant">Harga per {ingredient.unit}</dt><dd className="mt-1 text-on-surface tabular-nums break-words">{inventoryRupiah(ingredient.cost_per_unit)}</dd></div></dl>
           <div className="border-t border-surface-container pt-2">{actions(ingredient)}</div>
         </article>)}</div>
-      </> : <div className="rounded-xl bg-surface-container-lowest"><EmptyState icon={Package} title={ingredients.length ? "Bahan tidak ditemukan" : "Belum ada bahan baku"} description={ingredients.length ? "Coba nama atau filter lain." : "Tambahkan bahan secara manual atau gunakan Import Excel."} /></div>)}
+      </> : <OwnerEmpty title={ingredients.length ? "Bahan tidak ditemukan" : "Belum ada bahan baku"} description={ingredients.length ? "Coba nama atau filter lain." : "Tambahkan bahan secara manual atau gunakan Import Excel."} action={ingredients.length ? <button type="button" onClick={() => { setSearch(""); setFilter("all"); }} className={inventorySecondaryClass}>Reset filter</button> : <button type="button" onClick={() => setForm({ ingredient: null })} className={inventoryPrimaryClass}><Plus size={16} />Tambah Bahan</button>} />)}
       {!advanced && <p className="text-sm text-on-surface-variant">Pengelolaan bahan tersedia di paket Anda. <button type="button" onClick={() => openUpgrade(ADVANCED_MESSAGE)} className="min-h-11 inline-flex items-center font-semibold text-primary underline underline-offset-2">Buka pembelian & stock opname</button></p>}
     </>}
 
-    {view === "purchases" && (advanced ? <PurchaseHistory key={revision} outletId={outletId} /> : <div className="rounded-xl bg-surface-container-lowest p-6 space-y-3">
+    {view === "purchases" && (advanced ? <PurchaseHistory key={revision} outletId={outletId} /> : <div className="rounded-xl border border-surface-container bg-surface-container-low/50 p-5 space-y-3">
       <LockKeyhole size={24} className="text-primary" /><h3 className="font-semibold text-on-surface">Pembelian & Stock Opname</h3><p className="text-sm text-on-surface-variant">{ADVANCED_MESSAGE}</p><button type="button" onClick={() => openUpgrade(ADVANCED_MESSAGE)} className={inventoryPrimaryClass}>Lihat Paket</button>
     </div>)}
     {view === "history" && <StockHistory key={revision} outletId={outletId} ingredients={ingredients} ingredientId={historyIngredient} onIngredientChange={setHistoryIngredient} />}
 
-    <IngredientFormSlideOver open={!!form} onClose={() => setForm(null)} outletId={outletId} ingredient={form?.ingredient} onSaved={() => refresh()} />
+    {form && <IngredientFormSlideOver open={!!form} onClose={() => setForm(null)} outletId={outletId} ingredient={form.ingredient} onSaved={() => refresh()} />}
     {opname && <IngredientOpnameSlideOver key={opname.id} outletId={outletId} ingredient={opname} onClose={() => setOpname(null)} onSaved={refresh} />}
     {showPurchase && <IngredientPurchaseSlideOver outletId={outletId} ingredients={ingredients} onClose={() => setShowPurchase(false)} onSaved={refresh} />}
     <div className="[&_button]:min-h-11 [&_button]:min-w-11">
       <ConfirmDialog isOpen={!!deleting} loading={!!busyId} onClose={() => { if (!pending.current) setDeleting(null); }} onConfirm={() => { if (deleting) void mutate(deleting, true); }} title="Hapus Bahan Baku"
         message={`Hapus ${deleting?.name ?? "bahan ini"}? Bahan yang dipakai dalam resep atau memiliki riwayat tidak dapat dihapus. Gunakan Nonaktifkan untuk menyimpan riwayatnya.`} />
     </div>
-  </section>;
+    </div>
+  </OwnerSection>;
 }
 
 function PurchaseHistory({ outletId }: { outletId: string }) {
@@ -271,13 +279,13 @@ function PurchaseHistory({ outletId }: { outletId: string }) {
   const result = useInventoryLoad<Paginated & { purchases: PurchaseRecord[] }>(outletId, `/api/owner/purchases?outlet_id=${encodeURIComponent(outletId)}&page=${page}`);
   return <div>
     <LoadFeedback {...result} />
-    {!result.loading && !result.error && (result.data?.purchases.length ? <div className="space-y-3">{result.data.purchases.map((purchase) => <article key={purchase.id} className="rounded-xl bg-surface-container-lowest p-4 sm:p-5">
+    {!result.loading && !result.error && (result.data?.purchases.length ? <div className="space-y-3">{result.data.purchases.map((purchase) => <article key={purchase.id} className="rounded-xl border border-surface-container p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold text-on-surface break-words">{purchase.supplier_name || "Tanpa supplier"}</h3><p className="mt-1 text-xs text-on-surface-variant">{formatDate(purchase.purchase_date)} · {purchase.actor_name || "Pengguna tidak tersedia"}</p></div><strong className="text-primary tabular-nums break-all">{inventoryRupiah(purchase.total_amount)}</strong></div>
       {purchase.note && <p className="mt-3 text-sm text-on-surface-variant whitespace-pre-wrap break-words">{purchase.note}</p>}
       <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-primary">Lihat {purchase.items.length} bahan</summary>
         <ul className="divide-y divide-surface-container">{purchase.items.map((item) => <li key={item.ingredient_id} className="py-3 flex flex-wrap justify-between gap-2 text-sm"><div className="min-w-0"><p className="font-medium text-on-surface break-words">{item.ingredient_name}</p><p className="text-xs text-on-surface-variant">{inventoryNumber(item.quantity)} {item.unit} × {inventoryRupiah(item.unit_cost)}</p></div><span className="text-on-surface tabular-nums">{inventoryRupiah(item.subtotal)}</span></li>)}</ul>
       </details>
-    </article>)}</div> : <div className="rounded-xl bg-surface-container-lowest"><EmptyState icon={ShoppingCart} title="Belum ada pembelian" description="Catat pembelian pertama untuk menambah stok bahan secara otomatis." /></div>)}
+    </article>)}</div> : <OwnerEmpty title="Belum ada pembelian" description="Catat pembelian pertama atau gunakan Import Pembelian untuk menambah stok bahan secara otomatis." />)}
     {result.data && <Pagination {...result.data} page={page} onChange={setPage} busy={result.loading} />}
   </div>;
 }
@@ -292,11 +300,11 @@ function StockHistory({ outletId, ingredients, ingredientId, onIngredientChange 
       <option value="">Semua Bahan</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}{ingredient.is_active ? "" : " (Nonaktif)"}</option>)}
     </select>
     <LoadFeedback {...result} />
-    {!result.loading && !result.error && (result.data?.movements.length ? <div className="rounded-xl bg-surface-container-lowest divide-y divide-surface-container">{result.data.movements.map((movement) => <article key={movement.id} className="p-4 sm:p-5">
+    {!result.loading && !result.error && (result.data?.movements.length ? <div className="rounded-xl border border-surface-container divide-y divide-surface-container">{result.data.movements.map((movement) => <article key={movement.id} className="p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold text-on-surface break-words">{movement.ingredient_name}</h3><p className="mt-1 text-xs text-on-surface-variant">{MOVEMENT_LABELS[movement.type] ?? movement.type} · {formatDate(movement.created_at)}</p></div><strong className={`tabular-nums ${Number(movement.quantity_change) < 0 ? "text-error" : "text-primary"}`}>{Number(movement.quantity_change) > 0 ? "+" : ""}{inventoryNumber(movement.quantity_change)} {movement.unit}</strong></div>
       {movement.note && <p className="mt-2 text-sm text-on-surface-variant whitespace-pre-wrap break-words">{movement.note}</p>}
       <p className="mt-2 text-xs text-on-surface-variant">Oleh {movement.actor_name || "Sistem / pengguna tidak tersedia"}</p>
-    </article>)}</div> : <div className="rounded-xl bg-surface-container-lowest"><EmptyState icon={History} title="Belum ada riwayat stok" description="Stok awal, pembelian, penjualan, dan penyesuaian akan tercatat di sini." /></div>)}
+    </article>)}</div> : <OwnerEmpty title="Belum ada riwayat stok" description="Stok awal, pembelian, penjualan, dan penyesuaian akan tercatat di sini." />)}
     {result.data && <Pagination {...result.data} page={page} onChange={setPage} busy={result.loading} />}
   </div>;
 }

@@ -56,6 +56,11 @@
     "db:test:migrate": "node scripts/apply-test-migrations.mjs",
     "audit:summary": "node scripts/dependency-audit-summary.mjs dependency-audit.json",
     "test:auth:http": "node scripts/test-auth-http.mjs",
+    "test:owner-cache": "tsx --test apps/owner/src/lib/data/cached-request.test.ts",
+    "test:reporting-dates": "tsx --test apps/owner/src/lib/format.test.ts",
+    "test:owner-import": "tsx --test apps/owner/src/lib/import/*.test.ts",
+    "test:owner:browser": "node packages/demo/e2e/run-production.mjs --owner-upgrade",
+    "test:landing:seo": "node scripts/test-landing-seo.mjs",
     "test:demo": "pnpm --filter @rakku/demo test",
     "test:demo:browser": "node packages/demo/e2e/run-production.mjs --routed"
   },

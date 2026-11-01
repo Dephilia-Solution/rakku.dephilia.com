@@ -2,16 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/auth/database";
 import bcrypt from "bcryptjs";
 
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-  });
-}
-
 export async function GET() {
   try {
-    await requireSuperadmin();
     const supabase = await createClient();
     const { data } = await supabase
       .from("companies")
@@ -25,10 +17,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { code, name, password } = await request.json();
     const password_hash = await bcrypt.hash(password, 10);
-    const supabase = await createClient();
     const { data, error } = await supabase
       .from("companies")
       .insert({ code: code.toUpperCase(), name, password_hash })
@@ -43,7 +34,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -67,7 +58,6 @@ export async function PUT(request: NextRequest) {
       updates.plan_expires_at = body.plan_expires_at || null;
     }
 
-    const supabase = await createClient();
     const { error } = await supabase.from("companies").update(updates).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ success: true });

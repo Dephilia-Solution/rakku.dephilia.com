@@ -1,18 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
-import {
-  Grid3X3,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Search,
-  AlertCircle,
-} from "lucide-react";
-import { showToast } from "@rakku/ui";
-import { useMerchantRequest } from "@/lib/merchant-runtime";
+import { Grid3X3, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
+import { OwnerEmpty, OwnerError, OwnerSection, OwnerSkeleton } from "@/components/ui/OwnerPrimitives";
+import OwnerSheet from "@/components/ui/OwnerSheet";
 import { useOutletScope } from "./OutletScopeProvider";
 
 interface DiningTable {
@@ -24,62 +16,48 @@ interface DiningTable {
   created_at: string;
   outlet_name?: string | null;
 }
-
-interface Props {
-  outletId: string;
-  outletName: string;
-}
+interface Props { outletId: string; outletName: string }
+const inputClass = "w-full min-h-11 rounded-lg border border-surface-container bg-white px-3.5 py-3 text-base text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary";
+const iconClass = "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low active:bg-surface-container transition-colors disabled:opacity-50";
 
 /** Tab meja dari workspace outlet: daftar meja + status kosong/terisi. */
 export default function OutletTablesSection({ outletId, outletName }: Props) {
   const request = useMerchantRequest();
+  const showToast = useMerchantToast();
+  const isActive = useMerchantRuntime()?.active;
   const { refreshOutlets } = useOutletScope();
   const [tables, setTables] = useState<DiningTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingTable, setEditingTable] = useState<DiningTable | null>(null);
   const [formName, setFormName] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DiningTable | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (showForm || deleteTarget) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [showForm, deleteTarget]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const fetchTables = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted || isActive?.() === false) return;
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const url = outletId
-        ? `/api/owner/tables?outlet_id=${encodeURIComponent(outletId)}`
-        : "/api/owner/tables";
+      const url = outletId ? `/api/owner/tables?outlet_id=${encodeURIComponent(outletId)}` : "/api/owner/tables";
       const res = await request(url, { signal });
       const data = await res.json();
-      if (signal?.aborted) return;
-      if (res.ok) {
-        setTables(data.tables ?? []);
-      } else {
-        showToast("error", data.error || "Gagal memuat data meja");
-      }
+      if (signal?.aborted || isActive?.() === false) return;
+      if (!res.ok) { setLoadError(data.error || "Gagal memuat data meja"); return; }
+      setTables(data.tables ?? []);
     } catch {
-      if (signal?.aborted) return;
-      showToast("error", "Gagal memuat data meja");
+      if (signal?.aborted || isActive?.() === false) return;
+      setLoadError("Gagal memuat data meja. Periksa koneksi lalu coba lagi.");
     } finally {
-      if (!signal?.aborted) setIsLoading(false);
+      if (!signal?.aborted && isActive?.() !== false) setIsLoading(false);
     }
-  }, [outletId, request]);
+  }, [outletId, request, isActive]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,398 +65,120 @@ export default function OutletTablesSection({ outletId, outletName }: Props) {
     return () => controller.abort();
   }, [fetchTables]);
 
-  const filtered = tables.filter((t) => {
-    if (!search) return true;
-    return t.name.toLowerCase().includes(search.toLowerCase());
-  });
-
-  const availableCount = filtered.filter((t) => t.status === "available").length;
+  const filtered = tables.filter((table) => table.name.toLocaleLowerCase("id-ID").includes(search.trim().toLocaleLowerCase("id-ID")));
+  const availableCount = filtered.filter((table) => table.status === "available").length;
   const occupiedCount = filtered.length - availableCount;
+  const openCreateForm = () => { setEditingTable(null); setFormName(""); setFormError(null); setShowForm(true); };
+  const openEditForm = (table: DiningTable) => { setEditingTable(table); setFormName(table.name); setFormError(null); setShowForm(true); };
 
-  const openCreateForm = () => {
-    setEditingTable(null);
-    setFormName("");
-    setShowForm(true);
-  };
-
-  const openEditForm = (table: DiningTable) => {
-    setEditingTable(table);
-    setFormName(table.name);
-    setShowForm(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim()) {
-      showToast("error", "Nama meja harus diisi");
-      return;
-    }
-
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSubmitting || isActive?.() === false) return;
+    if (!formName.trim()) { setFormError("Nama meja harus diisi"); return; }
     setIsSubmitting(true);
-
+    setFormError(null);
     try {
-      if (editingTable) {
-        const res = await request("/api/owner/tables", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingTable.id, name: formName.trim() }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          showToast("error", data.error || "Gagal mengupdate meja");
-          setIsSubmitting(false);
-          return;
-        }
-        showToast("success", "Meja berhasil diupdate");
-      } else {
-        const res = await request("/api/owner/tables", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formName.trim(), outlet_id: outletId }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          showToast("error", data.error || "Gagal membuat meja");
-          setIsSubmitting(false);
-          return;
-        }
-        showToast("success", "Meja berhasil ditambahkan");
-      }
+      const res = await request("/api/owner/tables", {
+        method: editingTable ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingTable ? { id: editingTable.id, name: formName.trim() } : { name: formName.trim(), outlet_id: outletId }),
+      });
+      const data = await res.json();
+      if (isActive?.() === false) return;
+      if (!res.ok) { setFormError(data.error || (editingTable ? "Gagal mengupdate meja" : "Gagal membuat meja")); return; }
+      showToast("success", editingTable ? "Meja berhasil diupdate" : "Meja berhasil ditambahkan");
       setShowForm(false);
       void fetchTables();
       void refreshOutlets();
     } catch {
-      showToast("error", "Terjadi kesalahan");
-    } finally {
-      setIsSubmitting(false);
-    }
+      if (isActive?.() === false) return;
+      setFormError("Gagal menyimpan meja. Periksa koneksi lalu coba lagi.");
+    } finally { setIsSubmitting(false); }
   };
 
   const handleToggleStatus = async (table: DiningTable) => {
+    if (busyId || isActive?.() === false) return;
     const next = table.status === "available" ? "occupied" : "available";
+    setBusyId(table.id);
+    setMutationError(null);
     try {
       const res = await request("/api/owner/tables", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: table.id, status: next }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        showToast("error", data.error || "Gagal mengubah status");
-        return;
-      }
+      if (isActive?.() === false) return;
+      if (!res.ok) { setMutationError(data.error || "Gagal mengubah status"); return; }
       showToast("success", next === "occupied" ? "Meja ditandai terisi" : "Meja tersedia kembali");
       void fetchTables();
     } catch {
-      showToast("error", "Terjadi kesalahan");
-    }
+      if (isActive?.() === false) return;
+      setMutationError("Gagal mengubah status meja. Silakan coba lagi.");
+    } finally { setBusyId(null); }
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || isDeleting || isActive?.() === false) return;
+    setIsDeleting(true);
+    setMutationError(null);
     try {
-      const res = await request(`/api/owner/tables?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
+      const res = await request(`/api/owner/tables?id=${deleteTarget.id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok) {
-        showToast("error", data.error || "Gagal menghapus meja");
-        return;
-      }
+      if (isActive?.() === false) return;
+      if (!res.ok) { setMutationError(data.error || "Gagal menghapus meja"); return; }
       showToast("success", "Meja berhasil dihapus");
       setDeleteTarget(null);
       void fetchTables();
       void refreshOutlets();
     } catch {
-      showToast("error", "Terjadi kesalahan");
-    }
+      if (isActive?.() === false) return;
+      setMutationError("Gagal menghapus meja. Periksa koneksi lalu coba lagi.");
+    } finally { setIsDeleting(false); }
   };
 
-  const statusBadge = (status: string) =>
-    status === "available"
-      ? "bg-success/10 text-success"
-      : "bg-amber-100 text-amber-800";
+  const statusButton = (table: DiningTable) => <button type="button" disabled={!!busyId} onClick={() => void handleToggleStatus(table)} aria-label={`Ubah status ${table.name}: ${table.status === "available" ? "Tersedia" : "Terisi"}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-semibold transition-colors hover:bg-surface-container-low disabled:opacity-50">
+    <span className={`h-2 w-2 rounded-full ${table.status === "available" ? "bg-primary" : "bg-amber-500"}`} />
+    {busyId === table.id ? "Menyimpan..." : table.status === "available" ? "Tersedia" : "Terisi"}
+  </button>;
+  const actions = (table: DiningTable) => <div className="flex items-center justify-end gap-2">
+    <button type="button" onClick={() => openEditForm(table)} aria-label={`Edit ${table.name}`} title="Edit" className={iconClass}><Pencil size={17} /></button>
+    <button type="button" onClick={() => { setMutationError(null); setDeleteTarget(table); }} aria-label={`Hapus ${table.name}`} title="Hapus" className={`${iconClass} text-error`}><Trash2 size={17} /></button>
+  </div>;
+  const addButton = <button type="button" onClick={openCreateForm} className="owner-button owner-button--primary"><Plus size={16} />Tambah Meja</button>;
 
-  const statusLabel = (status: string) =>
-    status === "available" ? "Tersedia" : "Terisi";
-
-  return (
-    <div className="space-y-5">
-      {/* Section header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-on-surface">Meja</h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            Meja dine-in untuk {outletName}.
-          </p>
+  return <>
+    <OwnerSection title="Meja" description={`Kelola meja dine-in dan ketersediaannya di ${outletName}.`} actions={addButton}>
+      <div className="space-y-5">
+        <div className="owner-toolbar">
+          <div className="owner-search relative min-w-0"><Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" /><input type="search" aria-label="Cari nama meja" placeholder="Cari nama meja..." value={search} onChange={(event) => setSearch(event.target.value)} className={`${inputClass} pl-11`} /></div>
+          <p className="text-xs text-on-surface-variant">Ketuk status untuk mengubah ketersediaan meja.</p>
         </div>
-        <button
-          onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary text-xs font-semibold rounded-lg shadow-md shadow-primary/20 hover:bg-primary/90 transition-all"
-        >
-          <Plus size={14} />
-          Tambah Meja
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="relative w-full sm:max-w-xs">
-        <Search
-          size={16}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
-        />
-        <input
-          type="text"
-          placeholder="Cari nama meja..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-surface-container-lowest border border-surface-container rounded-xl pl-10 pr-4 py-2.5 text-base md:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-        />
-      </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Total", value: filtered.length, color: "text-on-surface" },
-          { label: "Tersedia", value: availableCount, color: "text-success" },
-          { label: "Terisi", value: occupiedCount, color: "text-error" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-surface-container-lowest rounded-2xl border border-surface-container p-4"
-          >
-            <p className="text-xs text-on-surface-variant mb-1">{stat.label}</p>
-            <p className={`font-mono text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* List */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-24 bg-surface-container-lowest rounded-2xl border border-surface-container animate-pulse"
-            />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">
-          <div className="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Grid3X3 size={32} className="text-on-surface-variant" />
-          </div>
-          <h3 className="font-bold text-on-surface mb-1">Belum ada meja</h3>
-          <p className="text-sm text-on-surface-variant mb-4">
-            Tambahkan meja untuk melayani pesanan dine-in di outlet ini.
-          </p>
-          <button
-            onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all"
-          >
-            <Plus size={16} />
-            Tambah Meja
-          </button>
-        </div>
-      ) : (
-        <div className="bg-surface-container-lowest rounded-2xl border border-surface-container overflow-hidden">
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-surface-container-low border-b border-surface-container">
-                <tr>
-                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Nama</th>
-                  <th className="text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Status</th>
-                  <th className="text-right text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-6 py-3">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-container">
-                {filtered.map((table) => (
-                  <tr key={table.id} className="hover:bg-surface-container-low">
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-semibold text-on-surface">{table.name}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button type="button" onClick={() => handleToggleStatus(table)}>
-                        <span
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusBadge(table.status)}`}
-                        >
-                          {statusLabel(table.status)}
-                        </span>
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openEditForm(table)}
-                          className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg transition-all"
-                          title="Edit"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(table)}
-                          className="p-2 text-on-surface-variant hover:text-error hover:bg-surface-container rounded-lg transition-all"
-                          title="Hapus"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+        {!isLoading && !loadError && <dl className="grid grid-cols-3 gap-3 rounded-xl border border-surface-container bg-surface-container-low/50 p-4">
+          {[{ label: "Total", value: filtered.length, color: "text-on-surface" }, { label: "Tersedia", value: availableCount, color: "text-primary" }, { label: "Terisi", value: occupiedCount, color: "text-on-surface" }].map((stat) => <div key={stat.label}><dt className="text-xs text-on-surface-variant">{stat.label}</dt><dd className={`mt-1 text-2xl font-semibold tabular-nums ${stat.color}`}>{stat.value}</dd></div>)}
+        </dl>}
+        {mutationError && !deleteTarget && <OwnerError message={mutationError} />}
+        {isLoading ? <OwnerSkeleton /> : loadError ? <OwnerError message={loadError} retry={() => void fetchTables()} /> : !filtered.length ? <OwnerEmpty title={tables.length ? "Meja tidak ditemukan" : "Belum ada meja"} description={tables.length ? "Coba nama lain atau hapus pencarian untuk melihat semua meja." : "Tambahkan meja untuk melayani pesanan dine-in di outlet ini."} action={tables.length ? <button type="button" onClick={() => setSearch("")} className="owner-button owner-button--secondary">Hapus pencarian</button> : addButton} /> : <>
+          <div className="hidden overflow-hidden rounded-xl border border-surface-container lg:block">
+            <table className="w-full text-sm"><caption className="sr-only">Daftar meja {outletName}</caption>
+              <thead className="border-b border-surface-container bg-surface-container-low text-xs text-on-surface-variant"><tr><th scope="col" className="px-5 py-3 text-left font-semibold">Nama</th><th scope="col" className="px-5 py-3 text-left font-semibold">Status</th><th scope="col" className="px-5 py-3 text-right font-semibold">Aksi</th></tr></thead>
+              <tbody className="divide-y divide-surface-container">{filtered.map((table) => <tr key={table.id} className="hover:bg-surface-container-low/50"><td className="break-words px-5 py-3 font-semibold text-on-surface">{table.name}</td><td className="px-5 py-3">{statusButton(table)}</td><td className="px-5 py-3">{actions(table)}</td></tr>)}</tbody>
             </table>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">{filtered.map((table) => <article key={table.id} className="min-w-0 rounded-xl border border-surface-container p-4">
+            <div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Grid3X3 size={20} /></div><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-semibold text-on-surface">{table.name}</h3>{statusButton(table)}</div></div>
+            <div className="mt-3 border-t border-surface-container pt-2">{actions(table)}</div>
+          </article>)}</div>
+        </>}
+      </div>
+    </OwnerSection>
 
-          {/* Mobile Cards */}
-          <div className="md:hidden divide-y divide-surface-container">
-            {filtered.map((table) => (
-              <div key={table.id} className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      <Grid3X3 size={18} />
-                    </div>
-                    <p className="text-sm font-semibold text-on-surface">{table.name}</p>
-                  </div>
-                  <button type="button" onClick={() => handleToggleStatus(table)}>
-                    <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusBadge(table.status)}`}
-                    >
-                      {statusLabel(table.status)}
-                    </span>
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openEditForm(table)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-low text-on-surface-variant text-xs font-semibold rounded-lg hover:bg-surface-container transition-all"
-                  >
-                    <Pencil size={14} /> Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(table)}
-                    className="px-3 py-2 bg-surface-container-low text-error text-xs font-semibold rounded-lg"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Form Modal */}
-      {showForm && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md max-h-[90dvh] overflow-hidden flex flex-col animate-slide-up pb-4 md:animate-bounce-in">
-            <div className="flex items-center justify-between p-6 border-b border-surface-container bg-surface-container-lowest">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                  <Grid3X3 size={20} />
-                </div>
-                <div>
-                  <h2 className="font-bold text-lg text-on-surface">
-                    {editingTable ? "Edit Meja" : "Tambah Meja"}
-                  </h2>
-                  <p className="text-xs text-on-surface-variant">
-                    {editingTable
-                      ? "Ubah nama meja."
-                      : `Buat meja baru untuk ${outletName}.`}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowForm(false)}
-                disabled={isSubmitting}
-                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg disabled:opacity-50"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 pb-[env(safe-area-inset-bottom,0px)]">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                  Nama Meja
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Contoh: Meja 1"
-                  required
-                  className="w-full px-4 py-3 bg-surface-container-low border border-transparent rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                />
-              </div>
-              <div className="flex gap-3 pt-2 sticky bottom-0 bg-surface-container-lowest">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  disabled={isSubmitting}
-                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : editingTable ? (
-                    "Simpan Perubahan"
-                  ) : (
-                    "Tambah Meja"
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Delete Confirmation */}
-      {deleteTarget && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-[110] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-surface-container-lowest rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md p-6 animate-slide-up pb-4 md:animate-bounce-in">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-danger/10 rounded-xl flex items-center justify-center text-error">
-                <AlertCircle size={24} />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg text-on-surface">Hapus Meja?</h2>
-                <p className="text-sm text-on-surface-variant">
-                  Tindakan ini tidak bisa dibatalkan.
-                </p>
-              </div>
-            </div>
-            <p className="text-sm text-on-surface-variant mb-6">
-              Anda akan menghapus meja{" "}
-              <span className="font-bold">{deleteTarget.name}</span> dari outlet{" "}
-              <span className="font-bold">{outletName}</span>.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="flex-1 px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 px-5 py-3 bg-danger hover:bg-danger/90 text-white text-sm font-semibold rounded-xl transition-all"
-              >
-                Hapus
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
+    <OwnerSheet open={showForm} onClose={() => setShowForm(false)} title={editingTable ? "Edit Meja" : "Tambah Meja"} subtitle={editingTable ? "Ubah nama meja." : `Buat meja baru untuk ${outletName}.`}
+      footer={<div className="grid grid-cols-2 gap-3"><button type="button" disabled={isSubmitting} onClick={() => setShowForm(false)} className="owner-button owner-button--secondary">Batal</button><button type="submit" form="outlet-table-form" disabled={isSubmitting} className="owner-button owner-button--primary">{isSubmitting ? "Menyimpan..." : editingTable ? "Simpan Perubahan" : "Tambah Meja"}</button></div>}>
+      <form id="outlet-table-form" onSubmit={handleSubmit} className="space-y-5">{formError && <OwnerError message={formError} />}<div className="space-y-2"><label htmlFor="outlet-table-name" className="block text-sm font-medium text-on-surface">Nama Meja</label><input id="outlet-table-name" required type="text" value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Contoh: Meja 1" className={inputClass} /></div></form>
+    </OwnerSheet>
+    <OwnerSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Hapus Meja?" subtitle="Tindakan ini tidak bisa dibatalkan."
+      footer={<div className="grid grid-cols-2 gap-3"><button type="button" disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="owner-button owner-button--secondary">Batal</button><button type="button" disabled={isDeleting} onClick={() => void handleDelete()} className="owner-button bg-error text-white hover:bg-error/90">{isDeleting ? "Menghapus..." : "Hapus"}</button></div>}>
+      <div className="space-y-4">{mutationError && <OwnerError message={mutationError} />}<p className="text-sm leading-relaxed text-on-surface-variant">Anda akan menghapus meja <strong className="text-on-surface">{deleteTarget?.name}</strong> dari outlet <strong className="text-on-surface">{outletName}</strong>.</p></div>
+    </OwnerSheet>
+  </>;
 }

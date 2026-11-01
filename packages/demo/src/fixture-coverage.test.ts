@@ -1,12 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDemoSandbox } from "../index";
+import { DEMO_MENUS, demoMenuId } from "./constants";
 
 test("cafe fixture has exact menu identities and realistic cashier, modifier, tier and table history", () => {
   const sandbox = createDemoSandbox(new Date("2026-10-13T05:00:00Z"));
   sandbox.run({ type: "session.owner" });
   const state = sandbox.getSnapshot();
   const menus = ["Espresso", "Americano", "Cappuccino", "Caffe Latte", "Kopi Susu Gula Aren", "Matcha Latte", "Chocolate Latte", "Lemon Tea", "Butter Croissant", "French Fries"];
+  for (const role of state.roles) {
+    for (const grant of role.grants ?? []) {
+      assert.equal(grant.can_create, grant.can_view);
+      assert.equal(grant.can_edit, grant.can_view);
+      assert.equal(grant.can_delete, grant.can_view);
+      const slug = DEMO_MENUS.find(menu => demoMenuId(menu) === grant.menu_id);
+      assert.equal(role.menus.includes(slug ?? ""), grant.can_view);
+    }
+  }
   assert.equal(state.employees.length, 4);
   for (const outlet of state.outlets) {
     assert.deepEqual(state.products.filter(product => product.outlet_id === outlet.id).map(product => product.name), menus);

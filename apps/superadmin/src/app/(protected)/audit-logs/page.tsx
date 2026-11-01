@@ -97,9 +97,8 @@ export default function AuditLogsPage() {
     setLoading(false);
   };
 
-  // Initial load
+  // Logs are loaded by the filter effect below, including its initial run.
   useEffect(() => {
-    fetchLogs();
     fetchCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

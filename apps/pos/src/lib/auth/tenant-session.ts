@@ -5,13 +5,15 @@ import { issueSession, isSessionActive } from "@rakku/db/sessions";
 import { cookies } from "next/headers";
 import type { TenantSession } from "@rakku/shared-types";
 import { createAdminClient, type DatabaseClient } from "@rakku/db";
+import { cache } from "react";
 
 const SESSION_COOKIE = "session";
 export async function signSession(session: TenantSession, db: DatabaseClient = createAdminClient()) {
   const session_id = await issueSession(db, "pos", session.user_id, 43200);
   return signToken({ ...session, session_id });
 }
-export async function getTenantSessionFromCookies(): Promise<TenantSession | null> {
+// Deduplicate the layout/helper/client checks during one render, never across users.
+export const getTenantSessionFromCookies = cache(async (): Promise<TenantSession | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -33,7 +35,7 @@ export async function getTenantSessionFromCookies(): Promise<TenantSession | nul
     if (!access) return null;
   }
   return session;
-}
+});
 
 export function clearSessionCookie() {
   return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;

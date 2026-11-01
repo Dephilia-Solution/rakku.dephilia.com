@@ -1,316 +1,371 @@
 import * as XLSX from "xlsx";
-import { IMPORT_MAX_ROWS, IMPORT_MAX_RECIPE_ROWS, IMPORT_MAX_FILE_BYTES, type ImportDomain } from "./import-spec";
-export { IMPORT_DOMAINS, IMPORT_MAX_ROWS, type ImportDomain } from "./import-spec";
+import ExcelJS from "exceljs";
+import { validateWorkbookArchive } from "./workbook-archive";
+import { IMPORT_HEADERS, IMPORT_MAX_FILE_BYTES, IMPORT_MAX_RECIPE_ROWS, IMPORT_MAX_PURCHASE_LINES,
+  IMPORT_METADATA_KEYS, IMPORT_METADATA_SHEET, IMPORT_UUID, tierHeader, assertProductMetadata,
+  type BackendImportDomain as ImportDomain, type ImportTier, type ProductImportMetadata } from "./import-spec";
+export { IMPORT_BACKEND_DOMAINS as IMPORT_DOMAINS, IMPORT_HEADERS, IMPORT_MAX_FILE_BYTES, IMPORT_MAX_RECIPE_ROWS, IMPORT_MAX_ROWS,
+  type ImportConflictMode, type BackendImportDomain as ImportDomain } from "./import-spec";
 
 export interface ImportRowError { field: string | null; message: string; }
-export interface ParsedRow {
-  /** Unique staging key, not the Excel row for auxiliary sheets. */
-  rowNumber: number;
-  payload: Record<string, unknown>;
-  errors: ImportRowError[];
-}
-export interface ParseResult {
-  headerOk: boolean;
-  headerLabels: string[];
-  rows: ParsedRow[];
-  linked?: boolean;
-}
-export interface IngredientReference { id: string; name: string; unit: string; is_active?: boolean; }
-export interface ImportTemplateSpec {
-  fileName: string; sheetName: string; headers: string[];
-  exampleRows: (string | number)[][]; guide: string[];
-}
-
-const INGREDIENT_HEADERS = ["kode_bahan", "nama", "satuan", "stok_awal", "biaya_per_satuan", "stok_minimum", "id_bahan"];
-const RECIPE_HEADERS = ["kode_produk", "kode_bahan", "jumlah_per_porsi", "id_bahan", "satuan"];
+export interface ParsedRow { rowNumber: number; payload: Record<string, unknown>; errors: ImportRowError[]; warnings: ImportRowError[]; }
+export interface ParseResult { headerOk: boolean; headerLabels: string[]; rows: ParsedRow[]; linked?: boolean; visibleSheets: string[];
+  schemaVersion: 1 | 2; metadata?: ProductImportMetadata; structuralErrors: ImportRowError[]; }
+export interface IngredientReference { id: string; code: string; name: string; unit: string; is_active?: boolean; }
+export interface ExistingProductReference { id: string; code: string; name: string; category_name?: string; price?: number; description?: string | null; }
+export interface ImportTemplateSpec { fileName: string; sheetName: string; headers: string[]; guide: string[]; }
 const UNITS = new Set(["gram", "ml", "pcs", "kg", "liter"]);
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const key = (value: unknown) => String(value ?? "").trim().toLowerCase();
-const text = (value: unknown) => String(value ?? "").trim();
-const ingredientKey = (name: unknown, unit: unknown) => JSON.stringify([key(name), key(unit)]);
-const addError = (row: ParsedRow, field: string | null, message: string) => {
-  if (!row.errors.some(error => error.field === field && error.message === message)) row.errors.push({ field, message });
-};
+const key = (value: unknown) => String(value ?? "").trim().normalize("NFKC").toLocaleLowerCase("id-ID");
+const displayText = (value: unknown) => value == null ? "" : String(value).trim();
+const addIssue = (list: ImportRowError[], field: string | null, message: string) => { if (!list.some(issue => issue.field === field && issue.message === message)) list.push({ field, message }); };
 export const rowKind = (row: ParsedRow, domain: ImportDomain) => String(row.payload.kind ?? (domain === "products" ? "product" : domain === "ingredients" ? "ingredient" : "employee"));
 export const isLinkedWorkbook = (rows: ParsedRow[]) => rows.some(row => row.payload.linked_workbook === true);
 
-const INGREDIENT_GUIDE = [
-  "BahanBaku: kode_bahan, nama, satuan, stok_awal, biaya_per_satuan, stok_minimum; id_bahan opsional.",
-  "kode_bahan adalah kode unik lokal file ini, bukan ID database. Gunakan kode yang sama di Komposisi. Kode tidak membedakan huruf besar/kecil.",
-  "Bahan baru hanya dibuat dari baris BahanBaku dengan nama+satuan baru tanpa id_bahan. Isi stok dan biaya pembukaan secara eksplisit (boleh 0).",
-  "Bahan lama: isi id_bahan dari ReferensiBahan, atau nama+satuan yang cocok tepat dan unik di outlet tujuan. Jika nama sama tetapi satuan berbeda, gunakan nama baru yang jelas; tidak ada konversi satuan otomatis.",
-  "Baris bahan lama HANYA referensi: stok_awal, biaya_per_satuan, stok_minimum tidak mengubah data lama. Kosongkan atau isi 0 agar tidak menyesatkan.",
-  "Satuan yang didukung: gram, ml, pcs, kg, liter. Jumlah resep menggunakan satuan bahan tersebut (contoh 18 gram, bukan 0.018 kg).",
-  "Semua angka maksimal 2 desimal, tanpa pemisah ribuan; stok/biaya/minimum >= 0 (maks 9999999999.99). Maksimal 500 baris BahanBaku.",
-  "ReferensiBahan hanya daftar baca dari outlet tujuan; menambahkan baris di sana tidak membuat bahan. ID dari outlet/perusahaan lain ditolak.",
-];
-
 export function getTemplateSpec(domain: ImportDomain): ImportTemplateSpec {
-  if (domain === "products") return {
-    fileName: "template-produk.xlsx", sheetName: "Produk",
-    headers: ["nama", "kategori", "harga", "deskripsi", "kode_produk"],
-    exampleRows: [["Kopi Susu Gula Aren", "Minuman", 22000, "Kopi susu gula aren original", "P001"],
-      ["Americano", "Minuman", 18000, "Espresso dan air", "P002"]],
-    guide: [
-      "Isi mulai baris kedua; pertahankan judul kolom. Ganti/hapus seluruh data contoh sebelum impor data bisnis.",
-      "Produk sederhana tetap kompatibel: hanya nama,kategori,harga wajib; deskripsi dan kode_produk opsional. Hapus BahanBaku dan Komposisi jika tidak membutuhkan resep.",
-      "nama maksimal 100 karakter; kategori wajib, maksimal 60 karakter (kategori baru otomatis dibuat); harga 0–99999999.99, maksimal 2 desimal.",
-      "Untuk resep: kode_produk wajib unik pada Produk dan harus cocok dengan Komposisi. Kode produk hanya untuk file ini; tidak memperbarui produk lama.",
-      "Komposisi: kode_produk,kode_bahan,jumlah_per_porsi. Alternatif bahan lama: isi id_bahan langsung, kosongkan kode_bahan. Jangan isi keduanya.",
-      "jumlah_per_porsi harus > 0, maksimal 9999999999.99 dan 2 desimal (numeric12,2). Kolom satuan opsional harus cocok dengan satuan bahan, tanpa konversi.",
-      "Satu pasangan produk+bahan hanya boleh satu baris. Maksimal 500 produk dan 2000 baris Komposisi.",
-      "Workbook dengan baris BahanBaku/Komposisi diproses atomik: kesalahan apa pun memblokir konfirmasi seluruh file. Produk sederhana (termasuk sheet tambahan yang hanya berisi judul kolom) mengimpor baris valid saja.",
-      ...INGREDIENT_GUIDE,
-    ],
-  };
-  if (domain === "ingredients") return {
-    fileName: "template-bahan-baku.xlsx", sheetName: "BahanBaku", headers: INGREDIENT_HEADERS,
-    exampleRows: [["B001", "Biji kopi arabika", "gram", 1000, 180, 200, ""],
-      ["B002", "Susu segar", "ml", 5000, 22, 1000, ""]],
-    guide: ["Isi mulai baris kedua. Ganti/hapus seluruh contoh sebelum impor. Pilih outlet yang benar.", ...INGREDIENT_GUIDE,
-      "Impor bahan diproses atomik: perbaiki semua kesalahan sebelum konfirmasi. Stok pembukaan bahan baru diperbolehkan pada paket dasar; impor ini bukan penyesuaian/pembelian stok."],
-  };
-  return {
-    fileName: "template-karyawan.xlsx", sheetName: "Karyawan", headers: ["nama", "username", "pin", "role", "outlets"],
-    exampleRows: [["Budi Santoso", "budi", "123456", "Kasir", "Semua"],
-      ["Sari Dewi", "sari", "654321", "Kasir", "Outlet Utama, Outlet Cabang"]],
-    guide: ["Isi mulai baris kedua; baris pertama (judul kolom) jangan diubah.", "nama: wajib, maksimal 60 karakter.",
-      "username: wajib, huruf kecil/angka/underscore, 3-20 karakter, unik.", "pin: tepat 6 digit. Simpan sebagai teks agar nol di depan tetap ada.",
-      "role: nama role yang sudah ada (misal Kasir).", "outlets: nama outlet dipisah koma, atau Semua untuk semua outlet.",
-      "Data contoh boleh diganti atau dihapus; pertahankan judul kolom. Baris valid saja yang diimpor."],
-  };
+  if (domain === "purchases") return { fileName: "template-pembelian.xlsx", sheetName: "Pembelian", headers: [...IMPORT_HEADERS.purchases], guide: [
+    "Pembelian dan Detail Pembelian menggunakan kode_pembelian unik pada outlet tujuan. Seluruh workbook disimpan atomik.",
+    "Tanggal berupa teks YYYY-MM-DD (pukul 00:00 WIB). Satu pembelian berisi 1–100 bahan aktif berbeda; satuan harus tepat, tanpa konversi.",
+    "Kode pembelian yang sama dengan isi sama dilewati permanen; isi berbeda ditolak. Urutan header menentukan urutan pencatatan dan biaya terakhir."] };
+  if (domain === "ingredients") return { fileName: "template-bahan-baku.xlsx", sheetName: "Bahan Baku", headers: [...IMPORT_HEADERS.ingredients], guide: [
+    "Satu sheet, enam kolom dengan urutan tetap. Isi kode sebagai teks; kode unik dalam outlet aktif.",
+    "Dropdown satuan: gram, ml, pcs, kg, liter. Anda tetap dapat mengetik manual; server memvalidasi nilainya.",
+    "Kode yang sudah ada dapat dilewati atau diperbarui. Update tidak mengubah stok aktual; gunakan Pembelian/Stock Opname.",
+    "Isi angka sebagai nilai numerik. Format ribuan dan tampilan Rupiah tidak mengubah nilai sel."] };
+  if (domain === "products") return { fileName: "template-produk.xlsx", sheetName: "Produk", headers: [...IMPORT_HEADERS.products], guide: [
+    "Dua sheet terlihat saja: Produk dan Komposisi. Header wajib tepat dan berurutan.",
+    "Kategori memiliki dropdown outlet aktif dan tetap mengizinkan input manual. Kategori baru meminta persetujuan saat preview.",
+    "Komposisi per satu porsi mengacu kode_produk dan kode_bahan. Tanpa konversi satuan.",
+    "Kode existing default dilewati. Pilih Perbarui bila ingin mengganti informasi produk/komposisinya. Komposisi tidak diubah jika produk tidak tercantum pada Komposisi.",
+    "Kesalahan pada workbook yang berisi komposisi membatalkan penyimpanan seluruh file."] };
+  return { fileName: "template-karyawan.xlsx", sheetName: "Karyawan", headers: ["nama", "username", "pin", "role", "outlets"],
+    guide: ["PIN tepat enam digit; simpan sebagai teks. Username unik. Role harus sudah tersedia. Outlet dipisahkan koma atau isi Semua."] };
 }
 
-function decimal(raw: string, max = 9999999999.99, positive = false): number | null {
-  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
-  const value = Number(raw);
-  return Number.isFinite(value) && value <= max && (positive ? value > 0 : value >= 0) ? value : null;
+/** Excel numeric cells are locale-independent; parse common locale-formatted text without mistaking numeric cell formatting for text. */
+function numeric(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  let value = displayText(raw).replace(/^(?:rp\.?\s*)/i, "").replace(/\s/g, "");
+  if (!value || !/^[0-9.,]+$/.test(value)) return null;
+  const comma = value.lastIndexOf(","), dot = value.lastIndexOf(".");
+  if (comma >= 0 && dot >= 0) {
+    const decimalAt = Math.max(comma, dot), digits = value.length - decimalAt - 1;
+    if (digits < 1 || digits > 2) return null;
+    value = `${value.slice(0, decimalAt).replace(/[.,]/g, "")}.${value.slice(decimalAt + 1)}`;
+  } else if (comma >= 0) {
+    const digits = value.length - comma - 1;
+    if (digits === 1 || digits === 2) value = `${value.slice(0, comma).replace(/,/g, "")}.${value.slice(comma + 1)}`;
+    else if (digits === 3) value = value.replace(/,/g, ""); else return null;
+  } else if (dot >= 0) {
+    const digits = value.length - dot - 1;
+    if (digits === 3 && dot > 0) value = value.replace(/\./g, "");
+    else if (digits < 1 || digits > 2) return null;
+  }
+  const result = Number(value);
+  return Number.isFinite(result) ? result : null;
 }
+function amount(raw: unknown, maximum = 9999999999.99, positive = false) {
+  const value = numeric(raw);
+  return value !== null && value <= maximum && value >= (positive ? Number.EPSILON : 0)
+    && (!positive || Math.round(value*100)>0) && Math.abs(Math.round(value * 100) - value * 100) <= 0.001 ? Math.round(value * 100) / 100 : null;
+}
+
+/** Date-only input is deliberately independent of the server timezone and Excel's serial-date system. */
+export function purchaseDate(raw: unknown): string | null {
+  if (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) return null;
+  const date = raw.trim(), parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? `${date}T00:00:00+07:00` : null;
+}
+function code(raw: unknown, field: string, row: ParsedRow) {
+  if (typeof raw === "number") { addIssue(row.errors, field, `${field}: simpan kode sebagai teks agar angka nol di depan tidak hilang.`); return String(raw); }
+  const result = displayText(raw).normalize("NFKC").toLocaleUpperCase("id-ID");
+  if (!result) addIssue(row.errors, field, `${field}: wajib diisi.`);
+  else if (result.length > 64 || !/^[A-Z0-9][A-Z0-9._-]{0,63}$/.test(result)) addIssue(row.errors, field, `${field}: gunakan 1–64 huruf, angka, titik, garis bawah, atau tanda hubung.`);
+  else if (/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(result)) addIssue(row.errors, field, `${field}: UUID/ID database bukan kode bisnis dan tidak dapat digunakan.`);
+  return result;
+}
+function fieldName(raw: unknown, row: ParsedRow, field: string, max: number) {
+  const value = displayText(raw).normalize("NFKC");
+  if (!value) addIssue(row.errors, field, `${field}: wajib diisi.`);
+  else if (value.length > max) addIssue(row.errors, field, `${field}: maksimal ${max} karakter.`);
+  return value;
+}
+function exactHeader(grid: unknown[][], expected: readonly string[]) {
+  const actual = (grid[0] ?? []).map(displayText);
+  return { actual, ok: actual.length === expected.length && expected.every((label, index) => actual[index] === label) };
+}
+function formulaAt(sheet: XLSX.WorkSheet, row: number, col: number) { return Boolean(sheet[XLSX.utils.encode_cell({ r: row, c: col })]?.f); }
 
 export function parseWorkbook(data: ArrayBuffer, domain: ImportDomain): ParseResult {
-  if (data.byteLength > IMPORT_MAX_FILE_BYTES) throw new Error("Maksimal ukuran file 2 MB.");
-  const spec = getTemplateSpec(domain);
-  const wb = XLSX.read(data, { type: "array", sheetRows: IMPORT_MAX_RECIPE_ROWS + 3 });
-  const findSheet = (name: string) => wb.SheetNames.find(sheet => key(sheet) === key(name));
-  const main = findSheet(spec.sheetName) ?? wb.SheetNames.find(name => !["petunjuk", "referensibahan", "komposisi", ...(domain === "products" ? ["bahanbaku"] : [])].includes(key(name)));
-  const linked = domain === "ingredients" || (domain === "products" && !!(findSheet("BahanBaku") || findSheet("Komposisi")));
-  const result: ParseResult = { headerOk: false, headerLabels: [], rows: [], linked };
-  if (!main) return result;
-
-  const readSheet = (sheet: string, kind: string, offset: number, maxRows: number, required: string[], primary = false) => {
-    const ws = wb.Sheets[sheet];
-    const range = ws["!fullref"] ?? ws["!ref"];
-    if (range && (XLSX.utils.decode_range(range).e.r > maxRows + 1 || XLSX.utils.decode_range(range).e.c > 50)) {
-      throw new Error(`Maksimal ${maxRows} baris data dan 51 kolom pada sheet ${sheet}. Pisahkan data ke beberapa file.`);
-    }
-    const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null, blankrows: true });
-    const headers = (grid[0] ?? []).map(value => key(value));
-    const headerOk = required.every(label => headers.includes(label)) && headers.filter(Boolean).length === new Set(headers.filter(Boolean)).size;
-    if (primary) { result.headerOk = headerOk; result.headerLabels = (grid[0] ?? []).map(text); }
-    if (!headerOk) {
-      if (!primary) result.rows.push({ rowNumber: offset + 1, payload: { kind, sheet_name: sheet, sheet_row: 1, linked_workbook: true },
-        errors: [{ field: null, message: `Kolom sheet ${sheet} tidak sesuai: ${required.join(", ")}` }] });
+  if (data.byteLength > IMPORT_MAX_FILE_BYTES) throw new Error("Ukuran file maksimal 2 MB.");
+  if (new Uint8Array(data,0,Math.min(data.byteLength,4)).join(",") !== "80,75,3,4") throw new Error("File harus workbook .xlsx asli, bukan ZIP pembungkus/CSV/format Excel lain.");
+  validateWorkbookArchive(data);
+  const workbook = XLSX.read(data, { type: "array", sheetRows: (domain === "purchases" ? IMPORT_MAX_PURCHASE_LINES : IMPORT_MAX_RECIPE_ROWS) + 3, cellFormula: true });
+  const hidden = new Map((workbook.Workbook?.Sheets ?? []).map(sheet => [sheet.name, sheet.Hidden ?? 0]));
+  const visibleSheets = workbook.SheetNames.filter(name => hidden.get(name) !== 1 && hidden.get(name) !== 2);
+  const expected = domain === "products" ? ["Produk", "Komposisi"] : domain === "purchases" ? ["Pembelian", "Detail Pembelian"] : [getTemplateSpec(domain).sheetName];
+  const result: ParseResult = { headerOk: false, headerLabels: [], rows: [], visibleSheets, schemaVersion: 1, structuralErrors: [] };
+  const structural = (message: string) => { addIssue(result.structuralErrors, null, message); result.headerOk = false; return result; };
+  if (visibleSheets.length !== expected.length || visibleSheets.some((name, index) => name !== expected[index])) return structural(`Sheet terlihat wajib tepat dan berurutan: ${expected.join(", ")}.`);
+  if (workbook.SheetNames.some(name => !expected.includes(name) && !(domain === "products" && ["_kategori", IMPORT_METADATA_SHEET].includes(name) && hidden.get(name) === 2))) return structural("Sheet tambahan/tidak dikenal atau metadata tidak veryHidden.");
+  const productHeaders: string[] = [...IMPORT_HEADERS.products];
+  if (domain === "products" && workbook.Sheets[IMPORT_METADATA_SHEET]) {
+    try {
+      const sheet = workbook.Sheets[IMPORT_METADATA_SHEET];
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, blankrows: true });
+      if (grid.length !== IMPORT_METADATA_KEYS.length || grid.some((cells, i) => cells.length !== 2 || cells[0] !== IMPORT_METADATA_KEYS[i]
+        || formulaAt(sheet, i, 0) || formulaAt(sheet, i, 1))) throw new Error("Metadata harus tepat lima baris key/value yang ditentukan.");
+      const fields = Object.fromEntries(grid.map(cells => [String(cells[0]), cells[1]]));
+      const tiers: ImportTier[] = JSON.parse(String(fields.tiers));
+      if (String(fields.schema_version) !== "2" || fields.domain !== "products" || !IMPORT_UUID.test(String(fields.company_id)) || !IMPORT_UUID.test(String(fields.outlet_id))
+        || !Array.isArray(tiers) || tiers.length > 100 || tiers.some(tier => !tier || Object.keys(tier).sort().join() !== "header,id,name,slug" || !IMPORT_UUID.test(tier.id)
+          || typeof tier.name !== "string" || !tier.name.trim() || tier.name.length > 200 || typeof tier.slug !== "string" || !tier.slug || tier.slug.length > 200 || tier.header !== tierHeader(tier.slug))
+        || new Set(tiers.map(tier => tier.id)).size !== tiers.length || new Set(tiers.map(tier => tier.header)).size !== tiers.length) throw new Error("Identitas atau pemetaan tier tidak valid.");
+      result.metadata = { schema_version: 2, domain: "products", company_id: String(fields.company_id), outlet_id: String(fields.outlet_id), tiers };
+      result.schemaVersion = 2;
+      productHeaders.push(...tiers.map(tier => tier.header));
+      const actual = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets.Produk, { header: 1 })[0] ?? [];
+      if (actual[actual.length - 1] === "gambar") productHeaders.push("gambar");
+    } catch (error) { return structural(`Metadata v2 tidak valid: ${error instanceof Error ? error.message : "unduh template terbaru"}`); }
+  }
+  const linked = domain === "products" || domain === "purchases";
+  const read = (sheetName: string, kind: "ingredient" | "product" | "recipe" | "employee" | "purchase" | "purchase_line", offset: number, maximum: number, headers: readonly string[], primary = false) => {
+    const sheet = workbook.Sheets[sheetName], range = sheet["!fullref"] ?? sheet["!ref"];
+    if (range && XLSX.utils.decode_range(range).e.c >= headers.length) throw new Error(`Sheet ${sheetName}: hanya ${headers.length} kolom yang ditentukan; hapus kolom tambahan.`);
+    if (range && XLSX.utils.decode_range(range).e.r > maximum + 1) throw new Error(`Sheet ${sheetName}: maksimal ${maximum} baris data.`);
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, blankrows: true });
+    const header = exactHeader(grid, headers);
+    if (headers.some((_label, column) => formulaAt(sheet, 0, column))) header.ok = false;
+    if (primary) { result.headerOk = header.ok; result.headerLabels = header.actual; }
+    if (!header.ok) {
+      structural(`Sheet ${sheetName}: header harus tepat dan berurutan: ${headers.join(", ")}`);
+      result.rows.push({ rowNumber: offset + 1, payload: { kind, sheet_name: sheetName, sheet_row: 1 },
+        errors: [{ field: null, message: `Header harus tepat dan berurutan: ${headers.join(", ")}` }], warnings: [] });
       return;
     }
     let count = 0;
     grid.slice(1).forEach((cells, index) => {
-      if (!(cells ?? []).some(value => text(value))) return;
-      if (++count > maxRows) throw new Error(`Maksimal ${maxRows} baris pada sheet ${sheet}.`);
-      const value = (label: string) => text(cells[headers.indexOf(label)]);
       const sourceRow = index + 2;
-      const row: ParsedRow = { rowNumber: offset + sourceRow, payload: { kind, sheet_name: sheet, sheet_row: sourceRow, ...(linked ? { linked_workbook: true } : {}) }, errors: [] };
+      if (!(cells ?? []).some(cell => displayText(cell))) return;
+      if (++count > maximum) throw new Error(`Sheet ${sheetName}: maksimal ${maximum} baris data.`);
+      const row: ParsedRow = { rowNumber: offset + sourceRow,
+        payload: { kind, sheet_name: sheetName, sheet_row: sourceRow, ...(linked && (kind === "recipe" || domain === "purchases") ? { linked_workbook: true } : {}) }, errors: [], warnings: [] };
+      for (let col = 0; col < headers.length; col++) if (formulaAt(sheet, sourceRow - 1, col)) addIssue(row.errors, headers[col], `${headers[col]}: formula Excel tidak didukung, tempel nilai akhirnya sebagai data.`);
+      const get = (headerName: string) => (cells ?? [])[headers.indexOf(headerName)];
       const p = row.payload;
-      const name = value("nama");
-      if (kind !== "recipe") {
-        p.name = name || null;
-        const maxName = kind === "employee" ? 60 : 100;
-        if (!name) addError(row, "nama", "Nama wajib diisi");
-        else if (name.length > maxName) addError(row, "nama", `Nama maksimal ${maxName} karakter`);
-      }
-      if (kind === "product") {
-        p.category_name = value("kategori") || null; p.price = decimal(value("harga"), 99999999.99);
-        p.description = value("deskripsi") || null; p.product_code = value("kode_produk");
-        if (!p.category_name) addError(row, "kategori", "Kategori wajib diisi");
-        else if (String(p.category_name).length > 60) addError(row, "kategori", "Kategori maksimal 60 karakter");
-        if (p.price === null) addError(row, "harga", "Harga harus angka 0–99999999.99, maksimal 2 desimal, tanpa pemisah ribuan");
-      } else if (kind === "ingredient") {
-        p.ingredient_code = value("kode_bahan"); p.unit = key(value("satuan")); p.ingredient_id = key(value("id_bahan")) || null;
-        if (!p.ingredient_code) addError(row, "kode_bahan", "Kode bahan wajib diisi dan unik dalam file");
-        if (!UNITS.has(String(p.unit))) addError(row, "satuan", "Satuan harus gram, ml, pcs, kg, atau liter; tidak ada konversi otomatis");
-        if (p.ingredient_id && !UUID.test(String(p.ingredient_id))) addError(row, "id_bahan", "ID bahan harus UUID dari outlet tujuan");
-        for (const [column, field] of [["stok_awal", "stock_quantity"], ["biaya_per_satuan", "cost_per_unit"], ["stok_minimum", "min_stock_alert"]]) {
-          // Blank opening values are allowed for existing references; new rows require explicit numbers below.
-          p[field] = value(column) === "" ? null : decimal(value(column));
-          if (value(column) !== "" && p[field] === null) addError(row, column, `${column} harus angka 0–9999999999.99, maksimal 2 desimal`);
+      if (kind === "ingredient") {
+        p.code = code(get("kode_bahan"), "kode_bahan", row); p.name = fieldName(get("nama"), row, "nama", 100);
+        p.unit = displayText(get("satuan")).normalize("NFKC").toLowerCase();
+        if (!UNITS.has(String(p.unit))) addIssue(row.errors, "satuan", "satuan: pilih gram, ml, pcs, kg, atau liter.");
+        for (const [column, field] of [["stok_awal", "stock_quantity"], ["biaya_per_satuan(Rp)", "cost_per_unit"], ["stok_minimum", "min_stock_alert"]]) {
+          p[field] = amount(get(column));
+          if (p[field] === null) addIssue(row.errors, column, `${column}: wajib angka nonnegatif dengan maksimal dua desimal.`);
+        }
+      } else if (kind === "product") {
+        p.code = code(get("kode_produk"), "kode_produk", row); p.name = fieldName(get("nama"), row, "nama", 100);
+        p.category_name = displayText(get("kategori")).normalize("NFKC");
+        if (!p.category_name) addIssue(row.errors, "kategori", "kategori: wajib diisi.");
+        else if (String(p.category_name).length > 60) addIssue(row.errors, "kategori", "kategori: maksimal 60 karakter.");
+        p.price = amount(get("harga"), 99999999.99);
+        if (p.price === null) addIssue(row.errors, "harga", "harga: wajib angka 0–99999999.99 dengan maksimal dua desimal.");
+        p.description = displayText(get("deskripsi"));
+        if (String(p.description).length > 5000) addIssue(row.errors, "deskripsi", "deskripsi: maksimal 5000 karakter.");
+        if (result.metadata) {
+          p.tier_prices = result.metadata.tiers.map(tier => {
+            const raw = get(tier.header), price = displayText(raw) ? amount(raw, 99999999.99) : null;
+            if (displayText(raw) && price === null) addIssue(row.errors, tier.header, `${tier.header}: angka 0–99999999.99, maksimal dua desimal; kosong mempertahankan harga/fallback.`);
+            return { ...tier, price, action: price === null ? "preserve_or_fallback" : "set" };
+          });
+          if (headers.includes("gambar")) p.image_reference = displayText(get("gambar"));
         }
       } else if (kind === "recipe") {
-        p.product_code = value("kode_produk"); p.ingredient_code = value("kode_bahan");
-        p.ingredient_id = key(value("id_bahan")) || null; p.unit = key(value("satuan")) || null;
-        p.quantity_used = decimal(value("jumlah_per_porsi"), 9999999999.99, true);
-        if (!p.product_code) addError(row, "kode_produk", "Kode produk wajib diisi");
-        if (!!p.ingredient_code === !!p.ingredient_id) addError(row, "kode_bahan", "Isi tepat satu: kode_bahan atau id_bahan");
-        if (p.ingredient_id && !UUID.test(String(p.ingredient_id))) addError(row, "id_bahan", "ID bahan tidak valid");
-        if (p.quantity_used === null) addError(row, "jumlah_per_porsi", "Jumlah per porsi harus > 0, maksimal 9999999999.99 dan 2 desimal");
+        p.product_code = code(get("kode_produk"), "kode_produk", row); p.ingredient_code = code(get("kode_bahan"), "kode_bahan", row);
+        p.quantity_used = amount(get("jumlah_per_porsi"), 9999999999.99, true);
+        if (p.quantity_used === null) addIssue(row.errors, "jumlah_per_porsi", "jumlah_per_porsi: wajib angka lebih dari 0 dan maksimal dua desimal.");
+      } else if (kind === "purchase") {
+        p.code = code(get("kode_pembelian"), "kode_pembelian", row); p.local_date = displayText(get("tanggal")); p.date = purchaseDate(get("tanggal"));
+        if (!p.date) addIssue(row.errors, "tanggal", "tanggal: isi teks tanggal kalender YYYY-MM-DD (00:00 WIB), bukan serial/formula Excel.");
+        p.supplier = displayText(get("pemasok")); p.note = displayText(get("catatan"));
+        for (const [field, column] of [["supplier", "pemasok"], ["note", "catatan"]]) if (String(p[field]).length > 1000) addIssue(row.errors, column, `${column}: maksimal 1000 karakter.`);
+      } else if (kind === "purchase_line") {
+        p.purchase_code = code(get("kode_pembelian"), "kode_pembelian", row); p.ingredient_code = code(get("kode_bahan"), "kode_bahan", row);
+        p.quantity = amount(get("jumlah"), 9999999999.99, true); p.unit_cost = amount(get("biaya_per_satuan(Rp)")); p.unit = displayText(get("satuan"));
+        if (p.quantity === null) addIssue(row.errors, "jumlah", "jumlah: angka positif, maksimal 9999999999.99 dan dua desimal.");
+        if (p.unit_cost === null) addIssue(row.errors, "biaya_per_satuan(Rp)", "biaya_per_satuan(Rp): angka nonnegatif, maksimal 9999999999.99 dan dua desimal.");
+        if (!UNITS.has(String(p.unit))) addIssue(row.errors, "satuan", "satuan: harus tepat gram, ml, pcs, kg, atau liter; tanpa konversi.");
       } else {
-        const username = key(value("username")); const pin = value("pin"); const outlets = value("outlets");
-        p.username = username || null; p.pin = /^\d{6}$/.test(pin) ? pin : null; p.role_name = value("role") || null;
-        p.outlet_names = ["semua", "all", "semua outlet"].includes(key(outlets)) ? ["__ALL__"] : outlets.split(/[,;]/).map(text).filter(Boolean);
-        if (!/^[a-z0-9_]{3,20}$/.test(username)) addError(row, "username", "Username harus 3-20 karakter huruf kecil, angka, atau underscore");
-        if (!p.pin) addError(row, "pin", "PIN harus tepat 6 digit angka");
-        if (!p.role_name) addError(row, "role", "Role wajib diisi");
-        if (!outlets) addError(row, "outlets", "Outlet wajib diisi (nama outlet atau Semua)");
+        p.name = fieldName(get("nama"), row, "nama", 60); p.username = displayText(get("username")).toLowerCase(); p.pin = displayText(get("pin")); p.role_name = displayText(get("role"));
+        const outlets = displayText(get("outlets")); p.outlet_names = ["semua", "all", "semua outlet"].includes(key(outlets)) ? ["__ALL__"] : outlets.split(/[,;]/).map(displayText).filter(Boolean);
+        if (!/^[a-z0-9_]{3,20}$/.test(String(p.username))) addIssue(row.errors, "username", "username: 3–20 huruf kecil, angka, atau underscore.");
+        if (!/^\d{6}$/.test(String(p.pin))) addIssue(row.errors, "pin", "pin: harus tepat enam digit.");
+        if (!p.role_name) addIssue(row.errors, "role", "role: wajib diisi.");
+        if (!outlets) addIssue(row.errors, "outlets", "outlets: isi nama outlet atau Semua.");
       }
       result.rows.push(row);
     });
   };
-  readSheet(main, domain === "products" ? "product" : domain === "ingredients" ? "ingredient" : "employee", 0, IMPORT_MAX_ROWS[domain],
-    domain === "products" ? ["nama", "kategori", "harga"] : domain === "ingredients" ? INGREDIENT_HEADERS.slice(0, 6) : spec.headers, true);
-  if (domain === "products" && result.headerOk) {
-    const ingredients = findSheet("BahanBaku"); const recipes = findSheet("Komposisi");
-    if (ingredients) readSheet(ingredients, "ingredient", 100000, IMPORT_MAX_ROWS.ingredients, INGREDIENT_HEADERS.slice(0, 6));
-    // kode_bahan may be blank for explicit IDs, but the standard header remains required.
-    if (recipes) readSheet(recipes, "recipe", 200000, IMPORT_MAX_RECIPE_ROWS, RECIPE_HEADERS.slice(0, 3));
-  }
-  if (domain === "products" && !result.rows.some(row => row.payload.kind === "ingredient" || row.payload.kind === "recipe")) {
-    result.linked = false;
-    for (const row of result.rows) delete row.payload.linked_workbook;
-  }
+  if (domain === "ingredients") read("Bahan Baku", "ingredient", 0, 500, IMPORT_HEADERS.ingredients, true);
+  else if (domain === "products") {
+    read("Produk", "product", 0, 500, productHeaders, true);
+    read("Komposisi", "recipe", 100000, IMPORT_MAX_RECIPE_ROWS, IMPORT_HEADERS.recipes);
+    result.linked = result.rows.some(row => row.payload.kind === "recipe");
+  } else if (domain === "purchases") {
+    read("Pembelian", "purchase", 0, 100, IMPORT_HEADERS.purchases, true);
+    read("Detail Pembelian", "purchase_line", 100000, IMPORT_MAX_PURCHASE_LINES, IMPORT_HEADERS.purchaseLines);
+    result.linked = true;
+  } else read("Karyawan", "employee", 0, 100, ["nama", "username", "pin", "role", "outlets"], true);
+  if (result.structuralErrors.length) result.headerOk = false;
   return result;
 }
 
 export interface ValidationContext {
-  existingProductNames?: Set<string>; existingUsernames?: Set<string>;
+  existingProductCodes?: Map<string, ExistingProductReference>; existingProductNames?: Set<string>;
+  existingIngredientCodes?: Map<string, IngredientReference>; existingUsernames?: Set<string>;
   roleNameMap?: Map<string, { id: string; name: string }>; outletNameMap?: Map<string, { id: string; name: string }>;
-  existingIngredients?: IngredientReference[];
+  existingCategories?: Map<string, { id: string; name: string }>;
+  companyId?: string; outletId?: string; tiers?: ImportTier[]; metadata?: ProductImportMetadata;
+  existingTierPrices?: Map<string, number>;
 }
-
-function duplicate(rows: ParsedRow[], field: string, column: string, message: string) {
-  const groups = new Map<string, ParsedRow[]>();
-  for (const row of rows) {
-    const value = key(row.payload[field]); if (!value) continue;
-    groups.set(value, [...(groups.get(value) ?? []), row]);
-  }
-  for (const group of groups.values()) if (group.length > 1) for (const row of group) addError(row, column, message);
-}
-
-export function validateRows(domain: ImportDomain, rows: ParsedRow[], ctx: ValidationContext): void {
-  const products = rows.filter(row => rowKind(row, domain) === "product");
-  const ingredients = rows.filter(row => rowKind(row, domain) === "ingredient");
-  const recipes = rows.filter(row => rowKind(row, domain) === "recipe");
-  const employees = rows.filter(row => rowKind(row, domain) === "employee");
-  // Keep the existing valid-rows-only semantics for plain files (later duplicates fail).
+const duplicateCodes = (rows: ParsedRow[], select: (row: ParsedRow) => unknown, field: string, label: string) => {
   const seen = new Set<string>();
-  for (const row of [...products, ...employees]) {
-    const employee = rowKind(row, domain) === "employee";
-    const value = key(row.payload[employee ? "username" : "name"]);
-    const field = employee ? "username" : "nama";
-    if (value && seen.has(value)) addError(row, field, employee ? "Username duplikat di dalam file" : "Nama produk duplikat di dalam file");
-    if (value) seen.add(value);
-    if ((employee ? ctx.existingUsernames : ctx.existingProductNames)?.has(value)) addError(row, field,
-      employee ? "Username sudah dipakai karyawan lain" : "Produk dengan nama ini sudah ada di outlet");
-    if (employee) {
-      if (row.payload.role_name && ctx.roleNameMap && !ctx.roleNameMap.has(key(row.payload.role_name))) addError(row, "role", `Role "${row.payload.role_name}" tidak ditemukan`);
-      if (Array.isArray(row.payload.outlet_names) && ctx.outletNameMap) {
-        const unknown = row.payload.outlet_names.filter(name => name !== "__ALL__" && !ctx.outletNameMap!.has(key(name)));
-        if (unknown.length) addError(row, "outlets", `Outlet tidak ditemukan: ${unknown.join(", ")}`);
-      }
-    }
-  }
-  duplicate(products, "product_code", "kode_produk", "Kode produk duplikat di dalam file");
-  duplicate(ingredients, "ingredient_code", "kode_bahan", "Kode bahan duplikat di dalam file");
-  const refs = ctx.existingIngredients ?? [];
-  const byId = new Map(refs.map(ref => [key(ref.id), ref]));
+  for (const row of rows) { const value = key(select(row)); if (value && seen.has(value)) addIssue(row.errors, field, `${field}: kode ${label} duplikat di file ini.`); if (value) seen.add(value); }
+};
+export function validateRows(domain: ImportDomain, rows: ParsedRow[], ctx: ValidationContext): void {
+  if (ctx.metadata) assertProductMetadata(ctx.metadata, ctx.companyId ?? "", ctx.outletId ?? "", ctx.tiers ?? []);
+  const products = rows.filter(row => rowKind(row, domain) === "product"), ingredients = rows.filter(row => rowKind(row, domain) === "ingredient");
+  const recipes = rows.filter(row => rowKind(row, domain) === "recipe"), employees = rows.filter(row => rowKind(row, domain) === "employee");
+  duplicateCodes(products, row => row.payload.code, "kode_produk", "produk"); duplicateCodes(ingredients, row => row.payload.code, "kode_bahan", "bahan");
+  duplicateCodes(employees, row => row.payload.username, "username", "username");
   for (const row of ingredients) {
-    const p = row.payload;
-    const matches = refs.filter(ref => ingredientKey(ref.name, ref.unit) === ingredientKey(p.name, p.unit));
-    const explicit = p.ingredient_id ? byId.get(key(p.ingredient_id)) : undefined;
-    const existing = p.ingredient_id ? explicit : matches.length === 1 ? matches[0] : undefined;
-    delete p.resolved_ingredient_id;
-    if (p.ingredient_id && !explicit) addError(row, "id_bahan", "Bahan tidak ditemukan di outlet tujuan");
-    if (!p.ingredient_id && matches.length > 1) addError(row, "nama", "Nama+satuan bahan ambigu; isi id_bahan yang tepat");
-    if (!p.ingredient_id && !matches.length && refs.some(ref => key(ref.name) === key(p.name))) addError(row, "satuan", "Nama bahan sudah ada dengan satuan berbeda; tidak ada konversi satuan otomatis");
-    if (existing) {
-      p.ingredient_mode = "existing"; p.resolved_ingredient_id = existing.id;
-      if (key(existing.name) !== key(p.name)) addError(row, "nama", "Nama tidak cocok dengan id_bahan");
-      if (key(existing.unit) !== key(p.unit)) addError(row, "satuan", "Satuan tidak cocok dengan bahan lama; tidak ada konversi otomatis");
-      if (existing.is_active === false) addError(row, "id_bahan", "Bahan tidak aktif");
-      for (const field of ["stock_quantity", "cost_per_unit", "min_stock_alert"]) {
-        if (p[field] !== null && p[field] !== 0) addError(row, field, "Bahan lama hanya referensi. Kosongkan/isi 0 pada stok_awal, biaya_per_satuan, dan stok_minimum; data lama tidak diubah");
-      }
-    } else {
-      p.ingredient_mode = "new";
-      for (const [field, column] of [["stock_quantity", "stok_awal"], ["cost_per_unit", "biaya_per_satuan"], ["min_stock_alert", "stok_minimum"]]) {
-        if (p[field] === null) addError(row, column, `${column} bahan baru wajib diisi angka (boleh 0)`);
-      }
-    }
-    p.identity_key = existing ? `id:${key(existing.id)}` : ingredientKey(p.name, p.unit);
+    const existing = ctx.existingIngredientCodes?.get(key(row.payload.code));
+    row.payload.conflict = Boolean(existing); row.payload.existing_id = existing?.id ?? null;
+    if (existing) row.warnings.push({ field: "kode_bahan", message: `Kode sudah digunakan (${existing.code} — ${existing.name}). Pilih lewati atau perbarui; stok aktual tetap.` });
   }
-  duplicate(ingredients, "identity_key", "nama", "Bahan yang sama dideklarasikan lebih dari sekali");
-  const productMap = new Map(products.map(row => [key(row.payload.product_code), row]));
-  const ingredientMap = new Map(ingredients.map(row => [key(row.payload.ingredient_code), row]));
+  const productRows = new Map<string, ParsedRow>();
+  for (const row of products) {
+    const productCode = key(row.payload.code); if (!productCode) continue;
+    if (!productRows.has(productCode)) productRows.set(productCode, row);
+    const existing = ctx.existingProductCodes?.get(productCode);
+    row.payload.conflict = Boolean(existing); row.payload.existing_id = existing?.id ?? null;
+    if (existing) row.warnings.push({ field: "kode_produk", message: `Kode sudah digunakan (${existing.code} — ${existing.name}). Pilih lewati atau perbarui.` });
+    if (Array.isArray(row.payload.tier_prices)) row.payload.tier_prices = row.payload.tier_prices.map(tier => {
+      const saved = existing ? ctx.existingTierPrices?.get(`${existing.id}:${tier.id}`) : undefined;
+      return {...tier,existing_price:saved??null,effective_price:tier.price??saved??row.payload.price,
+        action:tier.price!==null?"set":saved!==undefined?"preserve":"base_price_fallback"};
+    });
+    if (ctx.metadata) row.payload.image_action = row.payload.image_reference ? "attach" : "preserve";
+    if (ctx.existingProductNames?.has(key(row.payload.name)) && !existing) row.warnings.push({ field: "nama", message: "Nama serupa sudah ada dengan kode berbeda; identitas tetap ditentukan oleh kode_produk." });
+    const category = ctx.existingCategories?.get(key(row.payload.category_name));
+    row.payload.category_is_new = Boolean(row.payload.category_name && ctx.existingCategories && !category);
+    if (row.payload.category_is_new) row.warnings.push({ field: "kategori", message: `Kategori baru "${row.payload.category_name}" menunggu persetujuan.` });
+  }
+  const ingredientsByCode = ctx.existingIngredientCodes ?? new Map<string, IngredientReference>();
+  const seenPairs = new Set<string>();
   for (const row of recipes) {
-    const p = row.payload;
-    delete p.resolved_ingredient_id;
-    delete p.resolved_unit;
-    const product = productMap.get(key(p.product_code));
-    if (!product || !p.product_code) addError(row, "kode_produk", "Kode produk tidak ditemukan pada sheet Produk");
-    const ingredient = p.ingredient_code ? ingredientMap.get(key(p.ingredient_code)) : undefined;
-    const existing = p.ingredient_id ? byId.get(key(p.ingredient_id)) : undefined;
-    if (p.ingredient_code && !ingredient) addError(row, "kode_bahan", "Kode bahan tidak ditemukan pada sheet BahanBaku");
-    if (p.ingredient_id && (!existing || existing.is_active === false)) addError(row, "id_bahan", "Bahan aktif tidak ditemukan di outlet tujuan");
-    const unit = ingredient?.payload.unit ?? existing?.unit;
-    if (unit) p.resolved_unit = key(unit);
-    if (p.unit && unit && key(p.unit) !== key(unit)) addError(row, "satuan", "Satuan resep tidak cocok dengan bahan; tidak ada konversi otomatis");
-    p.recipe_key = JSON.stringify([key(p.product_code), ingredient?.payload.identity_key ?? `id:${key(p.ingredient_id)}`]);
-    if (existing) p.resolved_ingredient_id = existing.id;
+    const productCode = key(row.payload.product_code), ingredientCode = key(row.payload.ingredient_code);
+    const stagedProduct = productRows.get(productCode), existingProduct = ctx.existingProductCodes?.get(productCode);
+    if (!stagedProduct && !existingProduct) addIssue(row.errors, "kode_produk", `kode_produk: ${row.payload.product_code} tidak ditemukan di Produk atau outlet aktif.`);
+    if (!stagedProduct && existingProduct) {
+      row.payload.conflict = true;
+      row.warnings.push({ field: "kode_produk", message: `Produk ${existingProduct.code} sudah ada. Pilih Perbarui untuk mengubah komposisi; Lewati akan mempertahankan komposisi existing.` });
+    }
+    if (!ingredientsByCode.has(ingredientCode) || ingredientsByCode.get(ingredientCode)?.is_active === false) addIssue(row.errors, "kode_bahan", `kode_bahan: ${row.payload.ingredient_code} tidak ditemukan/aktif di outlet aktif; import bahan terlebih dahulu.`);
+    const pair = JSON.stringify([productCode, ingredientCode]);
+    if (seenPairs.has(pair)) addIssue(row.errors, "kode_bahan", "Komposisi: kode_produk + kode_bahan duplikat.");
+    seenPairs.add(pair);
+    if (stagedProduct?.payload.conflict) row.warnings.push({ field: "kode_produk", message: `Komposisi mengikuti pilihan konflik kode ${stagedProduct.payload.code}.` });
   }
-  duplicate(recipes, "recipe_key", "kode_bahan", "Pasangan produk+bahan duplikat di Komposisi");
-  finalizeLinkedRows(rows);
+  if (domain === "purchases") {
+    const headers = rows.filter(row => row.payload.kind === "purchase"), lines = rows.filter(row => row.payload.kind === "purchase_line");
+    duplicateCodes(headers, row => row.payload.code, "kode_pembelian", "pembelian");
+    const byCode = new Map(headers.map(row => [key(row.payload.code), row]));
+    const seen = new Set<string>();
+    for (const row of lines) {
+      const p = row.payload, header = byCode.get(key(p.purchase_code)), ingredient = ingredientsByCode.get(key(p.ingredient_code));
+      if (!header) addIssue(row.errors, "kode_pembelian", "kode_pembelian: tidak tercantum pada sheet Pembelian.");
+      if (!ingredient || ingredient.is_active === false) addIssue(row.errors, "kode_bahan", "kode_bahan: bahan aktif tidak ditemukan di outlet tujuan.");
+      else { p.ingredient_id = ingredient.id; p.ingredient_name = ingredient.name; p.expected_unit = ingredient.unit;
+        if (p.unit !== ingredient.unit) addIssue(row.errors, "satuan", `satuan: harus tepat ${ingredient.unit}; tanpa konversi.`); }
+      const pair = JSON.stringify([key(p.purchase_code), key(p.ingredient_code)]);
+      if (seen.has(pair)) addIssue(row.errors, "kode_bahan", "Bahan duplikat dalam pembelian yang sama."); seen.add(pair);
+    }
+    for (const row of headers) {
+      const details = lines.filter(line => key(line.payload.purchase_code) === key(row.payload.code));
+      row.payload.line_count = details.length;
+      if (details.length < 1 || details.length > 100) addIssue(row.errors, "kode_pembelian", "Setiap pembelian wajib memiliki 1–100 baris bahan berbeda.");
+      const totalCents = details.reduce((sum, line) => sum + (BigInt(Math.round(Number(line.payload.quantity ?? 0)*100))*BigInt(Math.round(Number(line.payload.unit_cost ?? 0)*100))+BigInt(50))/BigInt(100),BigInt(0));
+      row.payload.total_amount = Number(totalCents) / 100;
+      if (totalCents > BigInt(99999999999999)) addIssue(row.errors, "kode_pembelian", "Total pembelian maksimal 999999999999.99.");
+    }
+  }
+  const seenUsernames = new Set<string>();
+  for (const row of employees) {
+    const username = key(row.payload.username);
+    if (seenUsernames.has(username)) addIssue(row.errors, "username", "username: duplikat dalam file."); seenUsernames.add(username);
+    row.payload.conflict = Boolean(ctx.existingUsernames?.has(username));
+    if (row.payload.conflict) row.warnings.push({ field: "username", message: "Username sudah ada; pilih lewati atau perbarui." });
+    if (row.payload.role_name && ctx.roleNameMap && !ctx.roleNameMap.has(key(row.payload.role_name))) addIssue(row.errors, "role", `role: "${row.payload.role_name}" tidak ditemukan.`);
+    if (Array.isArray(row.payload.outlet_names) && ctx.outletNameMap) {
+      const unknown = row.payload.outlet_names.filter(value => value !== "__ALL__" && !ctx.outletNameMap!.has(key(value)));
+      if (unknown.length) addIssue(row.errors, "outlets", `outlets: tidak ditemukan ${unknown.join(", ")}.`);
+    }
+  }
 }
-
-/** Run again after quota validation so linked failures are reflected on product rows. */
-export function finalizeLinkedRows(rows: ParsedRow[]): void {
-  if (!isLinkedWorkbook(rows)) return;
-  const badIngredients = new Set(rows.filter(row => row.payload.kind === "ingredient" && row.errors.length).map(row => key(row.payload.ingredient_code)));
-  for (const row of rows.filter(row => row.payload.kind === "recipe")) {
-    if (row.payload.ingredient_code && badIngredients.has(key(row.payload.ingredient_code))) addError(row, "kode_bahan", "Baris BahanBaku terkait bermasalah; perbaiki sebelum konfirmasi");
-  }
-  const badProducts = new Set(rows.filter(row => row.payload.kind === "recipe" && row.errors.length).map(row => key(row.payload.product_code)));
-  for (const row of rows.filter(row => row.payload.kind === "product")) {
-    if (row.payload.product_code && badProducts.has(key(row.payload.product_code))) addError(row, "kode_produk", "Komposisi produk ini bermasalah; periksa sheet Komposisi/BahanBaku");
-  }
-}
-
 export function applyPlanBudget(domain: ImportDomain, rows: ParsedRow[], budget: number | null): void {
-  if (budget === null) return;
-  let used = 0;
+  if (domain === "purchases") return;
+  if (budget === null) return; let used = 0;
   for (const row of rows) {
-    const kind = rowKind(row, domain);
-    if (kind !== (domain === "products" ? "product" : domain === "ingredients" ? "ingredient" : "employee")) continue;
-    if (row.errors.length || (kind === "ingredient" && row.payload.ingredient_mode === "existing")) continue;
-    if (used++ >= budget) addError(row, null, `Melebihi kuota ${domain === "products" ? "produk" : domain === "ingredients" ? "bahan baku" : "karyawan"} paket Anda`);
+    if (rowKind(row, domain) !== (domain === "products" ? "product" : domain === "employees" ? "employee" : "ingredient")) continue;
+    if (row.errors.length || row.payload.conflict) continue;
+    if (used++ >= budget) addIssue(row.errors, null, `Kuota ${domain === "products" ? "produk" : domain === "ingredients" ? "bahan baku" : "karyawan"} paket tidak mencukupi.`);
   }
 }
 
-export function buildTemplateWorkbook(domain: ImportDomain, references: IngredientReference[] = []): Uint8Array {
-  const spec = getTemplateSpec(domain);
-  const wb = XLSX.utils.book_new();
-  const append = (name: string, headers: string[], rows: (string | number)[][]) => {
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws["!cols"] = headers.map(header => ({ wch: Math.max(18, header.length + 6) }));
-    XLSX.utils.book_append_sheet(wb, ws, name);
+/** Product category validation cells reference a very-hidden same-workbook range; errors are warnings and manual typing remains allowed. */
+export async function buildTemplateWorkbook(domain: ImportDomain, categories: string[] = [], metadata?: ProductImportMetadata): Promise<Uint8Array> {
+  const workbook = new ExcelJS.Workbook(); workbook.creator = "Rakku"; workbook.calcProperties.fullCalcOnLoad = true;
+  const setValidation = (sheet: ExcelJS.Worksheet, column: string, start: number, end: number, rule: ExcelJS.DataValidation) => {
+    // Keep validations as worksheet-level ranges so the blank template stays header-only.
+    const internal = sheet as unknown as { dataValidations: { add: (range: string, validation: ExcelJS.DataValidation) => void } };
+    internal.dataValidations.add(`${column}${start}:${column}${end}`, rule);
   };
-  append(spec.sheetName, spec.headers, spec.exampleRows);
-  if (domain === "products") {
-    // Realistic gram/ml recipes, all references declared and no implicit kg conversion.
-    append("BahanBaku", INGREDIENT_HEADERS, [["B001", "Biji kopi arabika", "gram", 1000, 180, 200, ""],
-      ["B002", "Susu segar", "ml", 5000, 22, 1000, ""], ["B003", "Sirup gula aren", "ml", 1000, 45, 200, ""]]);
-    append("Komposisi", RECIPE_HEADERS, [["P001", "B001", 18, "", "gram"], ["P001", "B002", 150, "", "ml"],
-      ["P001", "B003", 20, "", "ml"], ["P002", "B001", 18, "", "gram"]]);
-  }
-  if (domain !== "employees") append("ReferensiBahan", ["id_bahan", "nama", "satuan"], references.filter(ref => ref.is_active !== false).map(ref => [ref.id, ref.name, ref.unit]));
-  const guide = XLSX.utils.aoa_to_sheet([[`${spec.sheetName} — Panduan Import`], ...spec.guide.map(line => [line])]);
-  guide["!cols"] = [{ wch: 130 }];
-  XLSX.utils.book_append_sheet(wb, guide, "Petunjuk");
-  return new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
+  const addSheet = (name: string, headers: readonly string[]) => {
+    const sheet = workbook.addWorksheet(name); sheet.columns = headers.map((header,index) => ({ header, key: header, width: [26,32,28,26,30,20][index] ?? 24 }));
+    // Setting each column's header above creates row 1; do not append another header row.
+    sheet.views = [{ state: "frozen", ySplit: 1 }]; sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+    const row = sheet.getRow(1); row.height = 36;
+    row.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF255D3D" } }; cell.alignment = { vertical: "middle", wrapText: true }; });
+    return sheet;
+  };
+  if (domain === "ingredients") {
+    const sheet = addSheet("Bahan Baku", IMPORT_HEADERS.ingredients);
+    sheet.getColumn(1).numFmt = "@"; sheet.getColumn(4).numFmt = "#,##0.##"; sheet.getColumn(5).numFmt = '"Rp" #,##0.##'; sheet.getColumn(6).numFmt = "#,##0.##";
+    setValidation(sheet, "C", 2, 501, { type: "list", formulae: ['"gram,ml,pcs,kg,liter"'], allowBlank: false, showErrorMessage: false, showInputMessage: true, promptTitle: "Satuan bahan", prompt: "Pilih atau ketik manual: gram, ml, pcs, kg, liter." });
+    for (const column of ["D", "E", "F"]) setValidation(sheet, column, 2, 501, { type: "decimal", operator: "greaterThanOrEqual", formulae: [0], allowBlank: false, showErrorMessage: false });
+    setValidation(sheet, "A", 2, 501, { type: "textLength", operator: "between", formulae: [1,64], allowBlank: false, showErrorMessage: false, showInputMessage: true, promptTitle: "Kode unik bahan", prompt: "Kode adalah identifier bahan pada outlet." });
+  } else if (domain === "products") {
+    const sheet = addSheet("Produk", [...IMPORT_HEADERS.products, ...(metadata ? [...metadata.tiers.map(tier => tier.header), "gambar"] : [])]); sheet.getColumn(1).numFmt = "@"; sheet.getColumn(4).numFmt = '"Rp" #,##0.##';
+    if (metadata) {
+      const meta = workbook.addWorksheet(IMPORT_METADATA_SHEET, { state: "veryHidden" });
+      IMPORT_METADATA_KEYS.forEach(field => meta.addRow([field, field === "tiers" ? JSON.stringify(metadata.tiers) : String(metadata[field])]));
+      metadata.tiers.forEach((_tier, index) => { sheet.getColumn(index + 6).numFmt = '"Rp" #,##0.##'; });
+      sheet.getColumn(metadata.tiers.length + 6).numFmt = "@";
+    }
+    setValidation(sheet, "A", 2, 501, { type: "textLength", operator: "between", formulae: [1,64], allowBlank: false, showErrorMessage: false, showInputMessage: true, promptTitle: "Kode unik produk", prompt: "Kode adalah identifier produk pada outlet." });
+    setValidation(sheet, "D", 2, 501, { type: "decimal", operator: "between", formulae: [0,99999999.99], allowBlank: false, showErrorMessage: false });
+    const choices = [...new Set(categories.map(value => value.trim()).filter(Boolean))];
+    if (choices.length) {
+      const list = workbook.addWorksheet("_kategori", { state: "veryHidden" }); choices.forEach((name,index) => { list.getCell(index+1,1).value = name; });
+      workbook.definedNames.add(`'_kategori'!$A$1:$A$${choices.length}`, "OutletCategories");
+      setValidation(sheet, "C", 2, 501, { type: "list", formulae: ["=OutletCategories"], allowBlank: false, showErrorMessage: false, showInputMessage: true, promptTitle: "Kategori outlet", prompt: "Pilih dari daftar atau ketik kategori baru." });
+    }
+    const recipe = addSheet("Komposisi", IMPORT_HEADERS.recipes); recipe.getColumn(1).numFmt = "@"; recipe.getColumn(2).numFmt = "@"; recipe.getColumn(3).numFmt = "#,##0.##";
+    for (const column of ["A", "B"]) setValidation(recipe, column, 2, 2001, { type: "textLength", operator: "between", formulae: [1,64], allowBlank: false, showErrorMessage: false });
+    setValidation(recipe, "C", 2, 2001, { type: "decimal", operator: "greaterThan", formulae: [0], allowBlank: false, showErrorMessage: false });
+  } else if (domain === "purchases") {
+    const headers = addSheet("Pembelian", IMPORT_HEADERS.purchases); headers.getColumn(1).numFmt = "@"; headers.getColumn(2).numFmt = "@";
+    const lines = addSheet("Detail Pembelian", IMPORT_HEADERS.purchaseLines); lines.getColumn(1).numFmt = "@"; lines.getColumn(2).numFmt = "@";
+    lines.getColumn(3).numFmt = "#,##0.##"; lines.getColumn(5).numFmt = '"Rp" #,##0.##';
+    setValidation(lines, "D", 2, 10001, { type: "list", formulae: ['"gram,ml,pcs,kg,liter"'], allowBlank: false, showErrorMessage: false });
+  } else addSheet("Karyawan", getTemplateSpec(domain).headers);
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
 }

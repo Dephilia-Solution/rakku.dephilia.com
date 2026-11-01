@@ -83,7 +83,7 @@ export default function AddPurchaseForm({ ingredients }: Props) {
     const payload = {
       supplier_name: supplierName.trim() || undefined,
       purchase_date: purchaseDate
-        ? new Date(`${purchaseDate}T12:00:00`).toISOString()
+        ? new Date(`${purchaseDate}T00:00:00+07:00`).toISOString()
         : undefined,
       note: note.trim() || undefined,
       items: validItems.filter((i) => i.ingredient_id),

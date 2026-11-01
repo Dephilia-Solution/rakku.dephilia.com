@@ -56,11 +56,11 @@ test("original Owner catalog contracts cover category/tier/product prices/modifi
   await ok(request, `/api/owner/products?id=${product.id}`, "DELETE"); await ok(request, `/api/owner/categories?id=${category.id}`, "DELETE");
 });
 
-test("Owner employee allOutlets, CRUD grant matrix, status and PIN forms preserve assignment semantics", async () => {
+test("Owner employee allOutlets, atomic menu grants, status and PIN forms preserve assignment semantics", async () => {
   const { sandbox, request } = owner(); const role = record(record(await ok(request, "/api/owner/roles", "POST", { name: "New manager" })).role);
   const menus = rows(record(await ok(request, "/api/owner/roles")).menus);
   const before = record(await ok(request, `/api/owner/roles/${role.id}/access`));
-  const grant = { menu_id: menus[0].id, can_view: true, can_create: true, can_edit: false, can_delete: false };
+  const grant = { menu_id: menus[0].id, can_view: true, can_create: true, can_edit: true, can_delete: true };
   await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [grant], expectedRevision: before.revision });
   const after = record(await ok(request, `/api/owner/roles/${role.id}/access`));
   assert.deepEqual(after.grants, [grant]); assert.deepEqual(after.menu_access, [menus[0].id]);
@@ -68,6 +68,12 @@ test("Owner employee allOutlets, CRUD grant matrix, status and PIN forms preserv
   assert.equal(stale.response.status, 409);
   const invalid = await call(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [{ ...grant, can_view: false }], expectedRevision: after.revision });
   assert.equal(invalid.response.status, 400);
+  const disabledGrant = { menu_id: menus[0].id, can_view: false, can_create: false, can_edit: false, can_delete: false };
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [disabledGrant], expectedRevision: after.revision });
+  const disabled = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  assert.deepEqual(disabled.grants, [disabledGrant]);
+  assert.deepEqual(disabled.menu_access, []);
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [grant], expectedRevision: disabled.revision });
   const employee = record(record(await ok(request, "/api/owner/employees", "POST", { name: "Sinta", username: "sinta", pin: "555555", roleId: role.id, allOutlets: true, outletIds: [] })).employee);
   assert.deepEqual(Object.keys(employee), ["id"]);
   const outlet = record(record(await ok(request, "/api/owner/outlets", "POST", { name: "Baru", address: "Jl. Baru" })).outlet);
@@ -205,9 +211,9 @@ test("Owner purchase ISO dates normalize to Jakarta calendar days and replay wit
     const rejected = await call(request, "/api/owner/purchases", "POST", { outlet_id: T, supplier: "Invalid date", date, note: "Test", request_id: requestId(310), items: [{ ingredient_id: ingredientId, quantity: 1, unit_cost: 42 }] });
     assert.equal(rejected.response.status, 400); assert.equal(sandbox.getSnapshot(), before);
   }
-  const p = pos(), before = p.sandbox.getSnapshot();
-  const rejected = await call(p.request, "/api/admin/purchases", "POST", { supplier_name: "POS calendar only", purchase_date: "2026-10-11T17:00:00.000Z", note: "Test", items: [{ ingredient_id: id("ingredient", 0), quantity: 1, unit_cost: 42 }] });
-  assert.equal(rejected.response.status, 400); assert.equal(p.sandbox.getSnapshot(), before);
+  const p = pos();
+  const created = record(await ok(p.request, "/api/admin/purchases", "POST", { supplier_name: "POS ISO date", purchase_date: "2026-10-11T17:00:00.000Z", note: "Test", items: [{ ingredient_id: id("ingredient", 0), quantity: 1, unit_cost: 42 }] }));
+  assert.equal(p.sandbox.getSnapshot().purchases.find(row => row.id === created.id)!.purchase_date, "2026-10-12");
 });
 
 test("Owner product drafts commit prices and recipes atomically, clear recipes, and retain omitted composition/addons", async () => {

@@ -3,6 +3,8 @@ import { saveEmployee } from "@rakku/db/merchant";
 import { deleteRole, getRoleGrants, saveRoleGrants, onboardingRoleGrants } from "@rakku/db/roles-access";
 import bcrypt from "bcryptjs";
 import { createAdminClient, sql } from "@rakku/db";
+import { readOwnerOutletStats } from "@rakku/db/owner-dashboard";
+import { cache } from "react";
 import { hashPin } from "@rakku/auth-utils";
 import { isValidCompanyCode, normalizeCompanyCode } from "@/lib/company-code";
 import type {
@@ -495,78 +497,9 @@ export async function createCompanyWithOnboarding(params: {
 // ============================================================
 // OUTLETS — CRUD untuk Owner
 // ============================================================
-export async function getOwnerOutlets(
+export const getOwnerOutlets = cache(async (
   companyId: string
-): Promise<OwnerDashboardOutlet[]> {
-  const supabase = createAdminClient();
-
-  const { data: outlets } = await supabase
-    .from("outlets")
-    .select("id, name, address, status, created_at, qr_menu_slug")
-    .eq("company_id", companyId)
-    .order("created_at", { ascending: true });
-
-  if (!outlets) return [];
-
-  // Ambil employee count per outlet
-  const outletIds = outlets.map((o) => o.id);
-  const { data: userOutlets } = await supabase
-    .from("user_outlets")
-    .select("outlet_id, user_id, users!inner(status, all_outlets)")
-    .in("outlet_id", outletIds);
-
-  const countMap = new Map<string, Set<string>>();
-  for (const uo of userOutlets ?? []) {
-    const user = uo.users as unknown as { status: string; all_outlets: boolean };
-    if (user.status !== "active" || user.all_outlets) continue;
-    if (!countMap.has(uo.outlet_id)) countMap.set(uo.outlet_id, new Set());
-    countMap.get(uo.outlet_id)!.add(uo.user_id);
-  }
-
-  // Tambah user dengan all_outlets = true ke semua outlet
-  const { data: allOutletUsers } = await supabase
-    .from("users")
-    .select("id, company_id")
-    .eq("company_id", companyId)
-    .eq("all_outlets", true)
-    .eq("status", "active");
-
-  const allOutletUserIds = (allOutletUsers ?? []).map((u) => u.id);
-
-  // Statistik catalog per outlet untuk kartu hub
-  const [productRows, tableRows, categoryRows] = await Promise.all([
-    supabase.from("products").select("outlet_id").eq("company_id", companyId),
-    supabase.from("dining_tables").select("outlet_id").in("outlet_id", outletIds),
-    supabase.from("categories").select("outlet_id").in("outlet_id", outletIds),
-  ]);
-  const countByOutlet = (rows: unknown[]): Map<string, number> => {
-    const stats = new Map<string, number>();
-    for (const row of rows ?? []) {
-      const outletId = (row as { outlet_id?: string } | null)?.outlet_id;
-      if (outletId) stats.set(outletId, (stats.get(outletId) ?? 0) + 1);
-    }
-    return stats;
-  };
-  const productCounts = countByOutlet(productRows.data ?? []);
-  const tableCounts = countByOutlet(tableRows.data ?? []);
-  const categoryCounts = countByOutlet(categoryRows.data ?? []);
-
-  return outlets.map((o) => {
-    const directCount = countMap.get(o.id)?.size ?? 0;
-    return {
-      id: o.id,
-      name: o.name,
-      address: o.address,
-      status: o.status,
-      created_at: o.created_at,
-      qr_menu_slug: (o as Record<string, unknown>).qr_menu_slug as string | null,
-      employee_count: directCount + allOutletUserIds.length,
-      products_count: productCounts.get(o.id) ?? 0,
-      tables_count: tableCounts.get(o.id) ?? 0,
-      categories_count: categoryCounts.get(o.id) ?? 0,
-    };
-  });
-}
+): Promise<OwnerDashboardOutlet[]> => readOwnerOutletStats(createAdminClient(), companyId));
 
 export async function createOutlet(params: {
   companyId: string;

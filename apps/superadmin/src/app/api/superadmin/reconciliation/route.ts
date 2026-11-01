@@ -4,17 +4,8 @@ import { recordSettlementReport } from "@rakku/ledger/settlement";
 import { createClient } from "@/lib/auth/database";
 import { getReconciliationSummary } from "@/lib/reconciliation";
 
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-    return data.user;
-  });
-}
-
 export async function GET() {
   try {
-    await requireSuperadmin();
     const supabase = await createClient();
 
     const [reportsResult, summary] = await Promise.all([
@@ -43,7 +34,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireSuperadmin();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
     const body = await request.json().catch(() => null);
 
     const provider = String(body?.provider ?? "vessel").trim() || "vessel";
@@ -62,7 +54,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nominal settlement tidak valid" }, { status: 400 });
     }
 
-    const supabase = await createClient();
     try {
       const result = await recordSettlementReport(supabase, {
         provider, providerReference, periodStart, periodEnd,

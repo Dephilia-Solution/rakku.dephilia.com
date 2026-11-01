@@ -11,6 +11,7 @@ import { checked } from "./merchant";
 import { runFinancialCommand } from "./financial-commands";
 import { createOwnerIngredient, updateOwnerIngredient, deleteOwnerIngredient, type OwnerOutletScope } from "./owner-inventory";
 import { saveOwnerProduct } from "./owner-products";
+import { ensureOutletCategory } from "./categories";
 import { recordPurchase, adjustStock, deductStockForOrder } from "../../inventory/src/index";
 
 const pg = new PGlite(); const dialect = new PgDialect(); let catalog: Catalog;
@@ -39,9 +40,28 @@ before(async () => {
   tierId = String(checked(await db.from("pricing_tiers").insert({ company_id: scope.companyId, outlet_id: scope.outletId, name: "Normal", slug: "normal" }).select().single()).id);
 });
 after(() => pg.close());
-const ingredient = (name: string, stock = 1000) => createOwnerIngredient(db, scope, { name, unit: "gram", stock_quantity: stock, min_stock_alert: 10, cost_per_unit: 100 });
+const ingredient = (name: string, stock = 1000) => createOwnerIngredient(db, scope, { code: `BHN-${name.toUpperCase().replace(/[^A-Z0-9]/g,"-")}`, name, unit: "gram", stock_quantity: stock, min_stock_alert: 10, cost_per_unit: 100 });
 const current = async (id: string) => checked(await db.from("ingredients").select().eq("id", id).single());
 const movements = (id: string) => db.execute(sql`select * from public.stock_movements where ingredient_id=${id} order by created_at,id`);
+
+test("legacy POS inserts receive printable business codes automatically", async () => {
+  const product = checked(await db.from("products").insert({ company_id: scope.companyId, outlet_id: scope.outletId,
+    name: "POS manual product", price: 100, category_id: categoryId }).select().single());
+  const row = checked(await db.from("ingredients").insert({ company_id: scope.companyId, outlet_id: scope.outletId,
+    name: "POS manual ingredient", unit: "gram" }).select().single());
+  assert.match(product.code, /^PRD-[0-9A-F]{12}$/);
+  assert.match(row.code, /^BHN-[0-9A-F]{12}$/);
+});
+
+test("category creation is serialized case-insensitively for the same outlet", async () => {
+  const results = await Promise.all([
+    ensureOutletCategory(db, { companyId: scope.companyId, outletId: scope.outletId, name: "Paket Baru" }),
+    ensureOutletCategory(db, { companyId: scope.companyId, outletId: scope.outletId, name: " paket baru " }),
+  ]);
+  assert.equal(results.filter(result => result.created).length, 1);
+  assert.equal(results[0].category.id, results[1].category.id);
+  assert.equal(Number((await db.from("categories").select("id", { count: "exact", head: true }).eq("company_id", scope.companyId).eq("outlet_id", scope.outletId)).count), 2);
+});
 
 test("opening inventory records the real owner and refuses foreign ownership or duplicate ingredients", async () => {
   const item = await ingredient("Opening");
@@ -49,7 +69,7 @@ test("opening inventory records the real owner and refuses foreign ownership or 
   assert.equal(Number(movement.quantity_change), 1000);
   assert.equal(movement.created_by, null);
   assert.equal(movement.created_by_owner_id, scope.ownerId);
-  await assert.rejects(() => ingredient("Opening"), /sudah ada/);
+  await assert.rejects(() => ingredient("Opening"), /sudah dipakai/);
   await assert.rejects(() => createOwnerIngredient(db, { ...scope, ownerId: foreign.ownerId }, { name: "Forged", unit: "gram", stock_quantity: 1, min_stock_alert: 0, cost_per_unit: 0 }), /owner/);
   await assert.rejects(() => db.execute(sql`insert into public.stock_movements(company_id,outlet_id,ingredient_id,type,quantity_change,created_by_owner_id)
     values(${scope.companyId},${scope.outletId},${item.id},'adjustment',1,${foreign.ownerId})`), /INVENTORY_OWNER_MISMATCH/);

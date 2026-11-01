@@ -8,6 +8,8 @@ import {
   useMerchantToast,
 } from "@/lib/merchant-runtime";
 import { useOutletScope } from "@/components/outlet/OutletScopeProvider";
+import { OwnerSection } from "@/components/ui/OwnerPrimitives";
+import { MerchantLink as Link } from "@/lib/merchant-runtime";
 import { X, Check, Loader2 } from "lucide-react";
 
 interface Props {
@@ -84,20 +86,15 @@ export default function OutletInfoSection({ outlet }: Props) {
   };
 
   return (
-    <div className="space-y-5 max-w-xl">
-      <div>
-        <h2 className="text-lg font-bold text-on-surface">Informasi Outlet</h2>
-        <p className="text-xs text-on-surface-variant mt-0.5">
-          Nama dan alamat outlet terlihat di kasir, menu QR, dan laporan.
-        </p>
-      </div>
-
-      <form onSubmit={handleSave} className="space-y-4">
+    <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <OwnerSection title="Informasi Outlet" description="Nama dan alamat outlet terlihat di kasir, menu QR, dan laporan.">
+      <form onSubmit={handleSave} className="space-y-5">
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+          <label htmlFor="outlet-info-name" className="text-sm font-medium text-on-surface">
             Nama Outlet
           </label>
           <input
+            id="outlet-info-name"
             type="text"
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
@@ -107,11 +104,12 @@ export default function OutletInfoSection({ outlet }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+          <label htmlFor="outlet-info-address" className="text-sm font-medium text-on-surface">
             Alamat{" "}
             <span className="text-on-surface-variant normal-case font-normal">(opsional)</span>
           </label>
           <textarea
+            id="outlet-info-address"
             value={formAddress}
             onChange={(e) => setFormAddress(e.target.value)}
             placeholder="Jl. Contoh No. 1, Jakarta"
@@ -119,32 +117,26 @@ export default function OutletInfoSection({ outlet }: Props) {
             className="w-full px-4 py-3 bg-surface-container-lowest border border-surface-container rounded-xl text-base text-on-surface placeholder-neutral-400 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none"
           />
         </div>
-        <button
+        <div className="flex justify-end border-t border-surface-container pt-4"><button
           type="submit"
           disabled={isSaving}
-          className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-on-primary text-sm font-semibold rounded-xl shadow-md shadow-primary/20 transition-all disabled:opacity-70 inline-flex items-center gap-2"
+          className="owner-button owner-button--primary w-full sm:w-auto"
         >
           {isSaving && <Loader2 size={15} className="animate-spin" />}
           Simpan Perubahan
-        </button>
+        </button></div>
       </form>
+      </OwnerSection>
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-container p-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-on-surface">Status Outlet</p>
-          <p className="text-xs text-on-surface-variant">
-            Outlet nonaktif tidak menerima transaksi kasir baru.
-          </p>
-        </div>
+      <div className="min-w-0 space-y-4">
+      <OwnerSection title="Status Outlet" description="Outlet nonaktif tidak menerima transaksi kasir baru.">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className={`rounded-md px-2.5 py-1 text-xs font-semibold ${outlet.status === "active" ? "bg-primary/10 text-primary" : "bg-surface-container text-on-surface-variant"}`}>{outlet.status === "active" ? "Aktif" : "Nonaktif"}</span>
         <button
           type="button"
           onClick={handleToggleStatus}
           disabled={isToggling}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all disabled:opacity-60 ${
-            outlet.status === "active"
-              ? "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-              : "bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90"
-          }`}
+          className={`owner-button ${outlet.status === "active" ? "owner-button--secondary" : "owner-button--primary"}`}
         >
           {isToggling ? (
             <Loader2 size={14} className="animate-spin" />
@@ -155,12 +147,14 @@ export default function OutletInfoSection({ outlet }: Props) {
           )}
           {outlet.status === "active" ? "Nonaktifkan" : "Aktifkan"}
         </button>
-      </div>
+        </div>
+      </OwnerSection>
 
-      <p className="text-xs text-on-surface-variant">
+      <p className="px-1 text-xs leading-relaxed text-on-surface-variant">
         Ingin menghapus outlet ini beserta seluruh datanya? Lakukan dari kartu
-        outlet pada halaman <strong>Daftar Outlet</strong>.
+        outlet pada halaman <Link href="/outlets" className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-2">Daftar Outlet</Link>.
       </p>
+      </div>
     </div>
   );
 }

@@ -730,6 +730,7 @@ export async function getOutletProducts(
   return (
     (data as JsonLike[])?.map((p) => ({
       id: p.id as string,
+      code: p.code as string | null,
       name: p.name as string,
       price: Number(p.price),
       category_id: p.category_id as string,
@@ -800,7 +801,7 @@ export async function getCompanyProductById(
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("products")
-    .select("id, name, price, category_id, image_url, is_active, description, outlet_id")
+    .select("id, code, name, price, category_id, image_url, is_active, description, outlet_id")
     .eq("id", productId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -809,6 +810,7 @@ export async function getCompanyProductById(
   const p = data as JsonLike;
   return {
     id: p.id as string,
+    code: p.code as string | null,
     outlet_id: p.outlet_id as string,
     name: p.name as string,
     price: Number(p.price),
@@ -886,6 +888,7 @@ export async function getCompanyIngredients(
 
   return (data as JsonLike[])?.map((i) => ({
     id: i.id as string,
+    code: i.code as string,
     company_id: i.company_id as string,
     outlet_id: i.outlet_id as string,
     name: i.name as string,

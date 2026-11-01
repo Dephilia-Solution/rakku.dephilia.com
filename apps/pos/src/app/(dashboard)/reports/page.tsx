@@ -13,9 +13,7 @@ export default async function ReportsPage() {
   const cutoff = plan && plan.plan.report_history_days >= 0
     ? new Date(jakartaDayStart(new Date()).getTime() - Math.max(0, plan.plan.report_history_days - 1) * DAY_MS)
     : null;
-  const orders = (await getOrders()).filter(order =>
-    !cutoff || new Date(order.created_at).getTime() >= cutoff.getTime()
-  );
+  const orders = await getOrders({ since: cutoff?.toISOString() });
 
   return <ReportsClient orders={orders} />;
 }

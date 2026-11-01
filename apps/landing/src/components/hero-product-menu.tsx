@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 
 import { SearchIcon } from "./icons";
 
@@ -36,22 +36,26 @@ const categoryStyles: Record<HeroProduct["category"], string> = {
 };
 
 export function HeroProductMenu() {
+  const preview = useRef<HTMLElement>(null);
+  const inView = useInView(preview, { amount: 0.1 });
   const [frameIndex, setFrameIndex] = useState(0);
   const reduceMotion = useReducedMotion();
   const selectedProduct = previewProducts[frameIndex] ?? previewProducts[0];
 
   useEffect(() => {
-    if (reduceMotion !== false || previewProducts.length < 2) return;
+    if (reduceMotion !== false || !inView || previewProducts.length < 2) return;
 
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       setFrameIndex((current) => (current + 1) % previewProducts.length);
     }, 2800);
 
     return () => window.clearInterval(timer);
-  }, [reduceMotion]);
+  }, [reduceMotion, inView]);
 
   return (
     <figure
+      ref={preview}
       role="img"
       aria-label="Preview tampilan POS Rakku"
       className="hero-pos-preview overflow-hidden rounded-[0.75rem] border border-neutral-200 bg-neutral-50 shadow-preview"
