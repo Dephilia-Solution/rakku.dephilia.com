@@ -1,8 +1,11 @@
+import { getTenantHome } from "@/lib/auth/menus";
 import { NextRequest, NextResponse } from "next/server";
 import { getPendingLoginFromCookies, clearPendingLoginCookie } from "@/lib/auth/pending-login";
 import { verifyPin, isLocked, getLockoutConfig, computeLockedUntil, logAuthEvent } from "@rakku/auth-utils";
 import { signSession, setSessionCookie } from "@/lib/auth/tenant-session";
 import { createAdminClient } from "@rakku/db";
+import { allowAuthAttempt, consumeSession, resetAuthAttempts } from "@rakku/db/sessions";
+import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -19,6 +22,7 @@ function getClientIp(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (await getTenantSessionFromCookies()) return NextResponse.json({ error: "Sesi sudah aktif", redirect: "/register" }, { status: 409 });
   const { pin, user_id } = await request.json();
   const pending = await getPendingLoginFromCookies();
   const ipAddress = getClientIp(request);
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sesi login tidak ditemukan" }, { status: 401 });
   }
 
-  if (!pin || pin.length !== 6) {
+  if (typeof pin !== "string" || !/^\d{6}$/.test(pin) || typeof user_id !== "string") {
     await logAuthEvent(supabase, {
       company_id: pending.company_id,
       outlet_id: pending.outlet_id,
@@ -90,6 +94,15 @@ export async function POST(request: NextRequest) {
       metadata: { user_status: user.status },
     });
     return NextResponse.json({ error: "Akun tidak aktif" }, { status: 403 });
+  }
+
+  if (!user.all_outlets) {
+    const { data: assignment } = await supabase.from("user_outlets").select("user_id")
+      .eq("user_id", user.id).eq("outlet_id", pending.outlet_id).maybeSingle();
+    if (!assignment) return NextResponse.json({ error: "Akun tidak memiliki akses outlet" }, { status: 403 });
+  }
+  if (!await allowAuthAttempt(supabase, `pin:${user.id}`, 5, 900)) {
+    return NextResponse.json({ error: "Terlalu banyak percobaan. Coba lagi dalam 15 menit." }, { status: 429 });
   }
 
   if (isLocked(user.locked_until)) {
@@ -178,18 +191,13 @@ export async function POST(request: NextRequest) {
     outlet_name: pending.outlet_name ?? "",
   };
 
-  const sessionToken = await signSession(session);
+  const sessionToken = await supabase.transaction(async tx => {
+    await consumeSession(tx, pending.session_id!, "pending", pending.company_id);
+    await resetAuthAttempts(tx, `pin:${user.id}`);
+    return signSession(session, tx);
+  });
 
-  const { data: allowedMenusRaw } = await supabase
-    .from("role_menu_access")
-    .select("menus!inner(slug)")
-    .eq("role_id", user.role_id)
-    .eq("can_view", true);
-
-  const allowedSlug = (allowedMenusRaw as unknown as { menus: { slug: string } }[])?.[0]?.menus?.slug;
-  const firstMenu = allowedSlug
-    ? `/${allowedSlug === "products" ? "admin/products" : allowedSlug}`
-    : "/register";
+  const firstMenu = await getTenantHome(user.role_id);
 
   await logAuthEvent(supabase, {
     company_id: pending.company_id,
@@ -213,16 +221,8 @@ export async function POST(request: NextRequest) {
     metadata: {},
   });
 
-  return NextResponse.json(
-    { redirect: firstMenu },
-    {
-      status: 200,
-      headers: {
-        "Set-Cookie": [
-          clearPendingLoginCookie(),
-          setSessionCookie(sessionToken),
-        ].join(", "),
-      },
-    }
-  );
+  const response = NextResponse.json({ redirect: firstMenu });
+  response.headers.append("Set-Cookie", clearPendingLoginCookie());
+  response.headers.append("Set-Cookie", setSessionCookie(sessionToken));
+  return response;
 }

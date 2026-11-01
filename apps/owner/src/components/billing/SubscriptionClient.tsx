@@ -36,6 +36,7 @@ const FEATURE_LABELS: Record<PlanFeatureKey, string> = {
 
 const INVOICE_STATUS_LABEL: Record<string, string> = {
   pending: "Menunggu",
+  unknown: "Belum pasti",
   success: "Berhasil",
   expired: "Kadaluarsa",
   failed: "Gagal",
@@ -44,6 +45,11 @@ const INVOICE_STATUS_LABEL: Record<string, string> = {
 
 function formatRupiah(value: number) {
   return `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
+}
+
+function newRequestId(): string {
+  return globalThis.crypto?.randomUUID?.()
+    ?? `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function formatLimit(value: number) {
@@ -106,16 +112,20 @@ export default function SubscriptionClient({
 
     setCheckingOut(plan.slug);
     try {
+      const requestId = newRequestId();
       const res = await request("/api/owner/subscription/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_slug: plan.slug, billing_cycle: cycle }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": requestId },
+        body: JSON.stringify({ plan_slug: plan.slug, billing_cycle: cycle, requestId }),
       });
       const data = await res.json().catch(() => ({}));
       if (isActive?.() === false) return;
       if (!res.ok || !data.invoice?.id) {
         showToast("error", data.error || "Gagal membuat pembayaran");
         return;
+      }
+      if (data.code === "PROVIDER_UNCERTAIN") {
+        showToast("info", data.warning || "Status pembayaran belum pasti; invoice dipertahankan.");
       }
       router.push(`/subscription/checkout/${data.invoice.id}`);
     } catch {
@@ -368,14 +378,18 @@ export default function SubscriptionClient({
                     <td className="px-5 py-3">
                       <span
                         className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          invoice.status === "success"
+                          invoice.status === "success" && !invoice.reconciliation_reason
                             ? "bg-primary-100 text-forest"
-                            : invoice.status === "pending"
+                            : invoice.status === "success"
                               ? "bg-amber-100 text-amber-700"
-                              : "bg-neutral-100 text-neutral-500"
+                              : invoice.status === "pending" || invoice.status === "unknown"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-neutral-100 text-neutral-500"
                         }`}
                       >
-                        {INVOICE_STATUS_LABEL[invoice.status] ?? invoice.status}
+                        {invoice.status === "success" && invoice.reconciliation_reason
+                          ? "Direkonsiliasi"
+                          : INVOICE_STATUS_LABEL[invoice.status] ?? invoice.status}
                       </span>
                     </td>
                   </tr>

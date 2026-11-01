@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { MerchantLink as Link } from "@pos/lib/merchant-runtime";
 
 import { AlertTriangle, TrendingUp } from "lucide-react";
@@ -6,6 +7,11 @@ import { usePlan } from "./PlanProvider";
 
 export default function LimitBanner() {
   const { summary, upgradeUrl } = usePlan();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const max = summary.limits.transactions;
   if (max < 0) return null;
@@ -18,7 +24,7 @@ export default function LimitBanner() {
     "mx-4 mt-4 rounded-xl border px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 lg:mx-8";
 
   if (used >= max) {
-    const blocked = !graceEndsAt || new Date(graceEndsAt).getTime() < Date.now();
+    const blocked = !graceEndsAt || new Date(graceEndsAt).getTime() < now;
     return (
       <div
         className={`${wrapper} ${

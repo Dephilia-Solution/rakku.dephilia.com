@@ -1,27 +1,24 @@
 import { redirect } from "next/navigation";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { getOwnerOutlets } from "@/lib/supabase/queries.owner";
-import TaxDiscountsClient from "./TaxDiscountsClient";
 
-interface PageProps {
-  searchParams: Promise<{ tab?: string }>;
-}
+export const dynamic = "force-dynamic";
 
-export default async function TaxDiscountsPage({ searchParams }: PageProps) {
+export default async function TaxDiscountsRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ outlet?: string; tab?: string }>;
+}) {
   const session = await getOwnerSessionFromCookies();
   if (!session || !session.company_id) {
     redirect("/login");
   }
 
-  const { tab } = await searchParams;
   const outlets = await getOwnerOutlets(session.company_id);
-  const initialTab =
-    tab === "produk" || tab === "order" || tab === "pajak" ? tab : "pajak";
-
-  return (
-    <TaxDiscountsClient
-      outlets={outlets.map((o) => ({ id: o.id, name: o.name }))}
-      initialTab={initialTab}
-    />
-  );
+  const { outlet, tab } = await searchParams;
+  const target =
+    outlets.find((o) => o.id === outlet) ?? outlets[0];
+  if (!target) redirect("/outlets");
+  const charge = tab === "produk" || tab === "order" ? `&charge=${tab}` : "";
+  redirect(`/outlets/${target.id}?tab=pajak${charge}`);
 }

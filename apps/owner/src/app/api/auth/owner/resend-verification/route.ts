@@ -1,39 +1,25 @@
+import { guardOwnerAuth } from "@/lib/auth/request-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail } from "@/lib/supabase/queries.owner";
 import { sendEmail } from "@rakku/echo-client";
 import { renderRakkuEmail } from "@rakku/emails";
-import { SignJWT } from "jose";
-
-const VERIFY_SECRET = new TextEncoder().encode(
-  process.env.OWNER_JWT_SECRET || "dev-secret-change-in-production-min-32-chars!!"
-);
+import { signVerification } from "@/lib/auth/verification";
 
 export async function POST(request: NextRequest) {
+  const denied = await guardOwnerAuth(request); if (denied) return denied;
   const body = await request.json().catch(() => null);
 
-  if (!body || !body.email) {
+  if (typeof body?.email !== "string" || body.email.length > 254) {
     return NextResponse.json({ error: "Email harus diisi" }, { status: 400 });
   }
 
   const { owner, error } = await getOwnerByEmail(body.email.toLowerCase());
 
-  if (error || !owner) {
-    return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+  if (error || !owner || owner.email_verified_at || !owner.is_active) {
+    return NextResponse.json({ message: "Jika akun membutuhkan verifikasi, email akan dikirim." });
   }
 
-  if (owner.email_verified_at) {
-    return NextResponse.json({ error: "Email sudah diverifikasi" }, { status: 400 });
-  }
-
-  const token = await new SignJWT({
-    owner_id: owner.id,
-    email: owner.email,
-    name: owner.name,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(VERIFY_SECRET);
+  const token = await signVerification(owner);
 
   const verifyUrl = `${process.env.NEXT_PUBLIC_OWNER_URL || "http://localhost:3000"}/api/auth/owner/verify-email?token=${token}`;
 
@@ -58,5 +44,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Gagal mengirim email" }, { status: 500 });
   }
 
-  return NextResponse.json({ message: "Email verifikasi telah dikirim" });
+  return NextResponse.json({ message: "Jika akun membutuhkan verifikasi, email akan dikirim." });
 }

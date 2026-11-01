@@ -19,6 +19,11 @@ export function number(value: unknown, label: string, min = 0, integer = false):
   return value;
 }
 export function money(value: unknown, label = "amount"): number { return number(value, label, 0, true); }
+export function decimal(value: unknown, label: string, min = 0): number {
+  const n = number(value, label, min), scaled = n * 100;
+  if (Math.abs(scaled - Math.round(scaled)) > Math.max(1e-8, Number.EPSILON * Math.abs(scaled))) fail(`Invalid ${label}: at most 2 decimal places`);
+  return n;
+}
 export function bool(value: unknown): boolean { if (typeof value !== "boolean") fail("Invalid boolean"); return value; }
 export function list(value: unknown): unknown[] { if (!Array.isArray(value)) fail("Expected array"); return value; }
 export function uniqueStrings(value: unknown): string[] {
@@ -78,8 +83,9 @@ export function deriveBalance(ledger: BalanceTransaction[], company_id: string, 
   };
 }
 function discount(price: number, d: { type: "percentage" | "fixed"; value: number }): number {
-  return Math.min(price, Math.round(d.type === "percentage" ? price * d.value / 100 : d.value));
+  return Math.min(price, roundMoney(d.type === "percentage" ? price * d.value / 100 : d.value));
 }
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 export function quote(state: DemoState, input: DemoOrderInput, id: string): DemoOrder {
   const outlet = find(state.outlets, input.outlet_id);
   if (!outlet.is_active) fail("Outlet inactive");
@@ -106,28 +112,28 @@ export function quote(state: DemoState, input: DemoOrderInput, id: string): Demo
       return { id: mid, product_id: product.id, name: text(m.name, "custom modifier name", 100), group_name: optionalText(m.group_name, 100), price_delta: money(m.price_delta, "custom modifier price") };
     });
     if (new Set(custom.map(m => m.id)).size !== custom.length) fail("Duplicate custom modifier");
-    const unit_price = money((product.prices[tier.id] ?? product.price) + modifiers.reduce((s, m) => s + (m.prices[tier.id] ?? m.price_delta ?? 0), 0) + custom.reduce((sum, m) => sum + m.price_delta, 0));
+    const unit_price = decimal(roundMoney((product.prices[tier.id] ?? product.price) + modifiers.reduce((s, m) => s + (m.prices[tier.id] ?? m.price_delta ?? 0), 0) + custom.reduce((sum, m) => sum + m.price_delta, 0)), "unit price");
     const d = active.find(d => d.product_id === product.id);
     const amount = d ? discount(unit_price, d) * quantity : 0;
     if (d) discounts.push({ name: d.name, type: d.type, value: d.value, amount });
     return { id: `${id}:item:${index}`, order_id: id, product_id: product.id, product_name: product.name,
-      quantity, unit_price, subtotal: money(unit_price * quantity - amount),
+      quantity, unit_price, subtotal: decimal(roundMoney(unit_price * quantity - amount), "item subtotal"),
       modifier_label: modifiers.length || custom.length ? [...modifiers.map(m => `${m.name} +${m.prices[tier.id] ?? m.price_delta ?? 0}`), ...custom.map(m => `${m.name} +${m.price_delta}`)].join(", ") : null,
       modifier_ids: modifiers.map(m => m.id), custom_modifiers: custom, cart_item_id: optionalText(item.cart_item_id, 300) ?? `${id}:item:${index}`,
       note: optionalText(item.note) };
   });
   if (!items.length || items.length > 100) fail("Order needs 1–100 items");
-  const subtotal = money(items.reduce((s, i) => s + i.subtotal, 0));
+  const subtotal = decimal(roundMoney(items.reduce((s, i) => s + i.subtotal, 0)), "subtotal");
   let taxable = subtotal;
   // Existing POS cart applies the first active order discount only.
   for (const d of active.filter(d => !d.product_id).slice(0, 1)) {
-    const amount = discount(taxable, d); taxable -= amount;
+    const amount = discount(taxable, d); taxable = roundMoney(taxable - amount);
     discounts.push({ name: d.name, type: d.type, value: d.value, amount });
   }
   const taxes = state.taxes.filter(t => t.outlet_id === outlet.id && t.is_active).map(t => ({ name: t.name, type: t.type, value: t.value,
-    amount: t.type === "fixed" ? t.value : Math.round(taxable * t.value / 100) }));
-  const tax_amount = money(taxes.reduce((s, t) => s + t.amount, 0));
-  const total = money(taxable + tax_amount);
+    amount: t.type === "fixed" ? t.value : roundMoney(taxable * t.value / 100) }));
+  const tax_amount = decimal(roundMoney(taxes.reduce((s, t) => s + t.amount, 0)), "tax amount");
+  const total = money(Math.round(roundMoney(taxable + tax_amount)));
   return { id, company_id: state.company.id, outlet_id: outlet.id,
     order_number: Math.max(0, ...state.orders.map(o => o.order_number)) + 1,
     order_type, payment_method: "later", subtotal, tax_rate: state.taxes.filter(t => t.outlet_id === outlet.id && t.is_active && t.type === "percentage").reduce((s, t) => s + t.value, 0),

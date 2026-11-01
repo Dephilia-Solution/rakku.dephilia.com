@@ -24,8 +24,8 @@ export default function DashboardContent({
   }, [sidebar]);
 
   return (
-    <main className="owner-main flex-1 min-w-0 overflow-hidden pb-[var(--nav-bottom-safe)] md:pb-0 pt-4 md:pt-0 transition-[margin-left] duration-[250ms] ease-in-out">
-      <div className="p-4 lg:p-8">{children}</div>
+    <main id="owner-main-content" className="owner-main flex-1 min-w-0 pb-[var(--nav-bottom-safe)] md:pb-0 transition-[margin-left] duration-[250ms] ease-in-out" tabIndex={-1}>
+      <div className="owner-content">{children}</div>
     </main>
   );
 }

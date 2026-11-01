@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { AccessDeniedError, requireSessionCapability } from "@/lib/auth/authorize";
 
 export async function GET() {
   const session = await getTenantSessionFromCookies();
@@ -79,6 +80,18 @@ export async function PATCH(request: NextRequest) {
     status !== "occupied"
   ) {
     return NextResponse.json({ error: "Status tidak valid" }, { status: 400 });
+  }
+
+  // Occupancy changes may be a register action, but renaming is table management.
+  if (name !== undefined) {
+    try {
+      await requireSessionCapability(session, "tables", "can_edit");
+    } catch (error) {
+      if (error instanceof AccessDeniedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
   }
 
   const supabase = createAdminClient();

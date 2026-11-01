@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
+import { getRoleGrants } from "@rakku/db/roles-access";
 import { checkFeature } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
   getCompanyRoles,
   createCompanyRole,
   getAllSystemMenus,
-  getRoleMenuAccessIds,
 } from "@/lib/supabase/queries.owner";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };
@@ -29,6 +29,7 @@ export async function GET() {
     );
   }
 
+  try {
   const [roles, menus] = await Promise.all([
     getCompanyRoles(session.company_id),
     getAllSystemMenus(),
@@ -36,14 +37,17 @@ export async function GET() {
 
   // Ambil akses menu per role
   const rolesWithAccess = await Promise.all(
-    roles.map(async (r) => ({
-      id: r.id as string,
-      name: r.name as string,
-      menu_access: await getRoleMenuAccessIds(r.id as string),
-    }))
+    roles.map(async (r) => {
+      const access = await getRoleGrants(createAdminClient(), session.company_id, r.id as string);
+      return { id: r.id as string, name: r.name as string, ...access,
+        menu_access: access.grants.filter(g => g.can_view).map(g => g.menu_id) };
+    })
   );
 
   return NextResponse.json({ roles: rolesWithAccess, menus });
+  } catch {
+    return NextResponse.json({ error: "Gagal memuat role" }, { status: 500 });
+  }
 }
 
 // POST: buat role baru
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
-  if (!body || !body.name) {
+  if (!body || typeof body.name !== "string" || !body.name.trim() || Object.keys(body).some(key => key !== "name")) {
     return NextResponse.json(
       { error: "Nama role harus diisi" },
       { status: 400 }

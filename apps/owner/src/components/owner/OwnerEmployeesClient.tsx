@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { RoleGrant } from "@rakku/db/roles-access";
 import { createPortal } from "react-dom";
 import {
   Users,
@@ -38,6 +39,12 @@ interface Role {
 
 interface RoleWithAccess extends Role {
   menu_access: string[];
+  grants: RoleGrant[];
+  revision: string;
+}
+
+function emptyGrant(menu_id: string): RoleGrant {
+  return { menu_id, can_view: false, can_create: false, can_edit: false, can_delete: false };
 }
 
 interface Menu {
@@ -55,10 +62,13 @@ interface Outlet {
   status: string;
 }
 
-export default function OwnerEmployeesPage() {
+export default function OwnerEmployeesPage({ embedded = false }: {
+  embedded?: boolean;
+}) {
   const request = useMerchantRequest();
   const showToast = useMerchantToast();
-  const isActive = useMerchantRuntime()?.active;
+  const merchantRuntime = useMerchantRuntime();
+  const isActive = merchantRuntime?.active;
   const { hasFeature, openUpgrade } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -93,7 +103,10 @@ export default function OwnerEmployeesPage() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [isRoleSubmitting, setIsRoleSubmitting] = useState(false);
   const [deletingRole, setDeletingRole] = useState<RoleWithAccess | null>(null);
-  const [togglingMenuId, setTogglingMenuId] = useState<string | null>(null);
+  const [grantDrafts, setGrantDrafts] = useState<Record<string, RoleGrant[]>>({});
+  const [isSavingGrants, setIsSavingGrants] = useState(false);
+  const grantSaveLock = useRef(false);
+  const [grantError, setGrantError] = useState("");
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -130,6 +143,8 @@ export default function OwnerEmployeesPage() {
       if (res.ok) {
         const roles: RoleWithAccess[] = data.roles || [];
         setRolesWithAccess(roles);
+        setGrantDrafts({});
+        setGrantError("");
         setMenusList(data.menus || []);
         // Sinkronkan dropdown role di form karyawan
         setRoles(roles.map((r) => ({ id: r.id, name: r.name })));
@@ -137,7 +152,7 @@ export default function OwnerEmployeesPage() {
         setSelectedRoleId((prev) =>
           prev && roles.some((r) => r.id === prev) ? prev : (roles[0]?.id ?? null)
         );
-      }
+      } else showToast("error", data.error || "Gagal memuat data role");
     } catch {
       if (isActive?.() === false) return;
       showToast("error", "Gagal memuat data role");
@@ -222,7 +237,6 @@ export default function OwnerEmployeesPage() {
         if (isActive?.() === false) return;
         if (!res.ok) {
           showToast("error", data.error || "Gagal mengupdate karyawan");
-          setIsSubmitting(false);
           return;
         }
         showToast("success", "Karyawan berhasil diupdate");
@@ -243,7 +257,6 @@ export default function OwnerEmployeesPage() {
         if (isActive?.() === false) return;
         if (!res.ok) {
           showToast("error", data.error || "Gagal membuat karyawan");
-          setIsSubmitting(false);
           return;
         }
         showToast("success", "Karyawan berhasil dibuat");
@@ -253,6 +266,7 @@ export default function OwnerEmployeesPage() {
     } catch {
       if (isActive?.() === false) return;
       showToast("error", "Terjadi kesalahan");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -349,7 +363,7 @@ export default function OwnerEmployeesPage() {
   const handleTabChange = (key: string) => {
     const next = key as "karyawan" | "role";
     setActiveTab(next);
-    if (next === "role") void fetchRolesData();
+    if (next === "role" && rolesWithAccess.length === 0) void fetchRolesData();
   };
 
   const handleRoleSubmit = async (e: React.FormEvent) => {
@@ -426,43 +440,6 @@ export default function OwnerEmployeesPage() {
     }
   };
 
-  const handleSelectAll = (roleId: string, checked: boolean) => {
-    if (isActive?.() === false) return;
-    if (!hasFeature("custom_roles")) {
-      openUpgrade(
-        "Mengatur akses menu role tersedia di paket Pro. Paket Free memakai role bawaan."
-      );
-      return;
-    }
-    const role = rolesWithAccess.find((r) => r.id === roleId);
-    if (!role) return;
-    setRolesWithAccess((prev) =>
-      prev.map((r) =>
-        r.id === roleId
-          ? {
-              ...r,
-              menu_access: checked
-                ? menusList.map((m) => m.id)
-                : [],
-            }
-          : r
-      )
-    );
-    for (const menu of menusList) {
-      const hasAccess = role.menu_access.includes(menu.id);
-      if (hasAccess !== checked) {
-        request(`/api/owner/roles/${roleId}/access`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ menuId: menu.id, canView: checked }),
-        }).then((res) => {
-          if (isActive?.() === false) return;
-          if (!res.ok) fetchRolesData();
-        }).catch(() => { if (isActive?.() !== false) void fetchRolesData(); });
-      }
-    }
-  };
-
   const menuDescriptions: Record<string, string> = {
     register: "Mencatat transaksi penjualan dan pemesanan",
     orders: "Melihat daftar pesanan masuk dan riwayat transaksi",
@@ -471,66 +448,91 @@ export default function OwnerEmployeesPage() {
     "tax-discounts": "Mengatur pajak, promo, dan diskon",
   };
 
-  const handleToggleMenuAccess = async (
+  const handleDraftGrant = (
     roleId: string,
     menuId: string,
-    canView: boolean
+    checked: boolean
   ) => {
-    if (isActive?.() === false) return;
+    if (isActive?.() === false || grantSaveLock.current) return;
     if (!hasFeature("custom_roles")) {
       openUpgrade(
         "Mengatur akses menu role tersedia di paket Pro. Paket Free memakai role bawaan."
       );
       return;
     }
-    // Optimistic update
-    setRolesWithAccess((prev) =>
-      prev.map((r) =>
-        r.id === roleId
-          ? {
-              ...r,
-              menu_access: canView
-                ? [...r.menu_access, menuId]
-                : r.menu_access.filter((id) => id !== menuId),
-            }
-          : r
-      )
-    );
-    setTogglingMenuId(menuId);
+    const role = rolesWithAccess.find(r => r.id === roleId);
+    if (!role) return;
+    setGrantDrafts(prev => {
+      const grants = prev[roleId] ?? role.grants;
+      const next: RoleGrant = {
+        menu_id: menuId,
+        can_view: checked,
+        can_create: checked,
+        can_edit: checked,
+        can_delete: checked,
+      };
+      return { ...prev, [roleId]: [...grants.filter(g => g.menu_id !== menuId), next] };
+    });
+    setGrantError("");
+  };
+
+  const handleSaveGrants = async () => {
+    if (!selectedRoleId || grantSaveLock.current || isActive?.() === false) return;
+    const role = rolesWithAccess.find(r => r.id === selectedRoleId);
+    const grants = grantDrafts[selectedRoleId];
+    if (!role || !grants) return;
+    if (grants.some(g => [g.can_view, g.can_create, g.can_edit, g.can_delete].some(flag => flag !== g.can_view))) {
+      setGrantError("Setiap menu hanya bisa memiliki akses penuh atau tanpa akses. Ubah checkbox lalu simpan kembali.");
+      return;
+    }
+    grantSaveLock.current = true;
+    setIsSavingGrants(true);
+    setGrantError("");
     try {
-      const res = await request(`/api/owner/roles/${roleId}/access`, {
+      const res = await request(`/api/owner/roles/${role.id}/access`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ menuId, canView }),
+        body: JSON.stringify({ grants, expectedRevision: role.revision }),
       });
       const data = await res.json();
       if (isActive?.() === false) return;
       if (!res.ok) {
-        showToast("error", data.error || "Gagal mengubah akses menu");
-        // Revert
-        await fetchRolesData();
+        setGrantError(res.status === 409
+          ? "Konflik: akses telah berubah. Muat ulang akses lalu tinjau dan terapkan kembali perubahan Anda."
+          : data.error || "Gagal menyimpan akses");
+        return;
       }
+      setRolesWithAccess(prev => prev.map(r => r.id === role.id ? { ...r, grants: data.grants,
+        revision: data.revision, menu_access: (data.grants as RoleGrant[]).filter(g => g.can_view).map(g => g.menu_id) } : r));
+      setGrantDrafts(prev => { const next = { ...prev }; delete next[role.id]; return next; });
+      showToast("success", data.revision === role.revision
+        ? "Akses sudah sesuai; tidak ada perubahan."
+        : merchantRuntime
+          ? "Akses tersimpan. Perubahan berlaku saat akun POS login kembali."
+          : "Akses tersimpan. Sesi POS role yang berubah telah dicabut.");
     } catch {
       if (isActive?.() === false) return;
-      showToast("error", "Terjadi kesalahan");
-      await fetchRolesData();
+      setGrantError("Gagal menyimpan akses. Muat ulang untuk memeriksa hasil sebelum mencoba kembali.");
     } finally {
-      if (isActive?.() !== false) setTogglingMenuId(null);
+      grantSaveLock.current = false;
+      if (isActive?.() !== false) setIsSavingGrants(false);
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-display-title text-on-surface">Karyawan</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Kelola akun karyawan dan hak aksesnya.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeTab === "karyawan" ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {!embedded && (
+          <div>
+            <h1 className="font-display text-display-title text-on-surface">Karyawan</h1>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Kelola akun karyawan dan hak aksesnya.
+            </p>
+          </div>
+          )}
+          <div className="flex items-center gap-2">
+            {activeTab === "karyawan" ? (
             <button
               onClick={openCreateForm}
               className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
@@ -557,8 +559,8 @@ export default function OwnerEmployeesPage() {
               Tambah Role
             </button>
           )}
+          </div>
         </div>
-      </div>
 
       <Tabs
         active={activeTab}
@@ -792,8 +794,10 @@ export default function OwnerEmployeesPage() {
                 {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
               </h2>
               <button
+                type="button"
                 onClick={() => setShowForm(false)}
-                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg"
+                disabled={isSubmitting}
+                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg disabled:opacity-50"
               >
                 <X size={20} />
               </button>
@@ -921,7 +925,8 @@ export default function OwnerEmployeesPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all"
+                  disabled={isSubmitting}
+                  className="px-5 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
                 >
                   Batal
                 </button>
@@ -1068,7 +1073,7 @@ export default function OwnerEmployeesPage() {
                         <tr
                           key={role.id}
                           className={`hover:bg-surface-container-low/50 cursor-pointer transition-colors ${selectedRoleId === role.id ? "bg-primary/5" : ""}`}
-                          onClick={() => setSelectedRoleId(role.id)}
+                           onClick={() => { if (!grantSaveLock.current) { setSelectedRoleId(role.id); setGrantError(""); } }}
                         >
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
@@ -1121,51 +1126,45 @@ export default function OwnerEmployeesPage() {
                 <div className="bg-surface-container-lowest rounded-xl p-4 md:p-5">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-on-surface">Atur Akses Menu</h3>
-                    <span className="text-xs text-on-surface-variant">Centang menu yang bisa diakses role ini</span>
+                    <span className="text-xs text-on-surface-variant">Satu centang memberikan akses penuh pada menu.</span>
                   </div>
-                  {menusList.length > 0 && (
-                    <label className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl cursor-pointer hover:bg-surface-container transition-all mb-2">
-                      <input
-                        type="checkbox"
-                        checked={menusList.every((m) => {
-                          const role = rolesWithAccess.find((r) => r.id === selectedRoleId);
-                          return role?.menu_access.includes(m.id) ?? false;
-                        })}
-                        onChange={(e) => handleSelectAll(selectedRoleId, e.target.checked)}
-                        className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
-                      />
-                      <span className="text-sm font-semibold text-on-surface">Pilih Semua</span>
-                    </label>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {menusList.map((menu) => {
-                      const role = rolesWithAccess.find((r) => r.id === selectedRoleId);
-                      const checked = role?.menu_access.includes(menu.id) ?? false;
-                      const isToggling = togglingMenuId === menu.id;
-                      return (
-                        <label
-                          key={menu.id}
-                          className="flex items-start gap-3 p-3 bg-surface-container-low hover:bg-surface-container rounded-xl cursor-pointer transition-all"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={isToggling}
-                            onChange={() => handleToggleMenuAccess(selectedRoleId, menu.id, !checked)}
-                            className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary mt-0.5"
-                          />
-                          <div className="flex-1 min-w-0">
+                  <p className="text-xs text-on-surface-variant mb-3">Centang memberikan izin melihat, menambah, mengubah, dan menghapus. Kosongkan untuk menutup seluruh akses menu. Perubahan disimpan sekaligus; pengguna POS pada role ini perlu login kembali setelah akses berubah.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[320px]">
+                      <thead><tr className="bg-surface-container-low">
+                        <th className="text-left text-xs px-3 py-3">Menu</th>
+                        <th scope="col" className="text-center text-xs px-3 py-3">Akses penuh</th>
+                      </tr></thead>
+                      <tbody>{menusList.map(menu => {
+                        const role = rolesWithAccess.find(r => r.id === selectedRoleId);
+                        const grants = grantDrafts[selectedRoleId] ?? role?.grants ?? [];
+                        const grant = grants.find(g => g.menu_id === menu.id) ?? emptyGrant(menu.id);
+                        return <tr key={menu.id} className="border-b border-surface-container">
+                          <td className="px-3 py-3">
                             <p className="text-sm font-medium text-on-surface">{menu.name}</p>
-                            <p className="text-xs text-on-surface-variant leading-relaxed">
-                              {menuDescriptions[menu.slug] || `Akses menu ${menu.path}`}
-                            </p>
-                          </div>
-                          {isToggling && (
-                            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mt-1 shrink-0" />
-                          )}
-                        </label>
-                      );
-                    })}
+                            <p className="text-xs text-on-surface-variant">{menuDescriptions[menu.slug] || `Akses menu ${menu.path}`}</p>
+                          </td>
+                          <td className="text-center">
+                            <label className="inline-flex items-center justify-center min-h-11 min-w-11">
+                              <input type="checkbox" checked={grant.can_view} disabled={isSavingGrants}
+                                aria-label={`${menu.name}: akses penuh`}
+                                onChange={e => handleDraftGrant(selectedRoleId, menu.id, e.target.checked)}
+                                className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" />
+                            </label>
+                          </td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  </div>
+                  {grantError && <p role="alert" className="text-sm text-error mt-3">{grantError}</p>}
+                  <div className="flex flex-wrap items-center gap-3 mt-4">
+                    <button type="button" onClick={() => void handleSaveGrants()} disabled={isSavingGrants || !grantDrafts[selectedRoleId]}
+                      className="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-semibold disabled:opacity-50">
+                      {isSavingGrants ? "Menyimpan…" : "Simpan Akses"}
+                    </button>
+                    <button type="button" onClick={() => void fetchRolesData()} disabled={isSavingGrants}
+                      className="px-4 py-2.5 bg-surface-container rounded-lg text-sm disabled:opacity-50">Muat ulang akses (buang draf)</button>
+                    {grantDrafts[selectedRoleId] && <span className="text-xs text-on-surface-variant">Ada perubahan belum disimpan</span>}
                   </div>
                   {menusList.length === 0 && (
                     <p className="text-sm text-on-surface-variant text-center py-8">Tidak ada menu terdaftar.</p>

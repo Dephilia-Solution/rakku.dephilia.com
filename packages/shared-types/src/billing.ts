@@ -62,10 +62,18 @@ export interface Subscription {
 
 export type SubscriptionInvoiceStatus =
   | "pending"
+  | "unknown"
   | "success"
   | "expired"
   | "failed"
   | "cancelled";
+
+export type SubscriptionInvoiceProviderState =
+  | "not_created"
+  | "creating"
+  | "accepted"
+  | "unknown"
+  | "terminal";
 
 export interface SubscriptionInvoice {
   id: string;
@@ -83,6 +91,14 @@ export interface SubscriptionInvoice {
   raw_payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  attempt_no?: number;
+  provider_state?: SubscriptionInvoiceProviderState;
+  last_error?: string | null;
+  provider_created_at?: string | null;
+  terminal_at?: string | null;
+  applied_at?: string | null;
+  applied_subscription_id?: string | null;
+  reconciliation_reason?: string | null;
 }
 
 export interface UsageSummary {

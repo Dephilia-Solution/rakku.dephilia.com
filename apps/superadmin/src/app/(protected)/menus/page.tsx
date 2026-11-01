@@ -24,7 +24,7 @@ export default function MenusPage() {
     fetchMenus();
   }, []);
 
-  const fetchMenus = async () => {
+  async function fetchMenus() {
     try {
       const res = await fetch("/api/superadmin/menus");
       const data = await res.json();
@@ -32,7 +32,7 @@ export default function MenusPage() {
     } catch {
       showToast("error", "Gagal memuat data");
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!form.slug || !form.name || !form.path) {

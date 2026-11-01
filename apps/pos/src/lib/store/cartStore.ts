@@ -1,8 +1,9 @@
 "use client";
+import { calculateTotals, discountFor, money } from "@rakku/pricing/money";
 
 import { createStore, useStore } from "zustand";
 import { useMerchantRuntime } from "@pos/lib/merchant-runtime";
-import { Product, Modifier, CartItem, OrderType, PricingTier, SplitPayment, Tax, ProductDiscount, OrderDiscount, AppliedTax, AppliedDiscount } from "@rakku/shared-types";
+import { Product, Modifier, CartItem, OrderType, PricingTier, SplitPayment, Tax, ProductDiscount, OrderDiscount } from "@rakku/shared-types";
 
 export function getTierPrice(
   productId: string,
@@ -25,15 +26,12 @@ export function getTierModifierDelta(
 }
 
 function applyDiscount(price: number, discount: { type: "percentage" | "fixed"; value: number }, rounded = false): number {
+  if (!rounded) return money(price - discountFor(price, { ...discount, name: "" }));
   if (discount.type === "percentage") {
     if (rounded) return price - Math.min(price, Math.round(price * discount.value / 100));
     return price * (1 - discount.value / 100);
   }
   return Math.max(0, price - discount.value);
-}
-
-function calcDiscountAmount(original: number, discounted: number): number {
-  return original - discounted;
 }
 
 const CATEGORY_PRIORITY: Record<string, number> = {
@@ -70,6 +68,8 @@ export interface CartState {
   activeProductDiscounts: ProductDiscount[];
   activeOrderDiscounts: OrderDiscount[];
   savingDraft: boolean;
+  checkoutKey: string | null;
+  getCheckoutKey: () => string;
 
   addProduct: (product: Product, modifiers?: Modifier[], note?: string | null, isDraftRestore?: boolean) => void;
   restoreDraftItem: (item: CartItem, tierId: string | null) => void;
@@ -113,6 +113,8 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
   activeTaxes: [],
   activeProductDiscounts: [],
   activeOrderDiscounts: [],
+  checkoutKey: null,
+  getCheckoutKey: () => { const key = get().checkoutKey ?? crypto.randomUUID(); set({ checkoutKey: key }); return key; },
   savingDraft: false,
 
   addProduct: (product, modifiers, note, isDraftRestore) =>
@@ -147,7 +149,7 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
               ? {
                   ...item,
                   quantity: item.quantity + 1,
-                  subtotal: (item.quantity + 1) * (scoped ? item.discounted_unit_price ?? item.unit_price : item.unit_price),
+                  subtotal: (item.quantity + 1) * (item.discounted_unit_price ?? item.unit_price),
                 }
               : item
           ),
@@ -184,10 +186,8 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
 
   restoreDraftItem: (item, tierId) =>
     set((state) => {
-      const unitPrice = scoped
-        ? getTierPrice(item.product.id, tierId, state.productTierPriceMap, item.product.price)
-          + item.modifiers.reduce((sum, modifier) => sum + getTierModifierDelta(modifier.id, tierId, state.modifierTierDeltaMap, modifier.price_delta ?? 0), 0)
-        : item.unit_price;
+      const unitPrice = getTierPrice(item.product.id, tierId, state.productTierPriceMap, item.product.price)
+        + item.modifiers.reduce((sum, modifier) => sum + getTierModifierDelta(modifier.id, tierId, state.modifierTierDeltaMap, modifier.price_delta ?? 0), 0);
       const productDiscount = state.activeProductDiscounts.find(
         (d) => d.product_id === item.product.id
       );
@@ -209,7 +209,7 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
             source: "draft",
             discount: discount,
             discounted_unit_price: discountedUnitPrice,
-            ...(scoped ? { unit_price: unitPrice, subtotal: item.quantity * discountedUnitPrice } : {}),
+            unit_price: unitPrice, subtotal: money(item.quantity * discountedUnitPrice),
           },
         ],
       };
@@ -373,10 +373,9 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
   setActiveTaxes: (activeTaxes) => set({ activeTaxes }),
   setActiveProductDiscounts: (activeProductDiscounts) => set((state) => ({
     activeProductDiscounts,
-    ...(scoped ? {
-      items: state.items.map((item) => {
+    items: state.items.map((item) => {
         const discount = activeProductDiscounts.find((entry) => entry.product_id === item.product.id);
-        const discountedUnitPrice = discount ? applyDiscount(item.unit_price, discount, true) : item.unit_price;
+        const discountedUnitPrice = discount ? applyDiscount(item.unit_price, discount, scoped) : item.unit_price;
         return {
           ...item,
           discount: discount ? { name: discount.name, type: discount.type, value: discount.value, amount: 0 } : null,
@@ -384,7 +383,6 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
           subtotal: item.quantity * discountedUnitPrice,
         };
       }),
-    } : {}),
   })),
   setActiveOrderDiscounts: (activeOrderDiscounts) => set({ activeOrderDiscounts }),
 
@@ -404,7 +402,7 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
           activeProductDiscounts: data.productDiscounts ?? [],
           activeOrderDiscounts: data.orderDiscounts ?? [],
         });
-        if (scoped) get().setActiveProductDiscounts(data.productDiscounts ?? []);
+        get().setActiveProductDiscounts(data.productDiscounts ?? []);
       }
     } catch {
       // silently fail - taxes/discounts will just be empty
@@ -434,6 +432,7 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: get().getCheckoutKey(),
           items: state.items,
           customerName: state.customerName.trim(),
           note: scoped ? state.note : "",
@@ -463,6 +462,7 @@ export function createCartStore(request: typeof fetch = globalThis.fetch) {
   clear: () =>
     set({
       items: [],
+      checkoutKey: null,
       customerName: "",
       tableId: null,
       tableName: null,
@@ -554,80 +554,5 @@ export const useCartTotals = () => {
 
   if (runtime?.cartTotals) return runtime.cartTotals(items, tierId);
 
-  const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-
-  // Calculate total product discounts
-  const totalProductDiscount = items.reduce((sum, item) => {
-    if (item.discount) {
-      return sum + calcDiscountAmount(item.unit_price * item.quantity, item.subtotal);
-    }
-    return sum;
-  }, 0);
-
-  // Apply order discount (take first active)
-  const orderDiscount = activeOrderDiscounts.length > 0 ? activeOrderDiscounts[0] : null;
-  const orderDiscountAmount = orderDiscount
-    ? (orderDiscount.type === "percentage"
-        ? subtotal * (orderDiscount.value / 100)
-        : orderDiscount.value)
-    : 0;
-  const subtotalAfterOrderDiscount = subtotal - orderDiscountAmount;
-
-  // Apply all active taxes on the subtotal after order discount
-  const appliedTaxes: AppliedTax[] = activeTaxes.map((tax) => {
-    let amount = 0;
-    if (tax.type === "percentage") {
-      amount = subtotalAfterOrderDiscount * (tax.value / 100);
-    } else {
-      amount = tax.value;
-    }
-    return {
-      name: tax.name,
-      type: tax.type,
-      value: tax.value,
-      amount,
-    };
-  });
-  const totalTaxAmount = appliedTaxes.reduce((sum, t) => sum + t.amount, 0);
-
-  // Build applied discounts list
-  const appliedDiscounts: AppliedDiscount[] = [];
-
-  // Add product discounts (one per product, sum them by name)
-  const productDiscountsByName: Record<string, number> = {};
-  items.forEach((item) => {
-    if (item.discount) {
-      const discAmount = calcDiscountAmount(item.unit_price * item.quantity, item.subtotal);
-      productDiscountsByName[item.discount.name] =
-        (productDiscountsByName[item.discount.name] ?? 0) + discAmount;
-    }
-  });
-  Object.entries(productDiscountsByName).forEach(([name, amount]) => {
-    appliedDiscounts.push({ name, type: "fixed", value: 0, amount });
-  });
-
-  if (orderDiscount && orderDiscountAmount > 0) {
-    appliedDiscounts.push({
-      name: orderDiscount.name,
-      type: orderDiscount.type,
-      value: orderDiscount.value,
-      amount: orderDiscountAmount,
-    });
-  }
-
-  const total = subtotalAfterOrderDiscount + totalTaxAmount;
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
-  return {
-    subtotal,
-    totalProductDiscount,
-    orderDiscount: orderDiscount
-      ? { name: orderDiscount.name, type: orderDiscount.type, value: orderDiscount.value, amount: orderDiscountAmount }
-      : null,
-    appliedTaxes,
-    totalTaxAmount,
-    appliedDiscounts,
-    total,
-    itemCount,
-  };
+  return calculateTotals(items, activeTaxes, activeOrderDiscounts[0] ?? null);
 };

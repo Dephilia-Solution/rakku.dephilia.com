@@ -7,11 +7,11 @@ function secret() {
   return new TextEncoder().encode(value);
 }
 export async function signSession(session: TenantSession) {
-  return signJwt(secret(), { ...session }, 12 * 60 * 60);
+  return signJwt(secret(), { ...session }, 12 * 60 * 60, "pos");
 }
 export async function verifySession(token: string): Promise<TenantSession | null> {
-  const payload = await verifyJwt<TenantSession & { exp?: number }>(secret(), token);
-  if (!payload?.exp) return null;
-  return { user_id: payload.user_id, company_id: payload.company_id, outlet_id: payload.outlet_id,
+  const payload = await verifyJwt<TenantSession>(secret(), token, "pos");
+  if (!payload || ![payload.session_id, payload.user_id, payload.company_id, payload.outlet_id, payload.role_id, payload.user_name, payload.company_name, payload.outlet_name].every(v => typeof v === "string" && v.length > 0)) return null;
+  return { session_id: payload.session_id, user_id: payload.user_id, company_id: payload.company_id, outlet_id: payload.outlet_id,
     role_id: payload.role_id, user_name: payload.user_name, company_name: payload.company_name, outlet_name: payload.outlet_name };
 }

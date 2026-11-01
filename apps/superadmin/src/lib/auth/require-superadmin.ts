@@ -3,15 +3,16 @@ import { sql, createAdminClient } from "@rakku/db";
 import { getAuth } from "./server";
 import { headers } from "next/headers";
 import { isAllowedSuperadminOrigin } from "./origins";
+import { cache } from "react";
 
-export async function getAuthorizedUser() {
+export const getAuthorizedUser = cache(async () => {
   const { data: session, error } = await getAuth().getSession();
   if (error || !session?.user) return null;
   const user = session.user;
   const rows = await createAdminClient().execute(sql`select auth_subject from app_private.superadmins
     where auth_subject = ${user.id} and status = 'active' and role = 'superadmin'`);
   return rows.length ? user : null;
-}
+});
 
 export async function requireSuperadmin() {
   const origin = (await headers()).get("origin");

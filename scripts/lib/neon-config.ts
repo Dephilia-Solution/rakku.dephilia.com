@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import postgres from "postgres";
-import { normalizeDatabaseUrl } from "@rakku/db";
+import { configureDatabaseNetworking, normalizeDatabaseUrl } from "@rakku/db";
 
 config({ path: process.env.NEON_ENV_FILE || ".env.local" });
 export function connect(variable: string) {
@@ -9,6 +9,7 @@ export function connect(variable: string) {
   const url = new URL(value);
   if (!["postgres:", "postgresql:"].includes(url.protocol)) throw new Error(`${variable} must be a PostgreSQL connection string`);
   if (url.hostname.includes("-pooler") || url.port === "6543") throw new Error(`${variable} must be unpooled`);
+  configureDatabaseNetworking();
   return postgres(normalizeDatabaseUrl(value), { max: 1, prepare: false, onnotice: () => {}, connection: { application_name: "rakku-migration", statement_timeout: 0, timezone: "UTC" } });
 }
 export const APPLICATION_TABLES = ["owners","plans","companies","outlets","menus","roles","role_menu_access",

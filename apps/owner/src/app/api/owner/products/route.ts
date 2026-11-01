@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
+import { saveOwnerProduct } from "@rakku/db/owner-products";
+import { runFinancialCommand } from "@rakku/db/financial-commands";
+import { InventoryError } from "@rakku/db/owner-inventory";
+import { ownerInventoryScope, inventoryId, inventoryErrorResponse } from "@/lib/inventory-api";
 import { checkLimit } from "@rakku/plans";
 import type { OwnerSession } from "@rakku/shared-types";
 import {
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body tidak valid" }, { status: 400 });
   }
 
-  const { outlet_id, name, price, category_id, description, is_active } = body;
+  const { outlet_id, name, category_id } = body;
 
   if (!outlet_id || !(await verifyOutletBelongsToCompany(String(outlet_id), session.company_id))) {
     return NextResponse.json({ error: "Outlet tidak valid" }, { status: 400 });
@@ -67,30 +71,15 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
-  const limit = await checkLimit(supabase, session.company_id, "products");
-  if (!limit.allowed) {
-    return NextResponse.json(limit, { status: 403 });
-  }
-
-  const { data, error } = await supabase
-    .from("products")
-    .insert({
-      company_id: session.company_id,
-      outlet_id: String(outlet_id),
-      name: String(name).trim(),
-      price: Number(price) || 0,
-      category_id: String(category_id),
-      description: description ? String(description) : null,
-      is_active: is_active !== false,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
+  try {
+    const scope = await ownerInventoryScope(outlet_id);
+    const data = await runFinancialCommand(supabase, { companyId: scope.companyId,
+      requestId: body.request_id == null ? null : inventoryId(body.request_id, "Request ID"),
+      command: "owner.product.create", payload: { scope, ...body, request_id: undefined },
+      execute: tx => saveOwnerProduct(tx, scope, body, { checkQuota: async db => (await checkLimit(db, scope.companyId, "products")).allowed }),
+    });
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) { return inventoryErrorResponse(error); }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -107,34 +96,21 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Body tidak valid" }, { status: 400 });
   }
 
-  const { id, name, price, category_id, description, is_active, image_url } = body;
+  const { id } = body;
 
   if (!id) {
     return NextResponse.json({ error: "ID produk wajib diisi" }, { status: 400 });
   }
 
-  const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = String(name).trim();
-  if (price !== undefined) updates.price = Number(price) || 0;
-  if (category_id !== undefined) updates.category_id = String(category_id);
-  if (description !== undefined) updates.description = description ? String(description) : null;
-  if (is_active !== undefined) updates.is_active = Boolean(is_active);
-  if (image_url !== undefined) updates.image_url = image_url;
-
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("products")
-    .update(updates)
-    .eq("id", String(id))
-    .eq("company_id", session.company_id)
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
+  try {
+    const db = createAdminClient();
+    inventoryId(id);
+    const { data: previous, error } = await db.from("products").select("outlet_id")
+      .eq("id", id).eq("company_id", session.company_id).maybeSingle();
+    if (error || !previous) throw new InventoryError("Produk tidak ditemukan", 404);
+    const scope = await ownerInventoryScope(previous.outlet_id);
+    return NextResponse.json(await saveOwnerProduct(db, scope, body, { productId: id }));
+  } catch (error) { return inventoryErrorResponse(error); }
 }
 
 export async function DELETE(request: NextRequest) {

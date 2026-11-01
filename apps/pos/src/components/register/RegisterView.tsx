@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useCartStore, useCartStoreApi } from "@pos/lib/store/cartStore";
-import { useMerchantRuntime } from "@pos/lib/merchant-runtime";
+import { useMerchantRequest, useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import { ProductWithCategory, Category, Modifier, PricingTier, CartItem } from "@rakku/shared-types";
 import CategoryTabs from "@pos/components/register/CategoryTabs";
 import ProductGrid from "@pos/components/register/ProductGrid";
@@ -10,7 +10,7 @@ import OrderSidebar from "@pos/components/register/OrderSidebar";
 import MobileCartBar from "@pos/components/register/MobileCartBar";
 import PaymentModal from "@pos/components/register/PaymentModal";
 import DraftOrdersPanel, { type DraftOrder } from "@pos/components/register/DraftOrdersPanel";
-import { Search, Command, X } from "lucide-react";
+import { Search, Command, X, Clock } from "lucide-react";
 import { useModalHistory } from "@pos/hooks/useModalHistory";
 
 type ModifierWithTierPrices = Modifier & { tier_prices?: { modifier_id: string; tier_id: string; price_delta: number }[] };
@@ -39,6 +39,7 @@ export default function RegisterView({
   initialDraftCount,
 }: RegisterViewProps) {
   const runtime = useMerchantRuntime();
+  const request = useMerchantRequest();
   const cartStore = useCartStoreApi();
   const hydrated = useRef<{ store: typeof cartStore; content: string } | null>(null);
   const [activeCategory, setActiveCategory] = useState("all");
@@ -47,7 +48,23 @@ export default function RegisterView({
   const [showCartDrawer, setShowCartDrawer] = useState(false);
   const [showDraftPanel, setShowDraftPanel] = useState(false);
   const [draftVersion, setDraftVersion] = useState(0);
-  const [draftCount] = useState(initialDraftCount);
+  const [draftCount, setDraftCount] = useState(initialDraftCount);
+
+  useEffect(() => {
+    // The initial count already came from the server; refresh only after a draft mutation.
+    if (draftVersion === 0) return;
+    let active = true;
+    const refreshDraftCount = async () => {
+      try {
+        const response = await request(runtime ? "/api/admin/orders/draft" : "/api/admin/orders/draft?count_only=1");
+        if (!response.ok) return;
+        const drafts = await response.json();
+        if (active) setDraftCount(Array.isArray(drafts) ? drafts.length : Number(drafts.count ?? 0));
+      } catch {}
+    };
+    void refreshDraftCount();
+    return () => { active = false; };
+  }, [draftVersion, request, runtime]);
 
   const [showModifierModal, setShowModifierModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithCategory | null>(null);
@@ -315,22 +332,39 @@ export default function RegisterView({
 
         {/* Search */}
         <div className="px-4 sm:px-6 pt-2 pb-3">
-          <div className="relative">
-            <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
-            />
-            <input
-              type="text"
-              placeholder="Cari produk..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-neutral-200 rounded-xl pl-11 pr-12 py-2.5 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 items-center gap-1 text-[10px] font-mono text-neutral-400 bg-neutral-100 rounded-md px-1.5 py-1 hidden sm:flex">
-              <Command size={12} />
-              K
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
+              />
+              <input
+                type="text"
+                placeholder="Cari produk..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-neutral-200 rounded-xl pl-11 pr-12 py-2.5 text-base text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 items-center gap-1 text-[10px] font-mono text-neutral-400 bg-neutral-100 rounded-md px-1.5 py-1 hidden sm:flex">
+                <Command size={12} />
+                K
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowDraftPanel(true)}
+              aria-label={`Buka pesanan draft${draftCount > 0 ? `, ${draftCount} pesanan` : ""}`}
+              title="Pesanan Draft"
+              className="relative inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-forest/30 bg-white px-3 text-forest transition-colors hover:bg-forest/5 active:scale-95 lg:hidden"
+            >
+              <Clock size={18} />
+              <span className="text-sm font-semibold">Draft</span>
+              {draftCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm">
+                  {draftCount > 99 ? "99+" : draftCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -364,6 +398,7 @@ export default function RegisterView({
       <OrderSidebar
         onCheckout={handleCheckout}
         onOpenDraft={() => setShowDraftPanel(true)}
+        onDraftChange={() => setDraftVersion((v) => v + 1)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
         initialDraftCount={runtime ? initialDraftCount : draftCount}
@@ -379,6 +414,7 @@ export default function RegisterView({
           setShowPayment(true);
         }}
         onOpenDraft={() => setShowDraftPanel(true)}
+        onDraftChange={() => setDraftVersion((v) => v + 1)}
         onEditItem={handleEditItem}
         refreshKey={draftVersion}
         initialDraftCount={runtime ? initialDraftCount : draftCount}

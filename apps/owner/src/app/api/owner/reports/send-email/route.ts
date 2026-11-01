@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
-import type { OwnerSession } from "@rakku/shared-types";
+import { isWithinJakartaRange, type OwnerSession, type ReportRange } from "@rakku/shared-types";
 import { createAdminClient } from "@rakku/db";
 import { sendEmail } from "@rakku/echo-client";
-import { checkFeature } from "@rakku/plans";
+import { checkFeature, getCompanyPlan } from "@rakku/plans";
+import { releaseUsage, reserveUsage } from "@rakku/db/usage";
+import { jakartaMonthKey } from "@rakku/shared-types";
 
 type OwnerWithCompany = OwnerSession & { company_id: string };
 
@@ -34,11 +36,25 @@ export async function POST(request: NextRequest) {
   if (!feature.allowed) {
     return NextResponse.json(feature, { status: 403 });
   }
+  const resolved = await getCompanyPlan(supabase, session.company_id);
+  const quotaPeriod = jakartaMonthKey(new Date());
+  const quota = await reserveUsage(supabase, {
+    companyId: session.company_id, kind: "email_reports_month", amount: 1,
+    limit: Number(resolved.plan.email_reports_month ?? 0), period: quotaPeriod,
+  });
+  if (!quota.allowed) {
+    return NextResponse.json({
+      code: "PLAN_LIMIT", feature: "email_reports_month",
+      error: `Kuota email laporan bulan ini habis (${quota.used}/${quota.limit}). Upgrade paket untuk mengirim lagi.`,
+      current: quota.used, max: quota.limit,
+    }, { status: 403 });
+  }
 
   let query = supabase
     .from("orders")
     .select("*, order_items(*), outlets!inner(name)")
-    .eq("company_id", session.company_id);
+    .eq("company_id", session.company_id)
+    .eq("status", "completed").eq("payment_status", "paid");
 
   if (outlet_id) {
     query = query.eq("outlet_id", outlet_id);
@@ -46,22 +62,9 @@ export async function POST(request: NextRequest) {
 
   const { data: orders } = await query.order("created_at", { ascending: false });
 
-  const today = new Date();
-  const filtered = (orders ?? []).filter((o) => {
-    const d = new Date(o.created_at);
-    if (dateRange === "today") return d.toDateString() === today.toDateString();
-    if (dateRange === "yesterday") {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      return d.toDateString() === y.toDateString();
-    }
-    if (dateRange === "week") {
-      const w = new Date(today);
-      w.setDate(w.getDate() - 7);
-      return d >= w;
-    }
-    return true;
-  });
+  const filtered = (orders ?? []).filter((order) =>
+    isWithinJakartaRange(order.created_at, (dateRange || "all") as ReportRange)
+  );
 
   const totalRevenue = filtered.reduce(
     (s: number, o: { total_price: number }) => s + Number(o.total_price),
@@ -177,6 +180,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch {
+    await releaseUsage(supabase, {
+      companyId: session.company_id, kind: "email_reports_month", amount: 1, period: quotaPeriod,
+    }).catch(() => {});
     return NextResponse.json({ error: "Gagal mengirim email" }, { status: 500 });
   }
 }

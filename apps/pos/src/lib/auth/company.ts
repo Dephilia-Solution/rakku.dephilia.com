@@ -125,7 +125,7 @@ export async function getActiveOutlets(companyId: string): Promise<Outlet[]> {
 export async function getAccountsForOutlet(
   outletId: string,
   companyId: string
-): Promise<User[]> {
+): Promise<Pick<User, "id" | "name" | "username" | "role_id" | "all_outlets">[]> {
   const supabase = createAdminClient();
   const { data: userOutlets } = await supabase
     .from("user_outlets")
@@ -136,7 +136,7 @@ export async function getAccountsForOutlet(
 
   let query = supabase
     .from("users")
-    .select("*")
+    .select("id, name, username, role_id, all_outlets")
     .eq("company_id", companyId)
     .eq("status", "active")
     .order("name");

@@ -14,7 +14,7 @@ export function Footer() {
       <Container className="flex flex-col justify-between gap-10 py-10 lg:flex-row lg:gap-20">
         <div>
           <MotionLink href="#top" className="inline-flex items-center" aria-label="Rakku, kembali ke atas">
-            <Image src="/images/rakku_logotype.png" alt="Rakku" width={171} height={24} className="h-auto w-[8.5rem] brightness-0 invert" />
+            <Image src="/images/rakku_logotype.png" alt="Rakku" width={803} height={250} sizes="136px" className="h-auto w-[8.5rem] brightness-0 invert" />
           </MotionLink>
           <p className="mt-4 max-w-[15rem] text-xs leading-[1.6] text-ivory/50">Software operasional untuk bisnis yang ingin lebih rapi.</p>
         </div>

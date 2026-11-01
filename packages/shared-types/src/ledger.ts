@@ -1,5 +1,6 @@
 export type BalanceTransactionType =
   | "sale_credit"
+  | "settlement_credit"
   | "withdrawal_hold"
   | "withdrawal"
   | "withdrawal_refund"
@@ -11,6 +12,7 @@ export interface MerchantBalance {
   company_id: string;
   available_balance: number;
   pending_balance: number;
+  unsettled_balance?: number;
   total_credited: number;
   total_fees: number;
   total_withdrawn: number;
@@ -24,8 +26,12 @@ export interface BalanceTransaction {
   type: BalanceTransactionType;
   amount: number;
   pending_delta: number;
+  unsettled_delta?: number;
   fee_amount: number;
   balance_after: number;
+  unsettled_after?: number;
+  settlement_report_id?: string | null;
+  settled_at?: string | null;
   reference_type: string | null;
   reference_id: string | null;
   note: string | null;

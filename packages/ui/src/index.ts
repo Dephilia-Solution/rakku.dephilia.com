@@ -11,4 +11,5 @@ export {
   fieldSelectClass,
 } from "./FormField";
 export { default as Toggle } from "./Toggle";
+export { default as SessionBoundary } from "./SessionBoundary";
 export { default as RegisterProductCard, type RegisterProductCardProps } from "./RegisterProductCard";

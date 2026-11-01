@@ -4,6 +4,7 @@ import { useEffect, useRef, useId } from "react";
 import { useMerchantRuntime } from "@/lib/merchant-runtime";
 
 const MODAL_STATE_KEY = "modal-open";
+const modalStack: string[] = [];
 
 export function useModalHistory(isOpen: boolean, onClose: () => void) {
   const runtime = useMerchantRuntime();
@@ -12,7 +13,7 @@ export function useModalHistory(isOpen: boolean, onClose: () => void) {
   const modalId = useId();
   const isClosingRef = useRef(false);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!isOpen || isActive?.() === false) {
@@ -21,16 +22,20 @@ export function useModalHistory(isOpen: boolean, onClose: () => void) {
     }
 
     const handlePopState = () => {
+      if (modalStack.at(-1) !== modalId || window.history.state?.merchantModal === modalId) return;
       if (isClosingRef.current || isActive?.() === false) return;
       isClosingRef.current = true;
       onCloseRef.current();
     };
 
     window.history.pushState({ ...window.history.state, key: MODAL_STATE_KEY, merchantModal: modalId, merchantScope: scope }, "");
+    modalStack.push(modalId);
     window.addEventListener("popstate", handlePopState);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
+      const index = modalStack.lastIndexOf(modalId);
+      if (index >= 0) modalStack.splice(index, 1);
       if (isActive?.() !== false && window.history.state?.merchantModal === modalId && window.history.state?.merchantScope === scope) {
         window.history.back();
       }

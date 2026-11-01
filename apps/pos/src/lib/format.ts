@@ -8,11 +8,12 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("id-ID", {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateString);
+  return new Date(dateOnly ? `${dateString}T00:00:00+07:00` : dateString).toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    ...(!dateOnly ? { hour: "2-digit" as const, minute: "2-digit" as const } : {}),
   });
 }

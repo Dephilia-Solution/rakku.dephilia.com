@@ -1,10 +1,11 @@
-import type { DemoEntity, DemoState } from "./models";
-import { INGREDIENT_UNITS, DEMO_MENUS } from "./constants";
-import { bool, date, discountDate, fail, find, jakartaDate, list, money, number, optionalText, recipeId, record, text, uniqueStrings } from "./business";
-import { entityAccess, scope } from "./access";
+import type { DemoEntity, DemoMenuGrant, DemoRole, DemoState } from "./models";
+import { INGREDIENT_UNITS, DEMO_MENUS, demoMenuId } from "./constants";
+import { bool, date, decimal, discountDate, fail, find, jakartaDate, list, money, number, optionalText, recipeId, record, text, uniqueStrings } from "./business";
+import { auditActorId, entityAccess, fullMenusGrant, roleGrants, scope } from "./access";
 
 export type NewId = (kind: string) => string;
 type Row = { id: string; company_id: string; outlet_id?: string; [key: string]: unknown };
+function catalogPrice(value: unknown, label = "catalog price") { const amount=decimal(value,label);if(amount>99999999.99)fail("Catalog price exceeds numeric limit");return amount; }
 export function planLimit(state: DemoState, entity: DemoEntity): void {
   const columns = { outlets: "max_outlets", employees: "max_employees", products: "max_products", ingredients: "max_ingredients" } as const;
   if (!(entity in columns)) return;
@@ -52,11 +53,47 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
       row = { ...base, name: name(), username, role_id, pin, outlet_ids, all_outlets, is_active: is_active() }; break;
     }
     case "roles": {
-      const menus = uniqueStrings(v.menus); if (menus.some(m => !(DEMO_MENUS as readonly string[]).includes(m))) fail("Invalid menu slug");
-      if (existing && JSON.stringify(menus) !== JSON.stringify(existing.menus) && !state.plans.find(p => p.slug === state.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
-      row = { ...base, name: name(), menus }; break;
+      const existingRole = existing as unknown as DemoRole | undefined;
+      let grants: DemoMenuGrant[];
+      let menus: string[];
+      if (value.grants !== undefined) {
+        const byId = new Map(DEMO_MENUS.map(slug => [demoMenuId(slug), slug]));
+        grants = list(value.grants).map(raw => {
+          const entry = record(raw), menu_id = text(entry.menu_id, "menu ID"), slug = byId.get(menu_id);
+          if (!slug) fail("Invalid menu ID");
+          const flags = { can_view: bool(entry.can_view), can_create: bool(entry.can_create),
+            can_edit: bool(entry.can_edit), can_delete: bool(entry.can_delete) };
+          if ([flags.can_create, flags.can_edit, flags.can_delete].some(enabled => enabled !== flags.can_view)) fail("ACCESS_ALL_OR_NONE");
+          return { menu_id, ...flags };
+        });
+        if (new Set(grants.map(grant => grant.menu_id)).size !== grants.length) fail("Duplicate menu ID");
+        grants.sort((a, b) => a.menu_id.localeCompare(b.menu_id));
+        menus = grants.filter(grant => grant.can_view)
+          .map(grant => DEMO_MENUS.find(slug => demoMenuId(slug) === grant.menu_id)!)
+          .sort();
+      } else if (value.menus !== undefined) {
+        menus = uniqueStrings(value.menus).sort();
+        if (menus.some(m => !(DEMO_MENUS as readonly string[]).includes(m))) fail("Invalid menu slug");
+        grants = fullMenusGrant(menus);
+      } else if (existingRole) {
+        grants = roleGrants(existingRole);
+        menus = [...existingRole.menus];
+      } else {
+        grants = [];
+        menus = [];
+      }
+      const canonical = (rows: DemoMenuGrant[]) => [...rows].sort((a, b) => a.menu_id.localeCompare(b.menu_id));
+      const sameMenus = (a: string[], b: string[]) => a.length === b.length && [...a].sort().every((menu, index) => menu === [...b].sort()[index]);
+      const changed = !!existingRole && (JSON.stringify(canonical(grants)) !== JSON.stringify(canonical(roleGrants(existingRole))) || !sameMenus(menus, existingRole.menus));
+      if (existing && changed && !state.plans.find(p => p.slug === state.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
+      row = { ...base, name: name(), menus, grants }; break;
     }
-    case "categories": row = { ...scopedBase, name: name(), sort_order: sort_order() }; break;
+    case "categories": {
+      const categoryName = name();
+      if (state.categories.some(category => category.id !== id && category.outlet_id === outlet_id
+        && category.name.normalize("NFKC").trim().toLocaleLowerCase("id-ID") === categoryName.normalize("NFKC").trim().toLocaleLowerCase("id-ID"))) fail("Category already exists at this outlet");
+      row = { ...scopedBase, name: categoryName, sort_order: sort_order() }; break;
+    }
     case "tiers": {
       const slug = text(v.slug ?? name().toLowerCase().replace(/\s+/g, "-"), "tier slug", 60);
       if (!/^[a-z0-9-]+$/.test(slug) || state.tiers.some(t => t.id !== id && t.outlet_id === outlet_id && t.slug === slug)) fail("Invalid or duplicate tier slug");
@@ -64,6 +101,9 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
     }
     case "products": {
       const category = find(state.categories, v.category_id); if (category.outlet_id !== outlet_id) fail("Invalid category scope");
+      const code = text(v.code ?? existing?.code ?? `PRD-${id.split(":").at(-1)}`, "product code", 64).toUpperCase();
+      if (!/^[A-Z0-9][A-Z0-9._-]{0,63}$/.test(code) || /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(code) || state.products.some(p => p.id !== id && p.outlet_id === outlet_id && p.code?.toLowerCase() === code.toLowerCase())) fail("Invalid or duplicate product code");
+      if (existing && value.code !== undefined && code !== existing.code) fail("Product code is immutable");
       const prices = priceMap(state, outlet_id!, v.prices ?? {});
       const oldRecipe = existing ? find(state.products, id).recipe : [];
       const recipe = list(v.recipe ?? []).map(raw => {
@@ -80,20 +120,23 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
         if (m.product_id !== undefined && m.product_id !== id) fail("Invalid modifier product");
         const mid = m.id !== undefined && m.id !== "" ? find(oldModifiers, m.id).id : nextId("modifier");
         return { id: mid, product_id: id, name: text(m.name, "modifier name", 100), group_name: optionalText(m.group_name, 100),
-          price_delta: money(m.price_delta ?? 0), prices: priceMap(state, outlet_id!, m.prices ?? {}) };
+          price_delta: catalogPrice(m.price_delta ?? 0), prices: priceMap(state, outlet_id!, m.prices ?? {}) };
       });
       if (new Set(modifiers.map(m => m.id)).size !== modifiers.length) fail("Duplicate modifiers");
       const image_url = optionalText(v.image_url, 1000);
       if (image_url && !/^\/demo-assets\/[\w/-]+\.(?:svg|png|webp|jpg)$/.test(image_url) && !(image_url.startsWith("blob:") && images.has(image_url))) fail("Image must be a local demo asset or a live image attached to this sandbox");
-      row = { ...scopedBase, name: name(), price: money(v.price ?? 0), category_id: category.id, prices, recipe, modifiers, image_url,
-        description: optionalText(v.description), is_active: is_active(), sort_order: sort_order() }; break;
+      row = { ...scopedBase, code, name: name(), price: catalogPrice(v.price ?? 0), category_id: category.id, prices, recipe, modifiers, image_url,
+        description: optionalText(v.description,5000), is_active: is_active(), sort_order: sort_order() }; break;
     }
     case "ingredients": {
       const unit = text(v.unit, "unit"); if (!(INGREDIENT_UNITS as readonly string[]).includes(unit)) fail("Invalid ingredient unit");
-      if (existing && unit !== existing.unit && state.products.some(p => p.recipe.some(r => r.ingredient_id === id))) fail("Cannot change unit used by recipe");
+      const code = text(v.code ?? existing?.code ?? `BHN-${id.split(":").at(-1)}`, "ingredient code", 64).toUpperCase();
+      if (!/^[A-Z0-9][A-Z0-9._-]{0,63}$/.test(code) || /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(code) || state.ingredients.some(i => i.id !== id && i.outlet_id === outlet_id && i.code?.toLowerCase() === code.toLowerCase())) fail("Invalid or duplicate ingredient code");
+      if (existing && value.code !== undefined && code !== existing.code) fail("Ingredient code is immutable");
+      if (existing && unit !== existing.unit && (existing.stock_quantity !== 0 || state.movements.some(m => m.ingredient_id === id) || state.products.some(p => p.recipe.some(r => r.ingredient_id === id)))) fail("Cannot change unit with stock, movements, or recipes");
       const stock_quantity = number(v.stock_quantity ?? 0, "stock", existing ? -Infinity : 0);
       if (existing && stock_quantity !== existing.stock_quantity) fail("Use stock.adjust for stock changes");
-      row = { ...scopedBase, name: name(), unit, stock_quantity, min_stock_alert: number(v.min_stock_alert ?? 0, "minimum stock"),
+      row = { ...scopedBase, code, name: name(), unit, stock_quantity, min_stock_alert: number(v.min_stock_alert ?? 0, "minimum stock"),
         cost_per_unit: number(v.cost_per_unit ?? 0, "unit cost"), is_active: is_active(), created_at, updated_at: state.now }; break;
     }
     case "tables": {
@@ -130,7 +173,7 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
   if (entity === "ingredients" && !existing) {
     const ingredient = find(state.ingredients, id);
     state.movements.push({ id: nextId("movement"), company_id: state.company.id, outlet_id: outlet_id!, ingredient_id: id, type: "adjustment", quantity_change: ingredient.stock_quantity,
-      reference_id: null, note: "Opening stock", created_by: state.session.employee_id, created_at: state.now });
+      reference_id: null, note: "Opening stock", created_by: auditActorId(state), created_at: state.now });
   }
   if (entity === "outlets" && !existing) {
     for (const [index, tier] of [{ name: "Dine In", slug: "dine-in" }, { name: "Take Away", slug: "take-away" }].entries()) state.tiers.push({ id: nextId("tier"), company_id: state.company.id, outlet_id: id, ...tier, is_active: true, sort_order: index + 1 });
@@ -140,7 +183,7 @@ export function saveEntity(state: DemoState, entity: DemoEntity, input: Record<s
 function priceMap(state: DemoState, outletId: string, raw: unknown): Record<string, number> {
   return Object.fromEntries(Object.entries(record(raw)).map(([id, price]) => {
     if (find(state.tiers, id).outlet_id !== outletId) fail("Invalid price tier scope");
-    return [id, money(price, "tier price")];
+    return [id, catalogPrice(price, "tier price")];
   }));
 }
 function rateType(value: unknown): "percentage" | "fixed" { if (value !== "percentage" && value !== "fixed") fail("Invalid rate type"); return value; }
@@ -156,14 +199,13 @@ export function deleteEntity(state: DemoState, entity: DemoEntity, id: string): 
     case "roles": linked = state.employees.some(e => e.role_id === id); break;
     case "categories": linked = state.products.some(p => p.category_id === id); break;
     case "products": linked = state.orders.some(o => o.items.some(i => i.product_id === id)) || state.discounts.some(d => d.product_id === id); break;
-    case "ingredients": linked = state.products.some(p => p.recipe.some(r => r.ingredient_id === id)) || state.purchases.some(p => p.items.some(i => i.ingredient_id === id)) || state.movements.some(m => m.ingredient_id === id && m.note !== "Opening stock"); break;
+    case "ingredients": linked = row.stock_quantity !== 0 || state.products.some(p => p.recipe.some(r => r.ingredient_id === id)) || state.purchases.some(p => p.items.some(i => i.ingredient_id === id)) || state.movements.some(m => m.ingredient_id === id); break;
     case "tiers": linked = state.orders.some(o => o.tier_id === id); break;
     case "tables": linked = state.orders.some(o => o.table_id === id); break;
     case "banks": linked = state.withdrawals.some(w => w.bank_account_id === id && ["requested", "processing"].includes(w.status)); break;
   }
   if (linked) fail("Resource is referenced; deactivate instead");
   rows.splice(rows.indexOf(row), 1);
-  if (entity === "ingredients") state.movements = state.movements.filter(m => m.ingredient_id !== id);
   if (entity === "products") state.pricing_options = (state.pricing_options ?? []).filter(row => row.product_id !== id);
   if (entity === "banks") for (const withdrawal of state.withdrawals) if (withdrawal.bank_account_id === id) withdrawal.bank_account_id = null;
   if (entity === "outlets") { state.tiers = state.tiers.filter(row => row.outlet_id !== id); state.categories = state.categories.filter(row => row.outlet_id !== id); }

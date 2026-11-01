@@ -19,7 +19,7 @@ async function requireOwner(): Promise<OwnerWithCompany | null> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -37,7 +37,7 @@ export async function PATCH(
   // Toggle status
   if (body.toggle_status === true) {
     const { error, status } = await toggleEmployeeStatus(
-      params.id,
+      (await params).id,
       session.company_id
     );
     if (error) return NextResponse.json({ error }, { status: 400 });
@@ -53,7 +53,7 @@ export async function PATCH(
       );
     }
     const { error } = await resetEmployeePin(
-      params.id,
+      (await params).id,
       session.company_id,
       String(body.new_pin)
     );
@@ -65,7 +65,7 @@ export async function PATCH(
   const { name, username, roleId, allOutlets, outletIds } = body;
 
   const { error } = await updateEmployee({
-    employeeId: params.id,
+    employeeId: (await params).id,
     companyId: session.company_id,
     name: name !== undefined ? String(name).trim() : undefined,
     username: username !== undefined ? String(username).trim() : undefined,
@@ -80,7 +80,7 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -90,7 +90,7 @@ export async function DELETE(
     );
   }
 
-  const { error } = await deleteEmployee(params.id, session.company_id);
+  const { error } = await deleteEmployee((await params).id, session.company_id);
   if (error) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }

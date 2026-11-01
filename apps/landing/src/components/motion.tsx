@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, useState, type PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 import {
   MotionConfig,
   motion,
@@ -41,7 +41,7 @@ export function HeaderFrame({ children, className = "" }: HeaderFrameProps) {
 
   return (
     <motion.header
-      initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+      initial={false}
       animate={{
         opacity: 1,
         y: 0,
@@ -63,14 +63,12 @@ export function HeaderFrame({ children, className = "" }: HeaderFrameProps) {
 type StaggerProps = HTMLMotionProps<"div">;
 
 export function Stagger({ children, className = "", ...props }: StaggerProps) {
-  const reduceMotion = useReducedMotion();
-
   return (
     <motion.div
       {...props}
       className={className}
       variants={stagger}
-      initial={reduceMotion ? false : "hidden"}
+      initial={false}
       whileInView="visible"
       viewport={{ once: true, amount: 0.25, margin: "0px 0px -8% 0px" }}
     >
@@ -126,38 +124,11 @@ export function ButtonLink({ children, className = "", ...props }: ButtonLinkPro
 type HeroCopyProps = PropsWithChildren<{ className?: string }>;
 
 export function HeroCopy({ children, className = "" }: HeroCopyProps) {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <motion.div
-      className={className}
-      variants={stagger}
-      initial={reduceMotion ? false : "hidden"}
-      animate="visible"
-      transition={{ delayChildren: 0.05 }}
-    >
-      {Children.map(children, (child, index) => (
-        <motion.div key={index} variants={fadeRise}>
-          {child}
-        </motion.div>
-      ))}
-    </motion.div>
-  );
+  return <div className={`${className} space-y-6`}>{children}</div>;
 }
 
 export function HeroVisual({ children, className = "" }: HeroCopyProps) {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <motion.div
-      className={className}
-      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.6, ease: EASE, delay: 0.16 }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 type InteractiveRowProps = PropsWithChildren<{ className?: string }>;

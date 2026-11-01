@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
 
-export default function DemoEntry({ searchParams }: { searchParams: { mode?: string } }) {
-  if (searchParams.mode === "pos") redirect("/demo/pos/login/select-outlet");
+export default async function DemoEntry({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  if ((await searchParams).mode === "pos") redirect("/demo/pos/login/select-outlet");
   return <AuthShell>
     <h2 className="mb-2 text-2xl font-bold text-ink">Coba Rakku</h2>
     <p className="mb-6 text-sm text-muted">Pilih dashboard Owner atau kasir.</p>

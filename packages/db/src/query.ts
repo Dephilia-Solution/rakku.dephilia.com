@@ -60,6 +60,9 @@ function databaseError(error: unknown): DatabaseError {
 }
 
 export class DatabaseClient {
+  private transactional = false;
+  private failure: unknown;
+  markFailed(error: unknown) { if (this.transactional) this.failure ??= error; }
   constructor(public readonly execute: Executor, private readonly getCatalog: () => Promise<Catalog>,
     private readonly begin?: <T>(work: (client: DatabaseClient) => Promise<T>) => Promise<T>) {}
 
@@ -68,17 +71,23 @@ export class DatabaseClient {
   async transaction<T>(work: (client: DatabaseClient) => Promise<T>): Promise<T> {
     // A transaction-scoped client can be passed through all existing helpers.
     if (!this.begin) return work(this);
-    return this.begin(work);
+    return this.begin(async client => {
+      client.transactional = true;
+      const result = await work(client);
+      if (client.failure) throw client.failure;
+      return result;
+    });
   }
   async rpc(name: string, params: Record<string, unknown>): Promise<QueryResult> {
     if (!["apply_balance_transaction", "deduct_stock_for_order"].includes(name)) {
+      this.markFailed(new Error("Function is not an application RPC"));
       return { data: null, count: null, error: { code: "DB_FUNCTION", message: "Function is not an application RPC" } };
     }
     try {
       const args = Object.entries(params).map(([key, value]) => sql`${identifier(key)} => ${value}`);
       const data = await this.execute(sql`select * from public.${identifier(name)}(${sql.join(args, sql`, `)})`);
       return { data, error: null, count: null };
-    } catch (error) { return { data: null, error: databaseError(error), count: null }; }
+    } catch (error) { this.markFailed(error); return { data: null, error: databaseError(error), count: null }; }
   }
 }
 
@@ -300,6 +309,7 @@ export class Query<T = any[]> implements PromiseLike<QueryResult<T>> {
       // Let Next.js request-context/redirect signals reach the renderer.
       const digest = (error as { digest?: string }).digest;
       if (digest === "DYNAMIC_SERVER_USAGE" || digest?.startsWith("NEXT_REDIRECT")) throw error;
+      this.client.markFailed(error);
       return { data: null, count: null, error: databaseError(error) };
     }
   }

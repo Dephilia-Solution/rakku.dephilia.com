@@ -1,8 +1,27 @@
-import type { DemoEntity, DemoState } from "./models";
-import { DEMO_MENUS } from "./constants";
+import type { DemoEntity, DemoMenuGrant, DemoRole, DemoState } from "./models";
+import { DEMO_MENUS, demoMenuId } from "./constants";
 import { clone, fail, find } from "./business";
 
 export function owner(state: DemoState): boolean { return state.session.authenticated && state.session.mode === "owner"; }
+export function auditActorId(state: DemoState): string | null { return owner(state) ? `demo-owner:${state.generation}` : state.session.employee_id; }
+export function fullMenusGrant(menus: readonly string[]): DemoMenuGrant[] {
+  return [...new Set(menus)].sort().map(slug => ({
+    menu_id: demoMenuId(slug), can_view: true, can_create: true, can_edit: true, can_delete: true,
+  }));
+}
+export function roleGrants(role: DemoRole): DemoMenuGrant[] {
+  const grants = role.grants ?? fullMenusGrant(role.menus);
+  return grants.map(grant => ({
+    menu_id: grant.menu_id,
+    can_view: grant.can_view,
+    can_create: grant.can_view,
+    can_edit: grant.can_view,
+    can_delete: grant.can_view,
+  }));
+}
+export function roleRevision(role: DemoRole): string {
+  return JSON.stringify(roleGrants(role).slice().sort((a, b) => a.menu_id.localeCompare(b.menu_id)));
+}
 export function requireOwner(state: DemoState): void { if (!owner(state)) fail("Owner access required"); }
 export function sessionMenus(state: DemoState): string[] {
   if (!state.session.authenticated) return [];
@@ -37,6 +56,7 @@ export function validateSession(state: DemoState): void {
 }
 export function projectSnapshot(raw: DemoState): DemoState {
   const state = clone(raw);
+  delete state.request_receipts;
   state.menus = sessionMenus(raw);
   if (owner(raw)) return state;
   const can = (...menus: string[]) => raw.session.authenticated && menus.some(m => state.menus.includes(m));

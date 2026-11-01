@@ -1,10 +1,16 @@
 import type { DemoSandbox } from "../engine";
-import type { DemoCommand, DemoEntity, DemoOrder, DemoPaymentMethod, DemoReportEmail, DemoState } from "../models";
-import { clone, date, deepFreeze, fail, find, jakartaDate, list, number, optionalText, record, shiftedDate, text } from "../business";
+import { isOwnerDashboardRange, ownerDashboardPeriod } from "../../../shared-types/src/owner-dashboard";
+import { jakartaRangeBounds, type ReportRange } from "../../../shared-types/src/reporting";
+import type { DemoCommand, DemoEntity, DemoOrder, DemoPaymentMethod, DemoReportEmail, DemoRole, DemoState } from "../models";
+import { clone, date, deepFreeze, fail, find, instant, jakartaDate, list, number, optionalText, record, shiftedDate, text } from "../business";
+import { roleGrants, roleRevision } from "../access";
 import { createDemoProjections, demoMenuId, demoMenus, type DemoViewData } from "./projections";
 import { orderPayload, splitPayload } from "./payloads";
+import { aggregateDemoOwnerDashboard } from "./owner-dashboard";
+import { isDemoImportPath, type DemoImportService } from "./import";
+import { isDemoImportError } from "../import-models";
 
-export interface DemoRequestOptions { app: "owner" | "pos"; active?: () => boolean; publicMenuBaseUrl?: string }
+export interface DemoRequestOptions { app: "owner" | "pos"; active?: () => boolean; publicMenuBaseUrl?: string; importService?: DemoImportService }
 export type DemoRequestAdapter = typeof fetch & {
   readonly request: typeof fetch;
   getViewData(): DemoViewData;
@@ -26,14 +32,22 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     try { if (disposed || signal?.aborted || (options.active && !options.active()) || sandbox.generation !== generation) throw new Error("inactive"); sandbox.getSnapshot(); }
     catch { throw new DOMException("Demo request scope is no longer active", "AbortError"); }
   };
-  const response = (data: unknown, status = 200, signal?: AbortSignal | null, location?: string): Response => {
+  const response = (data: unknown, status = 200, signal?: AbortSignal | null, location?: string, binary?: Uint8Array, headers?: Record<string, string>): Response => {
     active(signal);
-    const result = new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Rakku-Demo": "local", ...(location ? { Location: location } : {}) } });
+    const bytes = binary ? new Uint8Array(binary).buffer : new TextEncoder().encode(JSON.stringify(data)).buffer;
+    let sent = false;
+    const stream = new ReadableStream<Uint8Array>({ pull(controller) { try { active(signal); if (!sent) { sent = true; controller.enqueue(new Uint8Array(bytes)); } controller.close(); } catch (error) { controller.error(error); } } }, { highWaterMark: 0 });
+    const result = new Response(stream, { status, headers: { "Content-Type": "application/json", ...headers, "Cache-Control": "no-store", "X-Rakku-Demo": "local", ...(location ? { Location: location } : {}) } });
+    const getReader = () => ReadableStream.prototype.getReader.call(stream) as ReadableStreamDefaultReader<Uint8Array>;
+    Object.defineProperty(stream, "getReader", { value: (options?: ReadableStreamGetReaderOptions) => {
+      active(signal); if (options?.mode) throw new TypeError("BYOB reader is unavailable"); const reader = getReader(), read = reader.read.bind(reader);
+      Object.defineProperty(reader, "read", { value: async () => { active(signal); const value = await read(); active(signal); return value; } }); return reader;
+    } });
     for (const method of ["json", "text", "arrayBuffer", "blob", "formData"] as const) {
       const consume = result[method].bind(result);
       Object.defineProperty(result, method, { value: async () => { active(signal); const value = await consume(); active(signal); return value; } });
     }
-    Object.defineProperty(result, "clone", { value: () => response(data, status, signal, location) });
+    Object.defineProperty(result, "clone", { value: () => { active(signal); if (result.bodyUsed) throw new TypeError("Response body already consumed"); return response(data, status, signal, location, binary, headers); } });
     return result;
   };
   const run = (command: DemoCommand) => { active(); const value = sandbox.run(command, generation); active(); return value; };
@@ -55,7 +69,8 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     if (from !== undefined || to !== undefined) return [from === undefined ? shiftedDate(s.now, -29) : date(from), to === undefined ? jakartaDate(s.now) : date(to)];
     const name = range ?? "month"; if (!["today", "yesterday", "week", "month", "all"].includes(String(name))) fail("Invalid report date range");
     const until = name === "yesterday" ? shiftedDate(s.now, -1) : jakartaDate(s.now);
-    const first = name === "today" || name === "yesterday" ? until : name === "week" ? shiftedDate(s.now, -6) : name === "all" ? s.orders.reduce((min, row) => jakartaDate(row.created_at) < min ? jakartaDate(row.created_at) : min, until) : shiftedDate(s.now, -29);
+    const first = name === "all" ? s.orders.reduce((min, row) => jakartaDate(row.created_at) < min ? jakartaDate(row.created_at) : min, until)
+      : jakartaDate(jakartaRangeBounds(name as ReportRange, new Date(s.now)).start!);
     return [first, until];
   };
   const dispatch = (path: string, method: string, query: URLSearchParams, body: Record<string, unknown>, form: FormData | null): { data: unknown; status?: number; location?: string } => {
@@ -96,7 +111,16 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     if (!path.startsWith(prefix)) throw new HttpError("Application API route denied", 403);
     const pieces = path.slice(prefix.length).split("/").map(piece => { const value = decodeURIComponent(piece); if (!value || /[\/\\]/.test(value)) fail("Invalid route segment"); return value; });
     const [name, resourceId, action] = pieces;
-    const endpoints = app === "owner" ? ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "ingredients", "recipes", "taxes", "discounts", "orders", "tables", "outlets", "employees", "roles", "menus", "settings", "menu-qr", "subscription", "balance", "bank-accounts", "withdrawals", "reports"]
+    if (app === "owner" && name === "dashboard" && pieces.length === 1) {
+      allowed(method, ["GET"]); guard(s);
+      const filters = new URLSearchParams(query);
+      if (filters.get("outlet_id") === "all" || filters.get("outlet_id") === "") filters.delete("outlet_id");
+      references(s, body, filters);
+      const range = query.get("range") ?? "today";
+      if (!isOwnerDashboardRange(range)) fail("Invalid dashboard range");
+      return result(aggregateDemoOwnerDashboard(s, { range, outletId: filters.get("outlet_id") ?? "all" }));
+    }
+    const endpoints = app === "owner" ? ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "ingredients", "purchases", "stock-movements", "recipes", "taxes", "discounts", "orders", "tables", "outlets", "employees", "roles", "menus", "settings", "menu-qr", "subscription", "balance", "bank-accounts", "withdrawals", "reports"]
       : ["products", "categories", "pricing-tiers", "product-tier-prices", "modifiers", "modifier-tier-prices", "pricing-options", "ingredients", "recipes", "expenses", "tables", "taxes", "discounts", "orders", "purchases", "subscription"];
     if (!endpoints.includes(name)) return unknown();
     const entityMap: Record<string, DemoEntity> = { products: "products", categories: "categories", "pricing-tiers": "tiers", ingredients: "ingredients", expenses: "expenses", tables: "tables", taxes: "taxes", discounts: "discounts", outlets: "outlets", employees: "employees", roles: "roles", "bank-accounts": "banks" };
@@ -111,6 +135,12 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
     const routeId = resourceId ?? body.id ?? query.get("id");
     const save = (kind: DemoEntity, value: Record<string, unknown>) => run({ type: "entity.save", entity: kind, value });
     const remove = (kind: DemoEntity, id: unknown) => run({ type: "entity.delete", entity: kind, id: text(id, "resource ID") });
+    const ownerOutlet = () => scope(s, text(body.outlet_id ?? query.get("outlet_id"), "outlet_id"));
+    const actorName = (id: string | null) => id === `demo-owner:${s.generation}` ? s.company.owner_name : s.employees.find(row => row.id === id)?.name ?? null;
+    const paginate = <T>(rows: T[]) => {
+      const page = number(Number(query.get("page") ?? 1), "page", 1, true), pageSize = 20;
+      return { rows: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, pageSize };
+    };
     if (name === "menus" && pieces.length === 1) { allowed(method, ["GET"]); return result({ menus: demoMenus() }); }
     if (name === "settings" && pieces.length === 1) {
       allowed(method, ["GET", "PUT"]); if (method === "GET") return result({ company: v.company });
@@ -178,14 +208,56 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       if (method === "DELETE") return result(run({ type: "pricingOption.delete", id: text(routeId, "pricing option ID") }));
       return result(run({ type: "pricingOption.save", value: body }), method === "POST" ? 201 : 200);
     }
+    if (app === "owner" && name === "ingredients" && pieces.length === 1 && method !== "GET") {
+      allowed(method, ["POST", "PATCH", "DELETE"]);
+      const outlet_id = ownerOutlet();
+      if (method === "POST") {
+        if (body.id !== undefined) fail("Ingredient creation must omit id");
+        return result(save("ingredients", { ...select(body, ["name", "unit", "stock_quantity", "min_stock_alert", "cost_per_unit"]), outlet_id }), 201);
+      }
+      const ingredient = find(s.ingredients, routeId);
+      if (ingredient.outlet_id !== outlet_id) throw new HttpError("Invalid ingredient outlet scope", 403);
+      if (method === "DELETE") return result(remove("ingredients", ingredient.id));
+      if (body.stock_quantity !== undefined) fail("Use stock.adjust for stock changes");
+      return result(save("ingredients", { ...select(body, ["name", "unit", "min_stock_alert", "cost_per_unit", "is_active"]), id: ingredient.id, outlet_id }));
+    }
+    if (app === "owner" && name === "stock-movements" && pieces.length === 1) {
+      allowed(method, ["GET"]); const outlet_id = ownerOutlet(), ingredientId = query.get("ingredient_id");
+      if (ingredientId && find(s.ingredients, ingredientId).outlet_id !== outlet_id) throw new HttpError("Invalid ingredient outlet scope", 403);
+      const movements = [...s.movements].reverse().filter(row => row.outlet_id === outlet_id && (!ingredientId || row.ingredient_id === ingredientId))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)).map(row => {
+          const ingredient = find(s.ingredients, row.ingredient_id);
+          return { id: row.id, type: row.type, quantity_change: row.quantity_change, ingredient_name: ingredient.name, unit: ingredient.unit,
+            created_at: row.created_at, note: row.note, actor_name: actorName(row.created_by) };
+        });
+      const { rows, ...page } = paginate(movements); return result({ movements: rows, ...page });
+    }
     if (name === "purchases" && pieces.length === 1) {
-      allowed(method, ["GET", "POST"]); if (method === "GET") return result(filter(v.purchases));
-      const purchase = run({ type: "purchase.create", outlet_id: s.session.outlet_id, supplier_name: optionalText(body.supplier_name) ?? "", note: optionalText(body.note) ?? "", purchase_date: body.purchase_date as string | undefined, items: list(body.items) as Extract<DemoCommand, { type: "purchase.create" }>["items"] }) as { id: string; total_amount: number };
+      allowed(method, ["GET", "POST"]);
+      const outlet_id = app === "owner" ? ownerOutlet() : s.session.outlet_id;
+      if (method === "GET") {
+        if (app === "pos") return result(filter(v.purchases));
+        const purchases = [...v.purchases].reverse().filter(row => row.outlet_id === outlet_id)
+          .sort((a, b) => b.purchase_date.localeCompare(a.purchase_date) || b.created_at.localeCompare(a.created_at)).map(row => ({
+            id: row.id, supplier_name: row.supplier_name, total_amount: row.total_amount, purchase_date: row.purchase_date, note: row.note, actor_name: actorName(row.created_by),
+            items: row.items.map(item => ({ ingredient_id: item.ingredient_id, ingredient_name: item.ingredient_name, unit: item.ingredient_unit, quantity: item.quantity, unit_cost: item.unit_cost, subtotal: item.subtotal })),
+          }));
+        const { rows, ...page } = paginate(purchases); return result({ purchases: rows, ...page });
+      }
+      const purchase = run({ type: "purchase.create", outlet_id, supplier_name: optionalText(app === "owner" ? body.supplier : body.supplier_name) ?? "", note: optionalText(body.note) ?? "",
+        purchase_date: purchaseDate(app === "owner" ? body.date : body.purchase_date), request_id: body.request_id as string | undefined,
+        items: list(body.items) as Extract<DemoCommand, { type: "purchase.create" }>["items"] }) as { id: string; total_amount: number };
       return result({ success: true, id: purchase.id, total_amount: purchase.total_amount }, 201);
     }
     if (name === "orders") {
       if (pieces.length === 1) {
-        allowed(method, app === "owner" ? ["GET"] : ["GET", "POST"]); if (method === "GET") return result(app === "owner" ? { orders: filter(v.orders) } : v.orders);
+        allowed(method, app === "owner" ? ["GET"] : ["GET", "POST"]);
+        if (method === "GET") {
+          const plan = s.plans.find(row => row.slug === s.plan)!;
+          const cutoff = ownerDashboardPeriod("today", new Date(s.now), plan.report_history_days).historyStart;
+          return result(app === "owner" ? { orders: filter(v.orders).filter(row => row.status === "completed" && (!cutoff || Date.parse(row.created_at) >= Date.parse(cutoff)))
+            .map(row => ({ ...row, items: row.order_items })) } : v.orders);
+        }
         const status = body.status ?? "completed"; if (!["draft", "completed", "pending_payment"].includes(String(status))) fail("Invalid order status");
         const created = run({ type: "order.create", ...orderPayload(s, body), status: status === "pending_payment" ? "pending" : status as "draft" | "completed", payment_method: methodFor(body.paymentMethod ?? "cash"), amount_paid: body.amount_paid as number | undefined, splits: splitPayload(body) }) as DemoOrder;
         return result(find(view().orders, created.id), 201);
@@ -223,11 +295,11 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         const rows = entity === "products" ? filter(v.products) : entity === "categories" ? filter(v.categories) : entity === "tiers" ? filter(v.tiers) : entity === "ingredients" ? filter(v.ingredients) : entity === "tables" ? filter(v.tables) : entity === "taxes" ? filter(v.taxes) : entity === "discounts" ? filter(s.discounts) : entity === "expenses" ? filter(v.expenses) : entity === "outlets" ? v.outlets : entity === "employees" ? v.employees : entity === "roles" ? v.roles : v.banks;
         if (app === "owner" && ["products", "categories", "ingredients"].includes(name) && !outlet) fail("outlet_id is required");
         if (entity === "discounts") { const products = (rows as typeof s.discounts).filter(row => row.product_id), orders = (rows as typeof s.discounts).filter(row => !row.product_id), type = query.get("type"); return result(app === "pos" && type ? type === "product" ? products : type === "order" ? orders : fail("Invalid discount scope") : { productDiscounts: products, orderDiscounts: orders }); }
+        if (app === "owner" && entity === "roles" && !resourceId) return result({ roles: rows, menus: demoMenus() });
         if (app === "owner") { const key = name === "bank-accounts" ? "bank_accounts" : name === "pricing-tiers" ? "tiers" : name; return result(entity === "ingredients" ? rows : { [key]: rows }); }
         return result(rows);
       }
       allowed(method, ["POST", "PATCH", "PUT", "DELETE"]);
-      if (app === "owner" && entity === "ingredients") return denyMethod();
       if (method === "DELETE") return result(remove(entity, routeId));
       if (method === "PUT" && ["categories", "pricing-tiers"].includes(name)) {
         const ordered = list(body.orders).map(raw => record(raw)).sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
@@ -247,7 +319,7 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         return result(method === "POST" ? { employee: { id: (employee as { id: string }).id } } : { success: true }, method === "POST" ? 201 : 200);
       }
       if (entity === "outlets" && body.toggle_status === true) { const old = find(s.outlets, value.id), saved = save(entity, { id: old.id, is_active: !old.is_active }) as { is_active: boolean }; return result({ status: saved.is_active ? "active" : "inactive" }); }
-      if (entity === "roles" && method === "POST") value.menus = [];
+      if (entity === "roles" && method === "POST") { value.menus = []; value.grants = []; }
       if (entity === "discounts") {
         const kind = body.scope ?? query.get("scope") ?? "product"; if (!["product", "order"].includes(String(kind))) fail("Invalid discount scope");
         if (method !== "POST") { const old = find(s.discounts, value.id); if ((kind === "product") !== Boolean(old.product_id)) fail("Invalid discount resource scope"); }
@@ -255,7 +327,15 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
       }
       if (entity === "banks" && body.account_number !== undefined) { const digits = text(body.account_number, "account number").replace(/\D/g, ""); if (digits.length < 8 || digits.length > 20) fail("Invalid account number"); value.account_number = digits; }
       if (entity === "banks" && body.status === "inactive") value.is_default = false;
-      const saved = entity === "ingredients" && method !== "POST" ? run({ type: "ingredient.update", id: text(value.id, "ingredient ID"), value }) : save(entity, value);
+      let saved: unknown;
+      if (app === "owner" && entity === "products") {
+        allowed(method, ["POST", "PATCH"]);
+        if (method === "POST" && body.id !== undefined) fail("Product creation must omit id");
+        const composition = select(value, ["id", "company_id", "outlet_id", "code", "name", "category_id", "price", "description", "image_url", "is_active", "sort_order", "recipe", "modifiers"]);
+        if (body.prices !== undefined) composition.prices = priceMap(body.prices, "price");
+        if (body.recipes !== undefined) composition.recipe = list(body.recipes);
+        saved = run({ type: "product.save", value: composition, request_id: method === "POST" ? body.request_id as string | undefined : undefined });
+      } else saved = entity === "ingredients" && method !== "POST" ? run({ type: "ingredient.update", id: text(value.id, "ingredient ID"), value }) : save(entity, value);
       if (app === "owner") {
         if (method !== "POST" && ["outlets", "roles", "pricing-tiers", "taxes", "discounts"].includes(name)) return result({ success: true });
         const wrappers: Record<string, string> = { outlets: "outlet", roles: "role", "pricing-tiers": "tier", taxes: "tax", discounts: "discount", tables: "table", "bank-accounts": "bank_account" };
@@ -277,32 +357,53 @@ export function createDemoRequestAdapter(sandbox: DemoSandbox, options: DemoRequ
         else throw new HttpError("Unsupported local request body", 400);
       }
       active(signal);
+      if (isDemoImportPath(url.pathname)) {
+        if (app !== "owner") throw new HttpError("Application API route denied", 403);
+        const s = sandbox.getSnapshot(); guard(s); references(s, body, url.searchParams);
+        if (!options.importService) throw new HttpError("Local demo import service is not configured", 501);
+        const imported = await options.importService.dispatch({ path: url.pathname, method, query: url.searchParams, body, form, active: () => active(signal) });
+        active(signal); return response(imported.data, imported.status, signal, undefined, imported.binary, imported.headers);
+      }
       // Precise extra routes, before the general resource dispatcher.
       let value: { data: unknown; status?: number; location?: string };
       const roleAccess = app === "owner" && url.pathname.match(/^\/api\/owner\/roles\/([^/]+)\/access$/);
-      const stockAdjust = app === "pos" && url.pathname.match(/^\/api\/admin\/ingredients\/([^/]+)\/adjust$/);
+      const stockAdjust = url.pathname.match(app === "owner" ? /^\/api\/owner\/ingredients\/([^/]+)\/adjust$/ : /^\/api\/admin\/ingredients\/([^/]+)\/adjust$/);
       if (roleAccess) {
         const s = sandbox.getSnapshot(); guard(s); references(s, body, url.searchParams); allowed(method, ["GET", "POST"]); const role = find(s.roles, decodeURIComponent(roleAccess[1]));
-        if (method === "GET") value = { data: { menu_access: role.menus.map(demoMenuId) } };
-        else { if (!s.plans.find(row => row.slug === s.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles"); const menu = find(demoMenus(), body.menuId); if (typeof body.canView !== "boolean") fail("Invalid canView");
-          run({ type: "entity.save", entity: "roles", value: { id: role.id, menus: body.canView ? [...new Set([...role.menus, menu.slug])] : role.menus.filter(slug => slug !== menu.slug) } }); value = { data: { message: "Akses menu diupdate" } }; }
+        if (method === "GET") value = { data: { grants: roleGrants(role), revision: roleRevision(role), menu_access: role.menus.map(demoMenuId) } };
+        else {
+          if (!s.plans.find(row => row.slug === s.plan)!.features.custom_roles) fail("PLAN_LIMIT: custom_roles");
+          if (!Array.isArray(body.grants) || typeof body.expectedRevision !== "string") fail("Kirim grants lengkap dan expectedRevision");
+          if (body.expectedRevision !== roleRevision(role)) throw new HttpError("Akses telah berubah. Muat ulang lalu tinjau perubahan.", 409);
+          const saved = run({ type: "entity.save", entity: "roles", value: { id: role.id, grants: body.grants } }) as DemoRole;
+          value = { data: { grants: roleGrants(saved), revision: roleRevision(saved) } };
+        }
       } else if (stockAdjust) {
         const s = sandbox.getSnapshot(); guard(s, "ingredients"); references(s, body, url.searchParams); allowed(method, ["POST"]);
-        value = { data: { success: true, ...record(run({ type: "stock.adjust", ingredient_id: decodeURIComponent(stockAdjust[1]), quantity: body.stock_quantity as number, note: optionalText(body.note) ?? "" })) } };
+        const outlet_id = app === "owner" ? text(body.outlet_id, "outlet_id") : undefined;
+        value = { data: { success: true, ...record(run({ type: "stock.adjust", ingredient_id: decodeURIComponent(stockAdjust[1]), outlet_id,
+          quantity: (app === "owner" ? body.quantity : body.stock_quantity) as number, note: app === "owner" ? text(body.note, "opname note", 1000) : optionalText(body.note) ?? "",
+          request_id: body.request_id as string | undefined })) } };
       } else value = dispatch(url.pathname, method, url.searchParams, body, form);
       active(signal); return response(value.data, value.status, signal, value.location);
     } catch (error) {
       active(signal); if (error instanceof DOMException && error.name === "AbortError") throw error;
       const message = error instanceof Error ? error.message : "Local request failed";
-      const plan = message.startsWith("PLAN_LIMIT:"), status = error instanceof HttpError ? error.status : plan || /permission|access denied|Owner access|scope|assignment|inactive/i.test(message) ? 403 : /Authentication|credentials|PIN/i.test(message) ? 401 : /Resource not found/i.test(message) ? 404 : 400;
+      const conflict = message.startsWith("IDEMPOTENCY_CONFLICT:");
+      const plan = message.startsWith("PLAN_LIMIT:"), status = error instanceof HttpError || isDemoImportError(error) ? error.status : conflict ? 409 : plan || /permission|access denied|Owner access|scope|assignment|inactive/i.test(message) ? 403 : /Authentication|credentials|PIN/i.test(message) ? 401 : /Resource not found/i.test(message) ? 404 : 400;
       let details: Record<string, unknown> = {};
       if (plan) { const key = message.slice("PLAN_LIMIT:".length).trim(); try { const summary = sandbox.getUsageSummary(); if (key in summary.usage) details = { current: summary.usage[key as keyof typeof summary.usage], max: summary.limits[key as keyof typeof summary.limits] }; } catch { /* no private data in unauthenticated errors */ } }
-      return response({ error: message, ...(plan ? { code: "PLAN_LIMIT", ...details } : {}) }, status, signal);
+      return response({ error: message, ...(isDemoImportError(error) ? { code: error.code } : plan ? { code: "PLAN_LIMIT", ...details } : conflict ? { code: "IDEMPOTENCY_CONFLICT" } : {}) }, status, signal);
     }
   }) as DemoRequestAdapter;
   Object.defineProperty(request, "request", { value: request });
   request.getViewData = () => view(); request.getLastPreview = () => { active(); return lastPreview; }; request.destroy = () => { disposed = true; lastPreview = null; };
   return request;
+}
+function purchaseDate(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  const value = text(raw, "purchase date");
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? date(value) : jakartaDate(instant(value));
 }
 function priceMap(raw: unknown, key: string): Record<string, number> {
   const entries = list(raw).map(value => { const row = record(value); return [text(row.tier_id, "tier ID"), row[key]] as const; });

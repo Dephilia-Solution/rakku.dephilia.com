@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
+import { replaceModifierTierPrices } from "@rakku/db/merchant";
+import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -60,51 +62,37 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const body = await request.json();
-  const { id, name, group_name, prices } = body;
+  const session = await getTenantSessionFromCookies();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => null);
+  const { id, name, group_name, prices } = body ?? {};
 
   if (!id) {
     return NextResponse.json({ error: "ID modifier harus diisi" }, { status: 400 });
   }
+  if (prices !== undefined && !Array.isArray(prices)) {
+    return NextResponse.json({ error: "Harga tier tidak valid" }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
-
-  if (name !== undefined || group_name !== undefined) {
-    const updates: Record<string, unknown> = {};
-    if (name !== undefined) updates.name = name;
-    if (group_name !== undefined) updates.group_name = group_name || null;
-
-    const { error: updateError } = await supabase
-      .from("modifiers")
-      .update(updates)
-      .eq("id", id);
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-  }
-
-  if (prices && Array.isArray(prices)) {
-    await supabase.from("modifier_tier_prices").delete().eq("modifier_id", id);
-
-    if (prices.length > 0) {
-      const inserts = prices.map((p: { tier_id: string; price_delta: number }) => ({
-        modifier_id: id,
-        tier_id: p.tier_id,
-        price_delta: p.price_delta,
-      }));
-
-      const { error: tierError } = await supabase
-        .from("modifier_tier_prices")
-        .insert(inserts);
-
-      if (tierError) {
-        console.error("Failed to update modifier tier prices:", tierError.message);
+  try {
+    await supabase.transaction(async tx => {
+      if (name !== undefined || group_name !== undefined) {
+        const updates: Record<string, unknown> = {};
+        if (name !== undefined) updates.name = String(name).trim();
+        if (group_name !== undefined) updates.group_name = group_name || null;
+        const update = await tx.from("modifiers").update(updates).eq("id", id);
+        if (update.error) throw new Error(update.error.message);
       }
-    }
+      if (Array.isArray(prices)) {
+        await replaceModifierTierPrices(tx, session.company_id, String(id),
+          prices.map((p: { tier_id: string; price_delta: number }) => ({ tier_id: String(p.tier_id), price_delta: Number(p.price_delta) })));
+      }
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal mengubah modifier" }, { status: 400 });
   }
-
-  return NextResponse.json({ success: true });
 }
 
 export async function DELETE(request: NextRequest) {

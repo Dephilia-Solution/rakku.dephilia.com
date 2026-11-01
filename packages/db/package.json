@@ -4,8 +4,44 @@
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts", "./schema": "./src/schema.ts", "./query": "./src/query.ts", "./invitations": "./src/invitations.ts" },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "tsx --wasm-num-compilation-tasks=1 --test --test-isolation=none src/*.test.ts" },
-  "dependencies": { "drizzle-orm": "0.45.1", "postgres": "3.4.8" },
-  "devDependencies": { "@electric-sql/pglite": "0.3.14", "tsx": "4.22.4", "typescript": "^5", "@types/node": "^24" }
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./query": "./src/query.ts",
+    "./invitations": "./src/invitations.ts",
+    "./sessions": "./src/sessions.ts",
+    "./owner-security": "./src/owner-security.ts",
+    "./merchant": "./src/merchant.ts",
+    "./checkout": "./src/checkout.ts",
+    "./roles-access": "./src/roles-access.ts",
+    "./subscription-billing": "./src/subscription-billing.ts",
+    "./jobs": "./src/jobs.ts",
+    "./provider-events": "./src/provider-events.ts",
+    "./payment-exceptions": "./src/payment-exceptions.ts",
+    "./financial-commands": "./src/financial-commands.ts",
+    "./usage": "./src/usage.ts",
+    "./maintenance": "./src/maintenance.ts",
+    "./runtime-flags": "./src/runtime-flags.ts",
+    "./imports": "./src/imports.ts",
+    "./owner-inventory": "./src/owner-inventory.ts",
+    "./owner-products": "./src/owner-products.ts",
+    "./categories": "./src/categories.ts",
+    "./owner-dashboard": "./src/owner-dashboard.ts",
+    "./platform-analytics": "./src/platform-analytics.ts",
+    "./owner-session": "./src/owner-session.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --wasm-num-compilation-tasks=1 --test --test-concurrency=1 src/*.test.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "postgres": "3.4.8"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "@types/node": "^24.19.2",
+    "tsx": "4.22.4",
+    "typescript": "^5.9.3"
+  }
 }

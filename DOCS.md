@@ -1,10 +1,10 @@
 # Dokumentasi Sistem Rakku POS
 
 > **Nama internal:** `rakku`
-> **Stack aktif:** Next.js 14/16 (App Router) · Neon Postgres + Drizzle · Neon Managed Better Auth · Tailwind CSS · pnpm + Turborepo
-> **Cakupan implementasi:** fitur v6.1 M1–M4 + runtime Neon, baseline `0001`–`0004`, demo publik browser-memory
+> **Stack source aktif:** Next.js 16.4.2 / React 19.3.1 (App Router) · Neon Postgres + Drizzle 0.45.4 · Neon Managed Better Auth · Tailwind CSS 3 · pnpm + Turborepo
+> **Cakupan source:** fitur v6.1 M1–M4, Owner/import v2, migrasi tersedia sampai `0019`, demo publik browser-memory; status migrasi database aktif diperiksa terpisah
 > **Author:** Alif Dhimas
-> **Pembaruan dokumentasi/source:** 17 Oktober 2026
+> **Pembaruan catatan Owner:** 1 November 2026; bagian rollout lama mempertahankan tanggal historisnya
 >
 > Dokumen ini menjelaskan implementasi yang ada di repository, termasuk keterbatasan dan risiko yang belum diperbaiki. Dokumen PRD/PROMPT adalah riwayat perencanaan dan bukan sumber kebenaran runtime.
 
@@ -13,6 +13,8 @@ Dokumen ini adalah **referensi teknis untuk developer dan operator**: arsitektur
 ---
 
 ## Daftar Isi
+
+**Pembaruan Owner, November 2026:** kontrak dashboard analitik, container responsif, enam tab outlet, alur impor Excel ringkas untuk semua domain, preview produk yang mengelompokkan komposisi, staging sementara, riwayat impor sukses, Excel v2, ZIP/WebP, pembelian transaksional, dan adapter demo dijelaskan di [OWNER_UPGRADE.md](OWNER_UPGRADE.md). Source menyediakan migrasi `0019_comprehensive_imports.sql` setelah `0018`; penerapan pada database aktif harus diverifikasi terpisah. Bagian rollout/schema lama di dokumen ini tetap merupakan catatan historis.
 
 1. [Ikhtisar Sistem](#1-ikhtisar-sistem)
 2. [Tech Stack](#2-tech-stack)
@@ -55,9 +57,10 @@ Monorepo berisi 4 aplikasi Next.js independen, masing-masing deploy terpisah:
 |-------|-----|-----------|
 | **POS Register** | pos | Grid produk, kategori, modifier/add-on, pencarian, tier harga, pajak & diskon otomatis |
 | **Multi-Tenant** | owner, pos, superadmin | Banyak company/outlet; tenant context, FORCE RLS, trigger relasi tenant, dan guard server |
-| **RBAC Dinamis** | owner, pos, superadmin | Role & menu access matrix per company; `can_view` ditegakkan pada POS server boundary, belum CRUD grants terpisah |
+| **RBAC Dinamis** | owner, pos, superadmin | Satu checkbox akses penuh per menu dan none saat dimatikan; backend menyimpan flag capability internal yang seragam dan menegakkannya pada registry method/path deny-by-default |
 | **Pricing Tiers** | owner, pos | Harga berbeda per tier (Dine In, Take Away, Gojek, dll) |
 | **Manajemen Produk** | owner, pos | CRUD produk per outlet, gambar (Silos), modifier, tier pricing, resep |
+| **Impor Excel Owner** | owner | Produk, bahan baku, karyawan, dan pembelian; preview yang dapat dikonfirmasi, pratinjau produk + komposisi, dan riwayat konfirmasi berhasil |
 | **Manajemen Order** | owner, pos | Order completed, draft/pay-later (24 jam), split bill, invoice print 58mm |
 | **Pajak & Diskon** | owner, pos | Pajak multi-tipe (persentase/fixed), diskon produk & order berperiode |
 | **Bahan Baku & Resep** | owner, pos | Ingredients per outlet + BOM per produk (resep) |
@@ -91,7 +94,7 @@ Monorepo berisi 4 aplikasi Next.js independen, masing-masing deploy terpisah:
 | POS | `http://localhost:3001` | `https://pos-rakku.vercel.app` | `https://pos.rakku.dephilia.com` |
 | Superadmin | `http://localhost:3002` | `https://superadmin-rakku.vercel.app` | `https://admin.rakku.dephilia.com` |
 
-Development/production adalah klasifikasi deployment Rakku. URL `*.vercel.app` dapat tetap memakai environment Vercel **Production**, `.env.production`, dan build `NODE_ENV=production`. Domain production di tabel adalah keputusan yang dikonfirmasi developer, bukan bukti domain assignment/env cloud sudah selesai.
+Development/production adalah klasifikasi deployment Rakku. URL `*.vercel.app` dapat memakai environment Vercel **Production** dan build `NODE_ENV=production`. Environment deployment diatur pada Vercel Project Settings; file `.env.production` tidak dilacak di repository. Domain production di tabel adalah keputusan yang dikonfirmasi developer, bukan bukti domain assignment/env cloud sudah selesai.
 
 Pada rollout 8 Oktober 2026, Owner/POS Vercel lulus login/session/dashboard/register; Superadmin Vercel lulus route activation/Auth dan guard anonim, serta akun admin telah diaktivasi oleh pemiliknya. Custom domain Superadmin terakhir masih 404. Production Owner/POS/Landing belum memiliki hasil smoke test tercatat. Database/Auth lokal dan deployment yang diverifikasi masih resource Neon bersama; isolasi development-production belum diterapkan.
 
@@ -103,13 +106,13 @@ Pada rollout 8 Oktober 2026, Owner/POS Vercel lulus login/session/dashboard/regi
 
 | Layer | Teknologi | Keterangan |
 |-------|-----------|------------|
-| **Framework** | Next.js 14.2.35 / 16.4.0 | Owner/POS/Landing memakai 14; Superadmin memakai 16 untuk SDK Neon Auth |
+| **Framework** | Next.js 16.4.2 / React 19.3.1 | Empat app memakai App Router; lihat package.json app untuk versi source |
 | **Bahasa** | TypeScript 5.x | Strict mode, path alias `@/*` dan `@rakku/*` |
 | **Database** | Neon Postgres | Runtime role `rakku_runtime`, pooled SQL server-only; PostgreSQL 18.6 terverifikasi |
-| **Database layer** | Drizzle 0.45.1 + `postgres.js` 3.4.8 | Query compiler berparameter, catalog FK, native transactions, FORCE RLS |
+| **Database layer** | Drizzle 0.45.4 + `postgres.js` 3.4.8 | Query compiler berparameter, catalog FK, native transactions, FORCE RLS |
 | **Auth (Tenant)** | Custom (JWT + bcrypt) | 4-step login: Company → Outlet → Akun → PIN |
 | **Auth (Owner)** | Custom (JWT + bcrypt) | Email + password, verifikasi email, reset sandi |
-| **Auth (Superadmin)** | Neon Managed Better Auth | `@neondatabase/auth` 0.5.0-beta, invitation + allowlist privat |
+| **Auth (Superadmin)** | Neon Managed Better Auth | `@neondatabase/auth` 0.6.0-beta, invitation + allowlist privat |
 | **State** | Zustand 5.x | Cart store POS, sidebar store |
 | **Demo sandbox** | Browser memory (`@rakku/demo`) | Fixture immutable, command atomik, adapter API lokal; tanpa cookie/storage/Neon |
 | **Styling** | Tailwind CSS 3.x | Preset bersama `rakkuPreset` dari `@rakku/ui` |
@@ -121,7 +124,7 @@ Pada rollout 8 Oktober 2026, Owner/POS Vercel lulus login/session/dashboard/regi
 | **PWA** | Serwist 9.x | Service worker (hanya `apps/pos`, production) |
 | **JWT** | jose 6.x (via `@rakku/auth-utils`) | Sign/verify JWT HS256 |
 | **Hashing** | bcryptjs 3.x | Password owner/company & PIN karyawan |
-| **Monorepo** | pnpm workspace + Turborepo | 4 app + 14 package internal |
+| **Monorepo** | pnpm workspace + Turborepo | 4 app + 15 package internal |
 
 ### 2.2 Layanan Eksternal
 
@@ -170,7 +173,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   │                              # demo, charges, products, reports, billing, ui
 │   │   ├── src/hooks/                # useMediaQuery, useModalHistory, useNavMode, useSwipe
 │   │   ├── src/lib/                  # auth, store, merchant-runtime, supabase, format
-│   │   ├── src/middleware.ts           # JWT gate; DB checks pada layout/API
+│   │   ├── src/proxy.ts                # JWT gate; DB checks pada layout/API
 │   │   ├── vercel.json
 │   │   └── .env.local
 │   │
@@ -199,7 +202,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │   │   ├── src/hooks/                # useNavMode, useDraftCount, useLowStockCount, dll
 │   │   ├── src/lib/                  # auth, db (tenant boundary), store, merchant-runtime,
 │   │   │                              # supabase, format
-│   │   ├── src/middleware.ts           # JWT/Origin API guard + metadata route
+│   │   ├── src/proxy.ts                # JWT/Origin API guard + metadata route
 │   │   ├── next.config.mjs           # withSerwist + downlevel ES2017
 │   │   ├── vercel.json
 │   │   └── .env.local
@@ -220,7 +223,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 │       ├── src/app/                  # / (single-page marketing)
 │       ├── src/components/           # header, hero, features, workflow, inventory-story,
 │       │                              # audience, faq, final-cta, footer, motion, dll
-│       ├── next.config.mjs           # images.unoptimized
+│       ├── next.config.mjs           # Optimasi gambar; metadata/robots/sitemap di app
 │       └── vercel.json
 │
 ├── packages/                          # Shared code (@rakku/* — workspace:*, source-only)
@@ -263,6 +266,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 ├── .env.neon                         # Referensi konfigurasi privat instalasi aktif (ignored)
 ├── NEON_MIGRATION.md                  # Setup, deploy, invitation, optional copy, recovery
 ├── DEMO.md                           # Arsitektur/operasional demo publik browser-memory
+├── DEMO_FLOW.md                      # Panduan presentasi langkah-demi-langkah demo
 ├── DOCS.md                           # Dokumen ini
 ├── README.md                         # Quick start
 └── PANDUAN.md                        # Manual pengguna (owner & kasir)
@@ -284,7 +288,7 @@ rakku/                                 # Monorepo root (pnpm workspace + Turbore
 
 ### 4.1 Environment Variables
 
-Salin `.env.example` root dan setiap app menjadi `.env.local`, lalu isi sesuai template. Next.js membaca env di direktori app, bukan `.env.local` root monorepo. Untuk build/start lokal production, gunakan `.env.production.local`; file `.env.production` tracked hanya berisi URL/nilai publik. Env cloud diisi pada **Vercel Project Settings** tiap project dan tidak tersinkron dari file lokal.
+Salin `.env.example` root dan setiap app menjadi `.env.local`, lalu isi sesuai template. Next.js membaca env di direktori app, bukan `.env.local` root monorepo. Untuk build/start lokal production, gunakan `.env.production.local`. File `.env` dan `.env.*` tidak dilacak Git; template `.env.example`/`.env.*.example` tetap dapat dilacak. Root `.gitignore` juga mengecualikan hasil build, cache, laporan test/browser, dan log lokal. Environment cloud diisi pada **Vercel Project Settings** tiap project dan tidak tersinkron dari file lokal.
 
 Demo publik tidak memerlukan secret/feature flag baru. Demo menggunakan origin Owner dan hanya membaca `NEXT_PUBLIC_OWNER_URL`/`NEXT_PUBLIC_POS_URL` yang sudah ada untuk CTA dan redirect POS; provider/DB production tidak dihubungi oleh aktivitas demo.
 
@@ -304,7 +308,7 @@ Demo publik tidak memerlukan secret/feature flag baru. Demo menggunakan origin O
 | `SILOS_API_URL` / `SILOS_API_KEY` | Seed/assets | Ya | Ya | — | — | Upload/hapus gambar |
 | `ECHO_API_URL` / `ECHO_API_KEY` / `ECHO_FROM` | Invitation | Ya | Ya | Ya | — | Email Rakku dan invitation |
 | `VESSEL_API_URL` / `VESSEL_API_KEY` | — | Ya | Ya | — | — | Pembayaran provider, server-only |
-| `CRON_SECRET` | — | Ya | — | — | — | Proteksi cron billing |
+| `CRON_SECRET` | — | Ya | — | — | — | Proteksi cron billing dan cleanup impor |
 
 Tidak ada URL/key Supabase yang diperlukan. Database/password/API keys tidak memakai prefix `NEXT_PUBLIC_`. Landing hanya memerlukan URL Owner/POS; tanpa nilai tersebut CTA dapat terbentuk sebagai `undefined/register` atau `undefined/login`.
 
@@ -318,7 +322,7 @@ Tidak ada URL/key Supabase yang diperlukan. Database/password/API keys tidak mem
 
 Pada instalasi aktif, `.env.neon` menjadi sumber privat dan scripts database default membaca `.env.local` root. `NEON_ENV_FILE` dapat memilih file lain untuk scripts Neon. `auth:check` default memakai `.env.neon`; `env:check` khusus membandingkan `.env.neon` dengan file lokal instalasi bersama, bukan env Vercel. Pemisahan branch/env kelak memerlukan penyesuaian checker itu.
 
-File `.env.production` Owner/POS/Landing masih memakai URL Vercel; Superadmin memakai Owner Vercel, canonical Dephilia, dan alias Vercel. Root invitation sementara memakai Superadmin Vercel yang tersedia. Profil di tabel adalah konfigurasi tujuan dan belum otomatis mengubah file atau cloud env.
+Nilai production/development pada tabel adalah profil konfigurasi, bukan file env yang ikut di-commit. Atur URL publik dan secret pada Environment Variables tiap Vercel Project; file `.env.production.local` hanya untuk pengujian lokal dan tetap di-ignore. Pastikan `NEXT_PUBLIC_OWNER_URL`, `NEXT_PUBLIC_POS_URL`, `SUPERADMIN_URL`, serta allowlist sesuai deployment yang dituju.
 
 Connection runtime dan migration owner menunjuk endpoint/database yang sama, tetapi role berbeda. Driver menghapus parameter libpq `channel_binding`, memverifikasi certificate TLS hosted (`sslmode=verify-full`), dan menonaktifkan prepared statements untuk pooled runtime. Script migrasi/copy menolak URL pooler. `.env.neon`, `.env*.local`, dump, dan backup privat di-ignore.
 
@@ -369,7 +373,7 @@ Middleware Owner/POS berada di **`src/middleware.ts`**, sesuai struktur app yang
 | App | Gate request | Pemeriksaan authoritative |
 |---|---|---|
 | Owner | JWT pada matcher dashboard/onboarding/outlet/employee/settings/report/order/subscription/balance; login/register tetap dapat dibuka | `getOwnerSessionFromCookies()` membaca owner aktif dan company yang dimiliki serta statusnya; API memverifikasi resource company/outlet |
-| POS | JWT pada halaman utama dan `/api/admin/*`, `/api/reports/*`; mutasi API harus memiliki Origin sama dengan request origin | Session user/company/outlet aktif, role dan assignment outlet; menu-level `can_view` di `src/lib/db.ts`; tenant RLS/trigger FK |
+| POS | JWT pada halaman utama dan `/api/admin/*`, `/api/reports/*`; mutasi API harus memiliki Origin sama dengan request origin | Session user/company/outlet aktif, role dan assignment outlet; registry method/path capability deny-by-default di `src/lib/db.ts`; role grants disimpan full/no per menu; tenant RLS/trigger FK |
 | Superadmin | SDK Neon Auth session gate; login/activate/reset/API dikecualikan matcher | Session Neon + allowlist `active`/`superadmin`; Origin bila ada cocok canonical/alias |
 | Landing | Tidak ada middleware/Auth | Tidak ada data privat |
 
@@ -388,7 +392,7 @@ Semua app deploy sebagai project Vercel terpisah, Root Directory `apps/<app>`, d
 }
 ```
 
-Owner juga menjadwalkan cron `/api/cron/billing` dengan `0 1 * * *` (01:00 UTC). Domain assignment dan env ada di Vercel Project Settings; `vercel.json` tidak menetapkan domain atau mengirim secret lokal. Integrasi Neon di satu project dapat menyediakan resource bersama, tetapi app server lain tetap membutuhkan `DATABASE_URL` runtime manual. Env integrasi ber-prefix bukan pengganti env Rakku.
+Owner menjadwalkan `/api/cron/billing` pukul 01:00 UTC dan `/api/cron/import-cleanup` pukul 01:30 UTC setiap hari. Keduanya dilindungi `CRON_SECRET`. Domain assignment dan env ada di Vercel Project Settings; `vercel.json` tidak menetapkan domain atau mengirim secret lokal. Integrasi Neon di satu project dapat menyediakan resource bersama, tetapi app server lain tetap membutuhkan `DATABASE_URL` runtime manual. Env integrasi ber-prefix bukan pengganti env Rakku.
 
 ---
 
@@ -408,9 +412,9 @@ Owner juga menjadwalkan cron `/api/cron/billing` dengan `0 1 * * *` (01:00 UTC).
 - **Superadmin** memakai Managed Better Auth untuk identitas dan allowlist privat untuk hak platform. Session Auth saja tidak cukup; subject harus terdaftar dengan status `active` dan role `superadmin`.
 - **Role** didefinisikan per company. Onboarding membuat Owner/Kasir; DEMO mempunyai satu role kasir. Dataset legacy dapat mempunyai role tambahan seperti Kepala Cabang/Admin.
 - **Menu** = modul sistem di tabel `menus`; menu aktif saat ini: `register`, `orders`, `reports`, `products`, `tax-discounts`, `ingredients`, `tables`, `expenses`, `purchases`.
-- **Access matrix** = `role_menu_access` (role × menu). UI dan POS database boundary memakai `can_view`. Kolom `can_create`, `can_edit`, dan `can_delete` tersedia, tetapi belum menjadi kontrak CRUD terpisah pada UI/API.
-- Route/method dipetakan ke menu di `apps/pos/src/lib/db.ts`; beberapa read katalog diizinkan untuk `register` agar kasir dapat bertransaksi tanpa akses mutasi produk.
-- Sidebar POS dirender dari `getAllowedMenus(roleId)`. Onboarding baru membuat role **Owner** dengan semua menu yang ada dan **Kasir** dengan `register`, `orders`, `reports`, serta `tax-discounts`; akses dapat diubah lewat panel "Kelola Role & Akses". Script BUILD memakai access map sendiri dan masih menyebut slug legacy `taxes` (§16.4).
+- **Access matrix** = `role_menu_access` (role × menu). UI Owner/Superadmin memakai satu checkbox per menu: aktif berarti view/create/edit/delete semua aktif, nonaktif berarti semua mati. Empat kolom capability tetap dipakai internal oleh API POS, tetapi wajib bernilai seragam. Migration 0018 mengubah grant lama dengan `can_view=true` menjadi akses penuh dan yang tanpa view menjadi nonaktif; sesi POS terdampak dicabut.
+- Route/method POS dipetakan eksplisit ke capability di `packages/auth-utils/src/access-policy.ts` dan dievaluasi sebelum tenant client dipakai (`apps/pos/src/lib/db.ts`). Unknown path/method ditolak. Read katalog untuk kasir tetap diizinkan lewat grant `register` tanpa memberi akses mutasi produk.
+- Sidebar POS dirender dari `getAllowedMenus(roleId)`. Onboarding membuat role **Owner** dengan akses penuh pada menu yang didukung dan **Kasir** dengan akses penuh pada Register, Orders, Reports, dan Tax & Discounts. Akses dapat diubah lewat satu checkbox per menu di panel "Kelola Role & Akses". Perubahan grant mencabut sesi POS role terkait. Script BUILD memakai access map sendiri dan masih menyebut slug legacy `taxes` (§16.4).
 
 ### 5.3 Pola Server vs Client
 
@@ -548,19 +552,20 @@ Komponen: `apps/owner/src/components/billing/{PlanProvider,PlanBanner,UpgradeMod
 
 **Billing QRIS via Vessel (M3):**
 
-1. Owner memilih paket + siklus di `/subscription` → `POST /api/owner/subscription/checkout` membuat invoice (`RK-YYYYMM-<code>-<stamp>`) dan memanggil `createQrisPayment` Vessel (`tenant_id` = company_id, `callback_url` = `<owner>/api/webhooks/vessel`).
+1. Owner memilih paket + siklus di `/subscription` → `POST /api/owner/subscription/checkout` menyimpan invoice/request intent (`app_private.subscription_payment_requests`, hash payload, status `pending`, provider_state `creating`) **sebelum** memanggil `createQrisPayment` Vessel (`tenant_id` = company_id, `callback_url` = `<owner>/api/webhooks/vessel`). Request idempotency key/`Idempotency-Key` dan invoice aktif yang sama mencegah tagihan ganda.
 2. Halaman `/subscription/checkout/[invoiceId]` menampilkan QR (`qrcode.react`), nominal, countdown, polling status tiap 5 detik + tombol "Saya sudah bayar".
-3. Status sukses di-aktivasi lewat `processInvoice()`: **selalu re-verify** ke Vessel (`getPaymentStatus`) — payload webhook tidak dipercaya langsung. Aktivasi idempotent (atomic claim `status=pending`), membuat baris `subscriptions` + update `companies.plan_id/plan_expires_at/status`.
-4. `POST /api/webhooks/vessel` menerima callback Vessel → cari invoice → `processInvoice()` (aman dipanggil bersamaan dengan polling).
-5. Invoice pending yang lewat `expired_at` ditandai `expired`; renewal = checkout baru (QRIS one-time). Perpanjangan plan yang sama mulai dari `plan_expires_at` yang masih berlaku.
+3. Status sukses di-aktivasi lewat `processInvoice()`: **selalu re-verify** ke Vessel (`getPaymentStatus`) — payload webhook tidak dipercaya langsung. Aktivasi adalah satu transaksi idempotent: claim invoice, `subscriptions`, update `companies.plan_id/plan_expires_at/status`, journal append-only, dan job email. Invoice lama yang dibayar setelah aktivasi lebih baru masuk `subscription_reconciliation` dan tidak menurunkan plan.
+4. `POST /api/webhooks/vessel` menyimpan event ke inbox privat (`provider_events`, event key unik), lalu enqueue job durable `vessel.webhook`; verifikasi signature HMAC opsional dan re-verify provider tetap dilakukan. Duplicate/out-of-order aman; unmatched event dipertahankan untuk retry/dead-letter.
+5. Terminal `expired`/`failed`/`cancelled` hanya diambil dari provider. Provider timeout/ambigu mempertahankan invoice sebagai `unknown`; renewal = checkout baru (QRIS one-time). Perpanjangan plan yang sama mulai dari `plan_expires_at` yang masih berlaku bila belum lewat.
 
-Tabel: `subscriptions` (riwayat periode) dan `subscription_invoices` (tagihan + `provider_transaction_id` UNIQUE). Package: `@rakku/vessel-client` (`createQrisPayment`, `getPaymentStatus`, `syncPaymentStatus`).
+Tabel: `subscriptions`, `subscription_invoices` (state + request journal), `app_private.subscription_payment_requests`, `app_private.subscription_payment_journal`, `app_private.subscription_reconciliation`, `app_private.provider_events`, `app_private.job_queue`. Package: `@rakku/vessel-client`, `@rakku/db/subscription-billing`, `@rakku/db/jobs`.
 
 **Notifikasi & cron harian (M4):**
 
 - Semua email billing memakai `sendBillingEmail()` (package `@rakku/emails`) dengan **klaim idempotent** di tabel `notification_logs` (UNIQUE company/type/period) — satu email per event per periode.
 - Event: trial dimulai (onboarding), trial H-3, trial berakhir, limit 80%, limit 100%, pembayaran berhasil (aktivasi), renewal H-7/H-3/H-1, grace, langganan berakhir.
-- `GET/POST /api/cron/billing` (dilindungi `CRON_SECRET`, Vercel Cron `0 1 * * *`): sync invoice/payment intent pending ke Vessel, expire trial/langganan, kirim reminder, dan peringatan kuota. **`?dry=1` bukan mode read-only**: sync/finalisasi pembayaran tetap terjadi sebelum return; hanya tahap siklus langganan/notifikasi berikutnya yang dilewati.
+- `GET/POST /api/cron/billing` (dilindungi `CRON_SECRET`, Vercel Cron `0 1 * * *`): sync invoice/payment intent pending ke Vessel, proses batch job durable, expire trial/langganan, kirim reminder, dan peringatan kuota. `?dry=1` tidak memproses sync, aktivasi, job, atau email.
+- `GET/POST /api/cron/provider-jobs` (dilindungi `CRON_SECRET`): worker inbox/outbox dengan lease, exponential backoff+jitter, max attempts, dead-letter. `?dry=1` hanya menghitung due/dead-letter tanpa writes. Replay manual: `pnpm provider:jobs -- --list` / `--replay <id>`.
 - Email memakai template `renderRakkuEmail()` (logo CDN) via `@rakku/echo-client`.
 
 **Analytics & go-live (M5, sebagian):**
@@ -568,7 +573,7 @@ Tabel: `subscriptions` (riwayat periode) dan `subscription_invoices` (tagihan + 
 - Superadmin `/subscriptions` menampilkan analytics konversi: trial → bayar, limit → upgrade, pendapatan 30 hari, dan distribusi paket per company.
 - Checklist go-live Vessel produksi:
   1. Rotasi `VESSEL_API_KEY` sandbox → key produksi (update `VESSEL_API_URL` bila host berbeda).
-  2. Set env produksi owner: `NEXT_PUBLIC_OWNER_URL` (domain asli, bukan localhost), `CRON_SECRET`, `ECHO_*`, `SILOS_*`.
+  2. Set env produksi owner: `NEXT_PUBLIC_OWNER_URL` (domain asli, bukan localhost), `CRON_SECRET`, `ECHO_*`, `SILOS_*`. `VESSEL_WEBHOOK_SECRET` hanya diisi setelah header/algoritma signature Vessel dikonfirmasi; tanpa secret, event tercatat `unverified` dan tetap di-re-verify ke provider.
   3. Uji transaksi QRIS nominal kecil di produksi; pastikan `callback_url` terjangkau dan aktivasi + email berjalan.
   4. Pastikan Vercel Cron aktif (`crons` di `apps/owner/vercel.json`) dan `CRON_SECRET` sama.
   5. Pantau `/subscriptions` superadmin (invoice pending, konversi, revenue).
@@ -610,7 +615,7 @@ Nomor migration `028`–`031` pada riwayat milestone berikut adalah nomor Supaba
 - Default: minimum Rp50.000, biaya Rp0, maks 1 pengajuan pending per company, maks Rp10 juta/hari (konstanta, mudah diubah).
 - Notifikasi email: pengajuan diterima, selesai, ditolak. Pembayaran pelanggan tidak memicu email.
 
-Disbursement masih manual dan refund provider belum tersedia. Saldo kewajiban merchant, posisi kas, dan settlement dicatat melalui fitur rekonsiliasi; jangan menyamakan keberhasilan login smoke dengan verifikasi pembayaran/settlement nyata.
+Disbursement masih manual dan refund provider belum tersedia. Receipt QRIS masuk `unsettled_balance`; hanya statement provider yang cocok melepas dana ke `available_balance` lewat `settlement_credit`. Exception memiliki status investigate/resolve dengan bukti, tetapi tidak mengubah saldo. Withdrawal hanya meng-hold available; koreksi memakai reversal journal. Jangan menyamakan login smoke dengan verifikasi statement/bank/settlement nyata.
 
 ---
 
@@ -1033,14 +1038,22 @@ Fungsi `apply_balance_transaction(...)` dari `0002_atomic_functions.sql` adalah 
 
 **`auth_audit_logs`** — Log percobaan auth: id, company_id (nullable), outlet_id, user_id, event_type, success, ip_address, user_agent, failure_reason, metadata jsonb, created_at.
 
-#### Private Superadmin
+#### Tabel private platform dan import
 
 | Tabel | Kolom utama | Fungsi |
 |---|---|---|
 | `app_private.superadmins` | `auth_subject` text PK, email UNIQUE, status active/inactive, role superadmin, activated_at, created_at | Allowlist hak platform berdasarkan subject Managed Auth |
 | `app_private.superadmin_invites` | id, email, token_hash UNIQUE, expires_at, used_at, auth_subject, created_at | Invitation sekali pakai; tidak menyimpan token mentah |
+| `app_private.import_batches` | Company/outlet, domain, file name, status, ringkasan validasi/konfirmasi, context, expiry | Staging batch dan hasil impor Owner |
+| `app_private.import_rows` | Batch, nomor baris, payload ternormalisasi, validitas, errors/warnings | Baris preview dan detail hasil |
+| `app_private.import_assets` | Batch, referensi/hash, WebP hasil proses, ukuran/dimensi, state dan ID provider | Penyimpanan privat sementara untuk gambar sebelum konfirmasi |
+| `app_private.import_purchase_references` | Company/outlet/reference, hash payload, purchase/batch ID, actor | Receipt deduplikasi pembelian yang dipertahankan lintas unggahan |
 
-Tabel privat ini di luar hitungan 39 tabel `public`. Schema `neon_auth` dikelola Neon; identity/session tables tidak dimasukkan ke data copy atau migration aplikasi.
+Semua tabel import dibaca/ditulis melalui API server Owner pada scope platform dan mengaktifkan FORCE RLS dengan policy platform-only. `import_purchase_references` adalah receipt deduplikasi jangka panjang, bukan data staging sementara. Tabel privat tidak termasuk hitungan 39 tabel `public`. Schema `neon_auth` dikelola Neon; identity/session tables tidak dimasukkan ke data copy atau migration aplikasi.
+
+Batch yang dapat dikonfirmasi menyimpan hasil parsing di `import_batches` dan `import_rows`; file XLSX aslinya tidak disimpan. Preview berstatus `validated` berlaku 24 jam dan batasnya 10 per company, lintas outlet/domain. Preview yang tidak dapat dikonfirmasi tidak dibuat menjadi batch. Batch yang berhasil dikonfirmasi berubah ke `confirmed` dan menjadi satu-satunya status yang ditampilkan pada Riwayat Impor. Batch lama yang gagal/kedaluwarsa tetap dapat tercatat di tabel, tetapi tidak ditampilkan sebagai impor sukses.
+
+Untuk produk bergambar, WebP yang sudah dibersihkan disimpan sementara di `import_assets` agar konfirmasi dapat dicoba ulang tanpa Excel/ZIP asli. Konfirmasi mengikat gambar dan produk dalam transaksi; expiry/cleanup menghapus bytes WebP yang belum attached dan meredaksi PIN/hash PIN. Cleanup menandai batch preview kedaluwarsa sebagai `failed`; catatan batch/baris tidak otomatis dihapus. Penghapusan company menghapus batch melalui FK cascade; penghapusan outlet mengosongkan `import_batches.outlet_id`, sedangkan asset tetap menyimpan scope asal untuk cleanup.
 
 ### 7.3 Indexes
 
@@ -1072,14 +1085,19 @@ Baseline membuat index untuk setiap FK `public` dengan pola `idx_<constraint_nam
 
 ### 7.5 Daftar Migrasi
 
-| File aktif | Isi |
+| File source | Isi |
 |---|---|
 | `packages/db/migrations/0001_baseline.sql` | 39 tabel bisnis, private Superadmin tables, indexes, updated_at triggers |
 | `packages/db/migrations/0002_atomic_functions.sql` | Ledger dan deduksi stok invoker, lock/idempotency/invarians |
 | `packages/db/migrations/0003_tenant_policies.sql` | FORCE RLS, scope helpers/platform/tenant policies, FK deferrable |
 | `packages/db/migrations/0004_tenant_integrity.sql` | Trigger validasi company/outlet parent links |
+| `packages/db/migrations/0015_import_staging.sql` | Batch dan baris staging privat untuk impor Excel |
+| `packages/db/migrations/0016_owner_inventory_and_composition.sql` | Actor Owner untuk mutasi inventory, aturan satuan, index inventory, domain bahan pada batch |
+| `packages/db/migrations/0017_import_business_codes.sql` | Kode bisnis produk/bahan yang unik per outlet untuk spreadsheet |
+| `packages/db/migrations/0018_role_access_all_or_none.sql` | Capability per menu menjadi akses penuh atau nonaktif |
+| `packages/db/migrations/0019_comprehensive_imports.sql` | Pembelian, metadata/expiry/hasil import, staging gambar, dan receipt deduplikasi pembelian |
 
-`pnpm db:migrate` memakai koneksi direct migration owner, advisory lock, dan history/checksum SHA-256 `rakku_migrations.history`. Baseline menolak `public` yang sudah memiliki tabel. Runtime role harus terpisah dan sudah tersedia; grants diberikan runner. Migration applied tidak boleh diedit; tambahkan file baru untuk perubahan schema berikutnya. Empat file ini sudah diterapkan pada database aktif.
+Source menyediakan migrasi `0001`–`0019`; beberapa migrasi di antara `0004` dan `0015` tidak dirinci pada tabel ini. `pnpm db:migrate` memakai koneksi direct migration owner, advisory lock, dan history/checksum SHA-256 `rakku_migrations.history`. Baseline menolak `public` yang sudah memiliki tabel. Runtime role harus terpisah dan sudah tersedia; grants diberikan runner. Migration applied tidak boleh diedit; tambahkan file baru untuk perubahan schema berikutnya. Keberadaan file migrasi di source bukan bukti migrasi sudah diterapkan: periksa ledger `rakku_migrations.history` pada target database sebelum menggunakan fitur terkait.
 
 ### 7.6 Riwayat Supabase sebelum Neon
 
@@ -1118,7 +1136,7 @@ Terdapat 30 file historis di `supabase/migrations/` (`001`–`031`, tanpa `005`)
 | 030 | `030_withdrawals.sql` | `merchant_bank_accounts` + `withdrawals` (pencairan manual, v6.1 M3) |
 | 031 | `031_settlement_reports.sql` | `settlement_reports` (rekonsiliasi settlement, v6.1 M4) |
 
-Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat kolom seperti `modifiers.group_name`, `order_items.note`, `split_payments.items`, dan `products.image_silo_id`. Bila suatu saat menyalin source lama, audit schema nyata dan ikuti bagian copy opsional pada [NEON_MIGRATION.md](NEON_MIGRATION.md#7-opsional-rekonsiliasi-dan-copy-source-lama); instalasi aktif tidak memakai copy tersebut.
+Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat kolom seperti `modifiers.group_name`, `order_items.note`, `split_payments.items`, dan `products.image_silo_id`. Source branch saat ini menyediakan rangkaian `packages/db/migrations/0001`–`0019`; daftar 020–031 di atas adalah histori source Supabase lama. Status masing-masing migration pada Neon aktif hanya dapat dipastikan dari `rakku_migrations.history`, bukan dari nomor migration terbaru di repository. Bila suatu saat menyalin source lama, audit schema nyata dan ikuti bagian copy opsional pada [NEON_MIGRATION.md](NEON_MIGRATION.md#7-opsional-rekonsiliasi-dan-copy-source-lama); instalasi aktif tidak memakai copy tersebut.
 
 ---
 
@@ -1156,13 +1174,15 @@ Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat 
 | `/subscription` | `(dashboard)/subscription/page.tsx` | Paket aktif, usage meter, pilihan paket + riwayat invoice (M2/M3) |
 | `/subscription/checkout/[invoiceId]` | `(dashboard)/subscription/checkout/[invoiceId]/page.tsx` | Halaman bayar QRIS + countdown + polling status (M3) |
 | `/settings` | `(dashboard)/settings/page.tsx` | Profil company, ganti password company, **Menu QR per outlet** |
-| `/balance` | `(dashboard)/balance/page.tsx` | Saldo tersedia/pending, ledger, rekening bank, dan pengajuan withdrawal |
+| `/balance` | `(dashboard)/balance/page.tsx` | Saldo tersedia/unsettled/hold, ledger, rekening bank, dan pengajuan withdrawal |
 
 #### Fitur Kunci (Owner)
 
 - **Onboarding:** nama bisnis → saran kode/slug otomatis → password company → outlet pertama; server membuat company + outlet + seed tier default (Dine In, Take Away).
 - **Employees & Role:** buat role, toggle akses menu per role (`role_menu_access`); PIN karyawan 6 digit (bcrypt), reset PIN, aktif/nonaktif, akses semua outlet atau per outlet.
 - **Products:** harga per tier, modifier per tier, gambar via Silos, **resep bahan baku** (RecipeManagerSlideOver — add mode antri lokal, edit mode langsung simpan).
+- **Impor Excel:** produk, bahan baku, karyawan, dan pembelian memakai satu alur ringkas untuk template, file, preview, dan konfirmasi; batas/aturan file tersedia di panduan yang dapat dibuka bila perlu. Preview menampilkan produk dengan komposisi di bawahnya dan pembelian dengan item di bawahnya; bahan/karyawan ditampilkan per record. Validasi format awal berjalan di browser, sementara referensi, akses, konflik, paket, dan aturan transaksi tetap diperiksa server.
+- **Riwayat impor:** hanya batch `confirmed` yang ditampilkan. Pada API Owner production, preview confirmable disimpan sementara 24 jam (maksimal 10 per company lintas outlet/domain); preview yang tidak dapat dikonfirmasi tidak membuat batch. Konfirmasi gagal mempertahankan batch validated untuk retry sampai berhasil atau expired. Demo menyimpan simulasi hanya di memori sesi browser. Lihat §7.2/§7.5 dan [OWNER_UPGRADE.md](OWNER_UPGRADE.md) untuk format workbook, batas gambar, dan cleanup.
 - **Reports:** tab Laba Rugi memakai `/api/owner/reports/profit-loss` (omzet − HPP − pengeluaran); tombol kirim email mengirim laporan penjualan via Echo.
 - **Settings:** password company dipakai kasir di step 1 POS; QR menu per outlet (`QRCodeSVG`) mengarah ke `NEXT_PUBLIC_POS_URL/menu/<slug>`.
 - **Langganan (M2):** halaman `/subscription` menampilkan paket aktif, usage meter (outlet/karyawan/produk/bahan/transaksi), dan tabel paket; banner trial/limit muncul di dashboard.
@@ -1193,6 +1213,11 @@ Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat 
 | `/api/owner/modifiers` | GET/POST/PATCH/DELETE | CRUD modifier + tier delta |
 | `/api/owner/ingredients` | GET | List bahan untuk resep (per outlet) |
 | `/api/owner/recipes` | GET/POST/DELETE | Resep produk |
+| `/api/owner/import/template` | GET | Unduh template sesuai domain/outlet; contoh terisi hanya pada demo |
+| `/api/owner/import/validate` | POST | Validasi XLSX, staging preview confirmable, dan hasil normalisasi/error |
+| `/api/owner/import/confirm` | POST | Konfirmasi batch secara transaksional; idempotent untuk retry |
+| `/api/owner/import/batches` | GET | Riwayat dan detail batch `confirmed` saja |
+| `/api/owner/import/cleanup` | POST | Cleanup batch expired dan aset gambar company aktif |
 | `/api/owner/orders` | GET | List pesanan company |
 | `/api/owner/taxes` (+ `[id]`) | GET/POST/PATCH/DELETE | CRUD pajak |
 | `/api/owner/discounts` (+ `[id]`) | GET/POST/PATCH/DELETE | CRUD diskon |
@@ -1208,8 +1233,10 @@ Riwayat source pernah mengalami repair/manual drift. Baseline Neon sudah memuat 
 | `/api/owner/balance/transactions` | GET | Riwayat ledger merchant |
 | `/api/owner/bank-accounts` (+ `[id]`) | GET/POST/PATCH/DELETE | CRUD rekening withdrawal |
 | `/api/owner/withdrawals` | GET/POST | Riwayat dan pengajuan withdrawal |
-| `/api/webhooks/vessel` | POST | Callback Vessel → re-verify + aktivasi (tanpa session) |
-| `/api/cron/billing` | GET/POST | Job harian: sync invoice, expire trial/langganan, reminder + warning kuota (`CRON_SECRET`, `?dry=1` untuk uji) |
+| `/api/webhooks/vessel` | POST | Callback Vessel → inbox `provider_events` → job durable → re-verify + aktivasi (tanpa session) |
+| `/api/cron/billing` | GET/POST | Job harian: sync invoice, proses batch job, expire trial/langganan, reminder + warning kuota (`CRON_SECRET`, `?dry=1` untuk uji) |
+| `/api/cron/import-cleanup` | GET | Cleanup terjadwal preview/aset import kedaluwarsa (`CRON_SECRET`, 01:30 UTC setiap hari) |
+| `/api/cron/provider-jobs` | GET/POST | Worker lease/retry/dead-letter inbox-outbox (`CRON_SECRET`, `?dry=1`) |
 | `/api/owner/reports/profit-loss` | GET | Laba rugi (omzet, HPP, laba kotor, pengeluaran, laba bersih) |
 | `/api/owner/reports/send-email` | POST | Kirim laporan penjualan via Echo |
 
@@ -1983,7 +2010,7 @@ Migrasi sudah menambahkan expiry/revalidation POS, menu authorization server-sid
 Keterbatasan source yang masih ada:
 
 - **Nominal order:** standard order mengambil harga item, pajak, diskon, subtotal/total dari client. Company/outlet/cashier sekarang berasal dari session, tetapi seluruh nominal belum dihitung ulang dari katalog server.
-- **Permission:** kontrak UI/API POS memakai menu-level `can_view`. Kolom CRUD ada di schema, tetapi belum ditegakkan sebagai grants create/edit/delete yang terpisah.
+- **Permission:** POS menegakkan method/path capabilities; UI Owner/Superadmin menyediakan satu checkbox full/no per menu. Migration 0018 mengubah grant lama dengan V aktif menjadi full access. Acceptance staging, browser editor, privilege runtime migration, dan concurrency dua koneksi PostgreSQL belum dijalankan; lihat `PHASE_2_REPORT.md` dan `config/rbac/README.md`.
 - **PIN issuance:** verify-pin masih berfokus pada user/company/PIN; assignment outlet/status company-outlet diperiksa authoritative ketika session dipakai. Pemeriksaan sebelum penerbitan session juga perlu diselaraskan, walaupun invalid session ditolak database boundary.
 - **Verification secret Owner:** session/pending-login fail-fast, tetapi register/resend/verify-email masih mempunyai fallback secret verification. `OWNER_JWT_SECRET` tetap wajib disediakan pada deployment.
 - **Cookie sementara:** session utama Owner/POS memakai Secure pada production; `pending_login` belum menambahkan Secure.
@@ -2048,4 +2075,4 @@ Lifecycle: soft navigation mempertahankan bisnis dan cart; ganti kasir/outlet me
 
 Perbaikan UI terakhir: badge jumlah draft/stok pada `AppSidebar`/`SideRail` POS semula berada di luar slot ikon yang memakai `overflow-hidden` sehingga angka terpotong. Badge kini diposisikan relatif ke wrapper ikon yang rapat, mengikuti pola `BottomNav`; perilaku production dan demo sama. Verifikasi browser mengukur ukuran, batas sidebar, dan hit-testing badge pada state expanded/collapsed di dua outlet.
 
-Detail lengkap fixture dua outlet/empat karyawan/20 produk, lifecycle/cache, matriks fitur, simulator pembayaran/langganan/withdrawal/email/upload, batasan source, dan perintah pengujian ada di **[DEMO.md](DEMO.md)**.
+Detail lengkap fixture dua outlet/empat karyawan/20 produk, lifecycle/cache, matriks fitur, simulator pembayaran/langganan/withdrawal/email/upload, batasan source, dan perintah pengujian ada di **[DEMO.md](DEMO.md)**. Alur presentasi per durasi, langkah klik, narasi, checklist, dan troubleshooting ada di **[DEMO_FLOW.md](DEMO_FLOW.md)**.

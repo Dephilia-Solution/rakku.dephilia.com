@@ -1,1 +1,1 @@
-export { default } from "@/components/owner/OwnerOutletsClient";
+export { default } from "@/components/outlet/OutletHubClient";

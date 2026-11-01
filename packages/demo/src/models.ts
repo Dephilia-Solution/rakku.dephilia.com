@@ -4,12 +4,14 @@ import type {
   Expense, Tax, Plan, PlanSlug, BillingCycle, Subscription, SubscriptionStatus, SubscriptionInvoice, PaymentIntent,
   BalanceTransaction, MerchantBalance, MerchantBankAccount, Withdrawal, Role, PricingOption,
 } from "@rakku/shared-types";
+import type { DemoImportCommand } from "./import-models";
 export type { PublicMenu, PricingTier, Ingredient, DiningTable, StockMovement, Expense, Plan, Subscription, SubscriptionStatus, BillingCycle, SubscriptionInvoice } from "@rakku/shared-types";
 
 export interface DemoCompany { id: string; name: string; code: string; email: string; owner_name: string; password: string; logo_url?: string | null }
 export interface DemoOutlet { id: string; name: string; address: string; is_active: boolean; company_id: string }
 export interface DemoEmployee { id: string; name: string; username: string; role_id: string; pin: string; is_active: boolean; outlet_ids: string[]; company_id: string; all_outlets?: boolean }
-export interface DemoRole extends Role { menus: string[] }
+export interface DemoMenuGrant { menu_id: string; can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }
+export interface DemoRole extends Role { menus: string[]; grants: DemoMenuGrant[] }
 export interface DemoCategory extends Category { company_id: string; outlet_id: string }
 export interface DemoModifier extends Modifier { prices: Record<string, number> }
 export interface DemoProduct extends Product {
@@ -57,6 +59,8 @@ export interface DemoState {
   outbox: DemoOutbox[]; plan: PlanSlug; plans: Plan[]; now: string; session: DemoSession; menus: string[];
   subscription: Subscription; subscription_status: SubscriptionStatus; billing_cycle: BillingCycle; plan_expires_at: string | null;
   pricing_options?: PricingOption[];
+  /** Internal transaction receipts; omitted from every public snapshot. */
+  request_receipts?: { request_id: string; operation: string; signature: string; result: unknown }[];
 }
 export type DemoEntity = "outlets" | "employees" | "roles" | "categories" | "tiers" | "products" | "ingredients" | "tables" | "taxes" | "discounts" | "expenses" | "banks";
 export interface DemoOrderInput {
@@ -73,6 +77,7 @@ export type DemoEmailPreviewCommand = {
   | { email?: never; to: string }
 );
 export type DemoCommand =
+  | DemoImportCommand
   | { type: "entity.save"; entity: DemoEntity; value: Record<string, unknown> }
   | { type: "entity.delete"; entity: DemoEntity; id: string }
   | { type: "entity.reorder"; entity: DemoEntity; ids: string[] }
@@ -88,6 +93,7 @@ export type DemoCommand =
   | { type: "company.adminPassword"; password: string }
   | { type: "ingredient.update"; id: string; value: Record<string, unknown>; note?: string }
   | { type: "product.prices"; product_id: string; prices: Record<string, number> }
+  | { type: "product.save"; value: Record<string, unknown>; request_id?: string }
   | { type: "modifier.save"; product_id: string; value: Record<string, unknown> }
   | { type: "modifier.delete"; id: string }
   | { type: "recipe.save"; product_id: string; ingredient_id: string; quantity_used: number }
@@ -102,8 +108,8 @@ export type DemoCommand =
   | { type: "order.complete"; id: string; payment_method: DemoPaymentMethod; amount_paid?: number; splits?: DemoSplit[] }
   | { type: "order.updateDraft"; id: string; input: DemoOrderInput }
   | { type: "order.cancel"; id: string }
-  | { type: "stock.adjust"; ingredient_id: string; quantity: number; note: string }
-  | { type: "purchase.create"; outlet_id: string; supplier_name: string; note: string; purchase_date?: string; items: { ingredient_id: string; quantity: number; unit_cost: number }[] }
+  | { type: "stock.adjust"; ingredient_id: string; outlet_id?: string; quantity: number; note: string; request_id?: string }
+  | { type: "purchase.create"; outlet_id: string; supplier_name: string; note: string; purchase_date?: string; items: { ingredient_id: string; quantity: number; unit_cost: number }[]; request_id?: string }
   | { type: "tables.generate"; outlet_id: string; count: number; prefix?: string }
   | { type: "payment.create"; order_id: string }
   | { type: "payment.transition"; id: string; status: PaymentIntent["status"] }

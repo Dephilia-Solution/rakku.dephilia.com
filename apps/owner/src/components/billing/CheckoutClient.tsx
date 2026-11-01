@@ -13,6 +13,8 @@ interface CheckoutInvoice {
   status: string;
   qr_string: string | null;
   expired_at: string | null;
+  provider_state?: string | null;
+  reconciliation_reason?: string | null;
 }
 
 function formatRupiah(value: number) {
@@ -45,6 +47,7 @@ export default function CheckoutClient({
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifiedSuccess = useRef(false);
   const [status, setStatus] = useState(invoice.status);
+  const [reconciled, setReconciled] = useState(!!invoice.reconciliation_reason);
   const [now, setNow] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -88,8 +91,11 @@ export default function CheckoutClient({
       if (!res.ok) return;
       const data = await res.json();
       if (signal.aborted || isActive?.() === false) return;
-      setStatus(data.invoice?.status ?? "pending");
-      if (data.invoice?.status === "success") {
+      const nextStatus = data.invoice?.status ?? "pending";
+      const nextReconciled = nextStatus === "success" && !!data.invoice?.reconciliation_reason;
+      setStatus(nextStatus);
+      setReconciled(nextReconciled);
+      if (nextStatus === "success" && !nextReconciled) {
         paymentSucceeded(signal);
       }
     } catch {
@@ -98,7 +104,7 @@ export default function CheckoutClient({
   }, [invoice.id, request, isActive, paymentSucceeded]);
 
   useEffect(() => {
-    if (status !== "pending" || isActive?.() === false) return;
+    if ((status !== "pending" && status !== "unknown") || isActive?.() === false) return;
     const controller = new AbortController();
     const poll = setInterval(() => { void refresh(controller.signal); }, 5000);
     return () => {
@@ -122,9 +128,14 @@ export default function CheckoutClient({
         showToast("error", data.error || "Gagal cek status");
         return;
       }
-      setStatus(data.invoice?.status ?? "pending");
-      if (data.invoice?.status === "success") {
+      const nextStatus = data.invoice?.status ?? "pending";
+      const nextReconciled = nextStatus === "success" && !!data.invoice?.reconciliation_reason;
+      setStatus(nextStatus);
+      setReconciled(nextReconciled);
+      if (nextStatus === "success" && !nextReconciled) {
         paymentSucceeded(signal);
+      } else if (nextReconciled) {
+        showToast("info", "Pembayaran diterima dan menunggu rekonsiliasi.");
       } else {
         showToast("info", "Pembayaran belum terdeteksi. Coba lagi sebentar.");
       }
@@ -140,12 +151,14 @@ export default function CheckoutClient({
     now && invoice.expired_at
       ? new Date(invoice.expired_at).getTime() - now
       : null;
-  const isExpired = status === "expired" || (remaining !== null && remaining <= 0);
-  const isSuccess = status === "success";
+  const countdownExpired = remaining !== null && remaining <= 0;
+  const isExpired = status === "expired";
+  const isSuccess = status === "success" && !reconciled;
+  const isReconciled = status === "success" && reconciled;
   const isFailed = status === "failed" || status === "cancelled";
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div data-owner-compact className="max-w-lg mx-auto">
       <Link
         href="/subscription"
         className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 mb-4"
@@ -165,6 +178,23 @@ export default function CheckoutClient({
               Paket {planName} sudah aktif. Mengalihkan...
             </p>
           </>
+        ) : isReconciled ? (
+          <>
+            <CheckCircle2 size={48} className="text-amber-600 mx-auto" />
+            <h1 className="font-display font-semibold text-xl mt-3 text-neutral-900">
+              Pembayaran diterima
+            </h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              Pembayaran tercatat, tetapi paket belum diterapkan karena ada aktivasi yang lebih baru.
+              Tim Rakku akan merekonsiliasi pembayaran ini.
+            </p>
+            <Link
+              href="/subscription"
+              className="inline-block mt-4 rounded-xl bg-forest text-white px-4 py-2.5 text-sm font-semibold hover:bg-forest-dark"
+            >
+              Kembali ke Langganan
+            </Link>
+          </>
         ) : isExpired ? (
           <>
             <XCircle size={48} className="text-danger mx-auto" />
@@ -172,7 +202,7 @@ export default function CheckoutClient({
               QR sudah kadaluarsa
             </h1>
             <p className="text-sm text-neutral-500 mt-1">
-              Buat tagihan baru untuk menyelesaikan pembayaran.
+              Provider mengonfirmasi tagihan ini sudah tidak dapat dibayar. Buat tagihan baru untuk menyelesaikan pembayaran.
             </p>
             <Link
               href="/subscription"
@@ -225,7 +255,9 @@ export default function CheckoutClient({
 
             <div className="flex items-center justify-center gap-2 mt-3 text-sm text-amber-700">
               <Clock size={15} />
-              {remaining !== null ? (
+              {countdownExpired ? (
+                <span>Waktu tampilan habis. Cek status ke provider; pembayaran tidak otomatis dibatalkan.</span>
+              ) : remaining !== null ? (
                 <span>Berlaku {formatCountdown(remaining)} lagi</span>
               ) : (
                 <span>Menunggu pembayaran</span>

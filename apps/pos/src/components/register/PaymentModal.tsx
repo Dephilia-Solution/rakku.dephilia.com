@@ -70,6 +70,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     createdAt: string;
   } | null>(null);
 
+  const getCheckoutKey = useCartStore((s) => s.getCheckoutKey);
   const items = useCartStore((s) => s.items);
   const orderType = useCartStore((s) => s.orderType);
   const cartNote = useCartStore((s) => s.note);
@@ -230,10 +231,14 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       if (!res.ok) return;
       const data = await res.json();
       if (
-        data.order?.status === "completed" ||
-        data.intent?.status === "success"
+        data.order?.status === "completed" && data.order?.payment_status === "paid"
       ) {
         finishQrisSuccess(data.order);
+        return;
+      }
+      if (data.intent?.status === "success") {
+        showToast("error", "Pembayaran diterima dan perlu rekonsiliasi. Hubungi owner sebelum menerima pembayaran pengganti.");
+        setQrisStep("expired");
         return;
       }
       if (
@@ -246,7 +251,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     } catch {
       // diamkan, coba lagi di polling berikutnya
     }
-  }, [qrisOrderId, finishQrisSuccess, request]);
+  }, [qrisOrderId, finishQrisSuccess, request, showToast]);
 
   useEffect(() => {
     if (!isOpen || qrisStep !== "qr") return;
@@ -266,6 +271,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: getCheckoutKey(),
+          draftOrderId,
           orderType,
           items,
           subtotal,
@@ -289,6 +296,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.ok && data.paid && data.order) { finishQrisSuccess(data.order); return; }
       if (!res.ok || !data.intent) {
         const error = new Error(
           data.error ?? "Gagal membuat QRIS"
@@ -353,11 +361,15 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
   const handleQrisCancel = async () => {
     if (qrisOrderId) {
       try {
-        await request(`/api/admin/orders/qris/${qrisOrderId}/cancel`, {
-          method: "POST",
-        });
+        const response = await request(`/api/admin/orders/qris/${qrisOrderId}/cancel`, { method: "POST" });
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          showToast("error", result.error ?? "QRIS masih aktif. Periksa status pembayaran.");
+          return;
+        }
       } catch {
-        // abaikan; order tetap bisa dibatalkan dari daftar pesanan
+        showToast("error", "Status QRIS belum dapat dipastikan. Periksa koneksi dan status order.");
+        return;
       }
     }
     setQrisStep("form");
@@ -399,7 +411,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
     } catch {}
 
     const finalSplitPayments = splitBillMode ? splitPayments : [];
-    const paymentStatus = finalSplitPayments.length > 0 ? "partial" : "paid";
+    const paymentStatus = "paid";
 
     try {
       let order: { order_number: number };
@@ -414,7 +426,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           modifier_label: i.modifier_label,
           note: i.note,
           subtotal: i.subtotal,
-          ...(runtime ? { modifiers: i.modifiers, cart_item_id: i.id } : {}),
+          modifiers: i.modifiers,
+          ...(runtime ? { cart_item_id: i.id } : {}),
         }));
 
         const res = await request(`/api/admin/orders/draft?id=${draftOrderId}`, {
@@ -435,8 +448,8 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
             total_price: total,
             order_type: orderType,
             items: mappedItems,
-            ...(runtime ? { split_payments: finalSplitPayments, customer_name: customerName.trim(), note: cartNote } : {}),
-            ...(runtime && method === "cash" && !finalSplitPayments.length ? { amount_paid: Number(cashAmount) } : {}),
+            split_payments: finalSplitPayments, customer_name: customerName.trim(), note: cartNote,
+            ...(method === "cash" && !finalSplitPayments.length ? { amount_paid: Number(cashAmount) } : {}),
           }),
         });
 
@@ -452,6 +465,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
       } else {
         // Create new order
         order = await createOrder({
+          requestId: getCheckoutKey(),
           orderType,
           paymentMethod: method,
           items,
@@ -470,7 +484,7 @@ export default function PaymentModal({ isOpen, onClose, onOrderComplete }: Payme
           cashierId,
           pricingTierId,
           splitPayments: finalSplitPayments,
-          ...(runtime && method === "cash" && !finalSplitPayments.length ? { amountPaid: Number(cashAmount) } : {}),
+          ...(method === "cash" && !finalSplitPayments.length ? { amountPaid: Number(cashAmount) } : {}),
         });
       }
 

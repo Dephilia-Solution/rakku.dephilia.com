@@ -14,6 +14,8 @@ interface SettlementReport {
   net_amount: number;
   expected_net: number;
   difference: number;
+  status: string;
+  provider_reference: string | null;
   note: string | null;
   created_by: string | null;
   created_at: string;
@@ -21,6 +23,7 @@ interface SettlementReport {
 
 interface Summary {
   systemBalance: number;
+  totalUnsettled: number;
   totalCreditedNet: number;
   totalMdr: number;
   totalWithdrawn: number;
@@ -34,6 +37,11 @@ function formatRupiah(value: number) {
 }
 
 export default function ReconciliationPage() {
+  const [paymentExceptions, setPaymentExceptions] = useState<Array<{
+    intent_id: string; order_id: string; amount: number; reason: string;
+    status?: string; assigned_to?: string | null; resolution_reference?: string | null;
+  }>>([]);
+  const [uncertainAttempts, setUncertainAttempts] = useState<Array<{ id: string; order_id: string; invoice_number: string; amount: number }>>([]);
   const [reports, setReports] = useState<SettlementReport[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +59,8 @@ export default function ReconciliationPage() {
       const res = await fetch("/api/superadmin/reconciliation");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal memuat data");
+      setPaymentExceptions(data.paymentExceptions ?? []);
+      setUncertainAttempts(data.uncertainAttempts ?? []);
       setReports(Array.isArray(data.reports) ? data.reports : []);
       setSummary(data.summary ?? null);
     } catch {
@@ -63,6 +73,30 @@ export default function ReconciliationPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleException = async (intentId: string, action: "investigate" | "resolve") => {
+    const note = action === "resolve"
+      ? window.prompt("Catatan resolusi (wajib):")
+      : window.prompt("Catatan investigasi (opsional):") ?? "";
+    if (action === "resolve" && !note?.trim()) return;
+    const reference = action === "resolve" ? window.prompt("Referensi bukti/provider (opsional):") : null;
+    try {
+      const res = await fetch(`/api/superadmin/reconciliation/exceptions/${intentId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, note, resolution_type: "manual_review", reference }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast("error", data.error || "Gagal memperbarui exception");
+        return;
+      }
+      showToast("success", action === "resolve" ? "Exception ditandai selesai" : "Exception masuk investigasi");
+      fetchData();
+    } catch {
+      showToast("error", "Terjadi kesalahan, coba lagi");
+    }
+  };
 
   const handleSubmit = async () => {
     const gross = Number(grossAmount);
@@ -96,7 +130,12 @@ export default function ReconciliationPage() {
         showToast("error", data.error || "Gagal menyimpan rekonsiliasi");
         return;
       }
-      showToast("success", "Settlement dicatat");
+      showToast(
+        data.settlement?.settled ? "success" : "info",
+        data.settlement?.settled
+          ? "Settlement cocok; saldo belum settlement dilepas."
+          : "Settlement dicatat sebagai discrepancy; saldo belum dilepas.",
+      );
       setShowForm(false);
       setPeriodStart("");
       setPeriodEnd("");
@@ -135,7 +174,24 @@ export default function ReconciliationPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {(paymentExceptions.length > 0 || uncertainAttempts.length > 0) && <section role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+        <h2 className="font-semibold">Pembayaran perlu diperiksa</h2>
+        <p className="mt-1">Konfirmasikan status ke provider sebelum refund atau pencairan. Pembayaran berikut belum dibukukan sebagai penjualan tambahan.</p>
+        {paymentExceptions.map(item => (
+          <div key={item.intent_id} className="mt-2 break-all">
+            <p>Order {item.order_id} · {formatRupiah(item.amount)} · {item.reason} · {item.status ?? "open"}</p>
+            {item.resolution_reference && <p className="text-xs">Referensi: {item.resolution_reference}</p>}
+            <div className="flex flex-wrap gap-2 mt-1">
+              <button type="button" onClick={() => void handleException(item.intent_id, "investigate")}
+                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs">Investigasi</button>
+              <button type="button" onClick={() => void handleException(item.intent_id, "resolve")}
+                className="rounded-lg bg-forest px-2 py-1 text-xs text-white">Tandai selesai</button>
+            </div>
+          </div>
+        ))}
+        {uncertainAttempts.map(item => <p key={item.id} className="mt-2 break-all">Invoice {item.invoice_number} · {formatRupiah(item.amount)} · Pembuatan belum terkonfirmasi</p>)}
+      </section>}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow-sm p-4">
           <p className="text-xs text-neutral-400 uppercase tracking-wider">
             Saldo sistem (kewajiban)
@@ -144,7 +200,18 @@ export default function ReconciliationPage() {
             {formatRupiah(summary?.systemBalance ?? 0)}
           </p>
           <p className="text-[11px] text-neutral-400 mt-1">
-            Tersedia + pending semua merchant
+            Tersedia + hold + unsettled
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <p className="text-xs text-neutral-400 uppercase tracking-wider">
+            Belum settlement
+          </p>
+          <p className="text-xl font-bold text-neutral-900 mt-1">
+            {formatRupiah(summary?.totalUnsettled ?? 0)}
+          </p>
+          <p className="text-[11px] text-neutral-400 mt-1">
+            Belum boleh dicairkan
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm p-4">
@@ -196,6 +263,7 @@ export default function ReconciliationPage() {
             <tr className="border-b border-neutral-200">
               <th className="text-left text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">Periode</th>
               <th className="text-left text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">Provider</th>
+              <th className="text-left text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">Status</th>
               <th className="text-right text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">Gross</th>
               <th className="text-right text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">MDR</th>
               <th className="text-right text-xs font-medium text-neutral-400 uppercase tracking-wider px-4 py-3">Net</th>
@@ -207,14 +275,14 @@ export default function ReconciliationPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
-                  Memuat data...
-                </td>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    Memuat data...
+                  </td>
               </tr>
             ) : reports.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
-                  <Scale size={22} className="mx-auto mb-2 text-neutral-300" />
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <Scale size={22} className="mx-auto mb-2 text-neutral-300" />
                   Belum ada catatan settlement.
                 </td>
               </tr>
@@ -227,6 +295,12 @@ export default function ReconciliationPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600 capitalize">
                     {report.provider}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-neutral-600">
+                    <span className={`rounded-full px-2 py-1 ${
+                      report.status === "matched" ? "bg-primary-100 text-forest" : "bg-amber-100 text-amber-700"
+                    }`}>{report.status}</span>
+                    {report.provider_reference && <div className="font-mono mt-1 text-[10px]">{report.provider_reference}</div>}
                   </td>
                   <td className="px-4 py-3 text-sm text-right font-mono">
                     {formatRupiah(report.gross_amount)}

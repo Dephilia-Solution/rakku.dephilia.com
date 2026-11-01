@@ -16,7 +16,7 @@ export async function GET() {
     .eq("company_id", session.company_id)
     .eq("outlet_id", session.outlet_id)
     .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true }).order("id");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

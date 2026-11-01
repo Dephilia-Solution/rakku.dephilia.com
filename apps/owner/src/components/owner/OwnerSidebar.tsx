@@ -8,8 +8,10 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSidebarStore } from "@/lib/store/sidebarStore";
 import { ownerMenuItems, loginKasirItem } from "@/components/layout/nav-config";
+import type { UsageSummary } from "@rakku/shared-types";
 
 interface OwnerSidebarProps {
+  summary: UsageSummary;
   owner: {
     name: string;
     email: string;
@@ -19,6 +21,7 @@ interface OwnerSidebarProps {
 }
 
 function isActive(href: string, pathname: string): boolean {
+  if (href === "/outlets" && pathname.startsWith("/products/")) return true;
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
@@ -63,7 +66,7 @@ function LogoSlot({
   );
 }
 
-export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
+export default function OwnerSidebar({ owner, summary }: OwnerSidebarProps) {
   const pathname = usePathname();
   const isCollapsed = useSidebarStore((s) => s.isCollapsed);
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
@@ -204,32 +207,38 @@ export default function OwnerSidebar({ owner }: OwnerSidebarProps) {
         </Link>
       </nav>
 
-      <div className="px-2.5 py-3 border-t border-surface-container space-y-1">
-        <div
-          title={isCollapsed ? owner.name : undefined}
-          className={`flex items-center gap-3 h-11 rounded-xl overflow-hidden flex-shrink-0 ${
-            isCollapsed ? "w-11" : "w-full"
-          }`}
+      <div className="border-t border-surface-container px-2.5 pb-3 pt-3">
+        <motion.div
+          initial={false}
+          animate={{ opacity: isCollapsed ? 0 : 1, height: isCollapsed ? 0 : "auto", marginBottom: isCollapsed ? 0 : 8 }}
+          transition={labelTransition}
+          aria-hidden={isCollapsed}
+          className={`overflow-hidden ${isCollapsed ? "pointer-events-none" : ""}`}
         >
-          <span className="w-11 h-11 flex-shrink-0 flex items-center justify-center">
-            <span className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-sm">
-              {owner.name.charAt(0).toUpperCase()}
-            </span>
-          </span>
-          <motion.div
-            initial={false}
-            animate={{ opacity: isCollapsed ? 0 : 1 }}
-            transition={labelTransition}
-            className="flex-1 min-w-0 whitespace-nowrap overflow-hidden"
+          <div
+            title={`${owner.name} · ${owner.email} · Paket ${summary.plan.name}${summary.is_trial ? " · Trial" : ""}`}
+            className="rounded-2xl border border-surface-container bg-surface-container-low p-3.5"
           >
-            <p className="text-sm font-semibold text-on-surface truncate leading-none">{owner.name}</p>
-            <p className="text-xs text-on-surface-variant truncate leading-none mt-0.5">{owner.email}</p>
-          </motion.div>
-        </div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+              Profil owner
+            </p>
+            <div className="mt-2.5 min-w-0">
+              <p className="truncate text-sm font-semibold leading-5 text-on-surface">{owner.name}</p>
+              <p className="mt-0.5 truncate text-xs leading-4 text-on-surface-variant">{owner.email}</p>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-surface-container-high pt-2.5">
+              <span className="text-xs text-on-surface-variant">Paket</span>
+              <span className="max-w-[135px] truncate rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                {summary.plan.name}{summary.is_trial ? " · Trial aktif" : ""}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
         <MerchantForm action="/api/auth/owner/logout" method="POST">
           <button
             type="submit"
-            title={isCollapsed ? "Keluar" : undefined}
+            title={isCollapsed ? `${owner.name} · Paket ${summary.plan.name}${summary.is_trial ? " · Trial aktif" : ""}` : undefined}
             className={`flex items-center gap-3 h-11 rounded-xl overflow-hidden flex-shrink-0 transition-colors ${
               isCollapsed ? "w-11" : "w-full"
             } text-error hover:bg-error-container/20`}

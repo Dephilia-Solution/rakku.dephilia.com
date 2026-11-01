@@ -46,6 +46,8 @@ export default async function CheckoutPage({
         status: invoice.status,
         qr_string: invoice.qr_string,
         expired_at: invoice.expired_at,
+        provider_state: invoice.provider_state ?? null,
+        reconciliation_reason: invoice.reconciliation_reason ?? null,
       }}
       planName={resolvePlanName(invoice.plans)}
     />

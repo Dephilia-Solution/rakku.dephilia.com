@@ -8,17 +8,29 @@ allowBuilds:
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
-  - '@next/env@16.4.0'
-  - '@next/swc-darwin-arm64@16.4.0'
-  - '@next/swc-darwin-x64@16.4.0'
-  - '@next/swc-linux-arm64-gnu@16.4.0'
-  - '@next/swc-linux-arm64-musl@16.4.0'
-  - '@next/swc-linux-x64-gnu@16.4.0'
-  - '@next/swc-linux-x64-musl@16.4.0'
-  - '@next/swc-win32-arm64-msvc@16.4.0'
-  - '@next/swc-win32-x64-msvc@16.4.0'
-  - next@16.4.0
+  - '@next/env@16.4.2'
+  - '@next/swc-darwin-arm64@16.4.2'
+  - '@next/swc-darwin-x64@16.4.2'
+  - '@next/swc-linux-arm64-gnu@16.4.2'
+  - '@next/swc-linux-arm64-musl@16.4.2'
+  - '@next/swc-linux-x64-gnu@16.4.2'
+  - '@next/swc-linux-x64-musl@16.4.2'
+  - '@next/swc-win32-arm64-msvc@16.4.2'
+  - '@next/swc-win32-x64-msvc@16.4.2'
+  - next@16.4.2
 
 onlyBuiltDependencies:
   - esbuild
   - unrs-resolver
+
+# Align the API-key UI plugin with Neon Auth SDK 0.6 pinned Better Auth.
+overrides:
+  "@better-auth/api-key": "1.7.6"
+  "@daveyplate/better-auth-ui@3.4.0>better-call": "1.4.0"
+  "postcss-selector-parser@>=6.0.0 <7.1.6": "7.1.6"
+
+# Neon SDK and API-key plugin require better-call 1.4; the UI package
+# declares an unused 2.0.2 dependency which otherwise supplies an incompatible peer.
+
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch

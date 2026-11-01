@@ -6,14 +6,14 @@ import InvoicePageClient from "./InvoicePageClient";
 export default async function OwnerInvoicePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await getOwnerSessionFromCookies();
   if (!session || !session.company_id) {
     redirect("/login");
   }
 
-  const order = await getCompanyOrderById(params.id, session.company_id);
+  const order = await getCompanyOrderById((await params).id, session.company_id);
   if (!order) return notFound();
 
   return <InvoicePageClient order={order} />;

@@ -56,11 +56,24 @@ test("original Owner catalog contracts cover category/tier/product prices/modifi
   await ok(request, `/api/owner/products?id=${product.id}`, "DELETE"); await ok(request, `/api/owner/categories?id=${category.id}`, "DELETE");
 });
 
-test("Owner employee allOutlets, menus can_view matrix, status and PIN forms preserve assignment semantics", async () => {
+test("Owner employee allOutlets, atomic menu grants, status and PIN forms preserve assignment semantics", async () => {
   const { sandbox, request } = owner(); const role = record(record(await ok(request, "/api/owner/roles", "POST", { name: "New manager" })).role);
-  const menus = rows(record(await ok(request, "/api/owner/menus")).menus);
-  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { menuId: menus[0].id, canView: true });
-  assert.deepEqual(record(await ok(request, `/api/owner/roles/${role.id}/access`)).menu_access, [menus[0].id]);
+  const menus = rows(record(await ok(request, "/api/owner/roles")).menus);
+  const before = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  const grant = { menu_id: menus[0].id, can_view: true, can_create: true, can_edit: true, can_delete: true };
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [grant], expectedRevision: before.revision });
+  const after = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  assert.deepEqual(after.grants, [grant]); assert.deepEqual(after.menu_access, [menus[0].id]);
+  const stale = await call(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [], expectedRevision: before.revision });
+  assert.equal(stale.response.status, 409);
+  const invalid = await call(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [{ ...grant, can_view: false }], expectedRevision: after.revision });
+  assert.equal(invalid.response.status, 400);
+  const disabledGrant = { menu_id: menus[0].id, can_view: false, can_create: false, can_edit: false, can_delete: false };
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [disabledGrant], expectedRevision: after.revision });
+  const disabled = record(await ok(request, `/api/owner/roles/${role.id}/access`));
+  assert.deepEqual(disabled.grants, [disabledGrant]);
+  assert.deepEqual(disabled.menu_access, []);
+  await ok(request, `/api/owner/roles/${role.id}/access`, "POST", { grants: [grant], expectedRevision: disabled.revision });
   const employee = record(record(await ok(request, "/api/owner/employees", "POST", { name: "Sinta", username: "sinta", pin: "555555", roleId: role.id, allOutlets: true, outletIds: [] })).employee);
   assert.deepEqual(Object.keys(employee), ["id"]);
   const outlet = record(record(await ok(request, "/api/owner/outlets", "POST", { name: "Baru", address: "Jl. Baru" })).outlet);
@@ -168,4 +181,195 @@ test("visitor-created catalog IDs cannot be reused by another adapter and legacy
   await ok(a.request, "/api/admin/pricing-options", "PATCH", { id: option.id, price: 26000 }); assert.equal(rows(await ok(a.request, `/api/admin/pricing-options?product_id=${id("product", 0)}`))[0].price, 26000);
   const before = b.sandbox.getSnapshot(), foreign = await call(b.request, "/api/admin/pricing-options", "PATCH", { id: option.id, price: 1 }); assert.equal(foreign.response.status, 404); assert.equal(b.sandbox.getSnapshot(), before);
   await ok(a.request, `/api/admin/pricing-options?id=${option.id}`, "DELETE"); assert.equal(rows(await ok(a.request, "/api/admin/pricing-options")).length, 0);
+});
+
+const requestId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+test("Owner purchase ISO dates normalize to Jakarta calendar days and replay without duplicate stock", async () => {
+  const sandbox = createDemoSandbox(new Date("2026-10-26T05:00:00Z")); sandbox.run({ type: "session.owner" });
+  const request = createDemoRequestAdapter(sandbox, { app: "owner" }), ingredientId = id("ingredient", 0, T);
+  const cases = [
+    ["2026-10-26", "2026-10-26"],
+    ["2026-10-26T00:00:00.000Z", "2026-10-26"],
+    ["2026-10-25T17:00:00.000Z", "2026-10-26"],
+    ["2026-10-25T16:59:59.999Z", "2026-10-25"],
+    ["2026-10-26T00:00:00+07:00", "2026-10-26"],
+  ];
+  for (const [index, [date, expected]] of cases.entries()) {
+    const body = { outlet_id: T, supplier: "Owner ISO supplier", date, note: "Tanggal pembelian Owner", request_id: requestId(300 + index),
+      items: [{ ingredient_id: ingredientId, quantity: 1, unit_cost: 42 }] };
+    const stock = sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!.stock_quantity;
+    const created = record(await ok(request, "/api/owner/purchases", "POST", body));
+    const stored = sandbox.getSnapshot().purchases.find(row => row.id === created.id)!;
+    assert.equal(stored.purchase_date, expected); assert.equal(stored.outlet_id, T);
+    assert.equal(sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!.stock_quantity, stock + 1);
+    const committed = sandbox.getSnapshot();
+    assert.deepEqual(await ok(request, "/api/owner/purchases", "POST", body), created); assert.equal(sandbox.getSnapshot(), committed);
+  }
+  for (const date of ["2026-02-30T00:00:00.000Z", "2026-10-25T17:00:00", "not-a-date", "2026-10-26T17:00:00.000Z"]) {
+    const before = sandbox.getSnapshot();
+    const rejected = await call(request, "/api/owner/purchases", "POST", { outlet_id: T, supplier: "Invalid date", date, note: "Test", request_id: requestId(310), items: [{ ingredient_id: ingredientId, quantity: 1, unit_cost: 42 }] });
+    assert.equal(rejected.response.status, 400); assert.equal(sandbox.getSnapshot(), before);
+  }
+  const p = pos();
+  const created = record(await ok(p.request, "/api/admin/purchases", "POST", { supplier_name: "POS ISO date", purchase_date: "2026-10-11T17:00:00.000Z", note: "Test", items: [{ ingredient_id: id("ingredient", 0), quantity: 1, unit_cost: 42 }] }));
+  assert.equal(p.sandbox.getSnapshot().purchases.find(row => row.id === created.id)!.purchase_date, "2026-10-12");
+});
+
+test("Owner product drafts commit prices and recipes atomically, clear recipes, and retain omitted composition/addons", async () => {
+  const { sandbox, request } = owner();
+  const body = { outlet_id: T, name: "Composed latte", category_id: id("category", 0, T), price: 15000, description: "Draft", image_url: null,
+    prices: [{ tier_id: id("tier", 0, T), price: 17000 }], recipes: [{ ingredient_id: id("ingredient", 1, T), quantity_used: 125.5 }], request_id: requestId(1) };
+  let publications = 0; const unsubscribe = sandbox.subscribe(() => { publications++; });
+  const product = record(await ok(request, "/api/owner/products", "POST", body)); assert.equal(publications, 1);
+  assert.equal(product.image_url, null);
+  assert.deepEqual(product.prices, { [id("tier", 0, T)]: 17000 });
+  const recipe = rows(await ok(request, `/api/owner/recipes?product_id=${product.id}`)); assert.equal(recipe[0].quantity_used, 125.5);
+  assert.equal(record(recipe[0].ingredients).unit, "ml");
+  for (const patch of [
+    { category_id: id("category", 0) }, { prices: [{ tier_id: id("tier", 0), price: 20000 }] },
+    { recipes: [{ ingredient_id: id("ingredient", 0), quantity_used: 1 }] },
+    { recipes: [{ ingredient_id: id("ingredient", 1, T), quantity_used: 0 }] },
+    { recipes: [body.recipes[0], body.recipes[0]] }, { prices: [body.prices[0], body.prices[0]] },
+    { recipes: null }, { prices: [{ tier_id: id("tier", 0, T), price: -1 }] },
+  ]) {
+    const before = sandbox.getSnapshot(), notifications: number = publications;
+    const rejected = await call(request, "/api/owner/products", "PATCH", { id: product.id, outlet_id: T, name: "Must roll back", ...patch });
+    assert.ok(!rejected.response.ok); assert.equal(sandbox.getSnapshot(), before); assert.equal(publications, notifications);
+  }
+  await ok(request, "/api/owner/modifiers", "POST", { product_id: product.id, name: "Extra shot", price_delta: 3000 });
+  const addons = sandbox.getSnapshot().products.find(row => row.id === product.id)!.modifiers;
+  const beforeMetadata = sandbox.getSnapshot().products.find(row => row.id === product.id)!;
+  await ok(request, "/api/owner/products", "PATCH", { id: product.id, description: "Legacy metadata edit" });
+  const afterMetadata = sandbox.getSnapshot().products.find(row => row.id === product.id)!;
+  assert.deepEqual(afterMetadata.recipe, beforeMetadata.recipe); assert.deepEqual(afterMetadata.prices, beforeMetadata.prices);
+  await ok(request, "/api/owner/products", "PATCH", { id: product.id, name: "Renamed", recipes: [] });
+  const cleared = sandbox.getSnapshot().products.find(row => row.id === product.id)!;
+  assert.deepEqual(cleared.recipe, []); assert.deepEqual(cleared.prices, product.prices); assert.deepEqual(cleared.modifiers, addons);
+  await ok(request, "/api/owner/products", "PATCH", { id: product.id, description: "Metadata only" });
+  assert.deepEqual(await ok(request, `/api/owner/recipes?product_id=${product.id}`), []);
+  const beforeReplay = sandbox.getSnapshot();
+  const otherAdapter = createDemoRequestAdapter(sandbox, { app: "owner" });
+  assert.deepEqual(await ok(otherAdapter, "/api/owner/products", "POST", { ...body, prices: body.prices.map(row => ({ price: row.price, tier_id: row.tier_id })) }), product);
+  assert.equal(sandbox.getSnapshot(), beforeReplay, "replay returns the original receipt without overwriting later edits");
+  const conflict = await call(request, "/api/owner/products", "POST", { ...body, name: "Different request" });
+  assert.equal(conflict.response.status, 409); assert.equal(record(conflict.data).code, "IDEMPOTENCY_CONFLICT"); assert.equal(sandbox.getSnapshot(), beforeReplay);
+  const legacy = record(await ok(request, "/api/owner/products", "POST", { outlet_id: P, name: "Legacy", category_id: id("category", 0), price: 1000 }));
+  assert.deepEqual(legacy.recipe, []); assert.deepEqual(legacy.prices, {}); unsubscribe();
+});
+
+test("Owner opening stock, purchases, opname and paginated history stay in the requested outlet and replay across adapters", async t => {
+  const sentinel = t.mock.method(globalThis, "fetch", () => { throw new Error("inventory network escape"); });
+  const { sandbox, request } = owner(), other = owner(); const pusatBefore = sandbox.getSnapshot().ingredients.filter(row => row.outlet_id === P);
+  const ingredient = record(await ok(request, "/api/owner/ingredients", "POST", { outlet_id: T, name: "Sirup baru", unit: "ml", stock_quantity: 10.25, min_stock_alert: 2, cost_per_unit: 5 }));
+  const ingredientId = key(ingredient.id), adjustPath = `/api/owner/ingredients/${ingredientId}/adjust`;
+  const purchaseBody = { outlet_id: T, supplier: "Supplier Owner", date: "2026-10-12", note: "Restock Owner", request_id: requestId(2),
+    items: [{ ingredient_id: ingredientId, quantity: 2.5, unit_cost: 12.34 }, { ingredient_id: id("ingredient", 0, T), quantity: 1, unit_cost: 5.55 }] };
+  const purchase = record(await ok(request, "/api/owner/purchases", "POST", purchaseBody)); assert.equal(purchase.total_amount, 36.4);
+  assert.equal(sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!.stock_quantity, 12.75);
+  const adjustBody = { outlet_id: T, quantity: 7.5, note: "Hitung fisik Owner", request_id: requestId(3) };
+  const adjustment = record(await ok(request, adjustPath, "POST", adjustBody)); assert.equal(adjustment.quantity_change, -5.25);
+  await ok(request, "/api/owner/purchases", "POST", { ...purchaseBody, request_id: requestId(4), items: [{ ingredient_id: ingredientId, quantity: 1, unit_cost: 15 }] });
+  const beforeReplay = sandbox.getSnapshot(), adapter = createDemoRequestAdapter(sandbox, { app: "owner" });
+  assert.deepEqual(await ok(adapter, "/api/owner/purchases", "POST", purchaseBody), purchase);
+  assert.deepEqual(await ok(adapter, adjustPath, "POST", adjustBody), adjustment); assert.equal(sandbox.getSnapshot(), beforeReplay);
+  const current = sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!;
+  assert.equal(current.stock_quantity, 8.5); assert.equal(current.cost_per_unit, 15);
+  const history = record(await ok(request, `/api/owner/stock-movements?outlet_id=${T}&ingredient_id=${ingredientId}&page=1`));
+  assert.equal(history.total, 4); assert.equal(history.page, 1); assert.equal(history.pageSize, 20);
+  assert.deepEqual(rows(history.movements).map(row => row.type), ["purchase", "adjustment", "purchase", "adjustment"]);
+  assert.ok(rows(history.movements).every(row => row.ingredient_name === "Sirup baru" && row.unit === "ml" && row.actor_name === "Owner Demo Rakku"));
+  assert.ok(rows(history.movements).some(row => row.note === "Opening stock" && row.quantity_change === 10.25));
+  const purchases = record(await ok(request, `/api/owner/purchases?outlet_id=${T}&page=1`)); assert.equal(purchases.total, 6);
+  const mapped = findRow(rows(purchases.purchases), key(purchase.id)); assert.equal(mapped.supplier_name, purchaseBody.supplier); assert.equal(mapped.purchase_date, purchaseBody.date); assert.equal(mapped.actor_name, "Owner Demo Rakku");
+  assert.deepEqual(rows(mapped.items)[0], { ingredient_id: ingredientId, ingredient_name: "Sirup baru", unit: "ml", quantity: 2.5, unit_cost: 12.34, subtotal: 30.85 });
+  assert.equal(record(await ok(request, `/api/owner/purchases?outlet_id=${P}`)).total, 4);
+  assert.deepEqual(sandbox.getSnapshot().ingredients.filter(row => row.outlet_id === P), pusatBefore);
+  assert.deepEqual(other.sandbox.getSnapshot().ingredients.filter(row => row.outlet_id === P), pusatBefore);
+  assert.equal(record(await ok(other.request, `/api/owner/purchases?outlet_id=${T}`)).total, 4);
+  const page1 = record(await ok(request, `/api/owner/stock-movements?outlet_id=${T}&page=1`)), page2 = record(await ok(request, `/api/owner/stock-movements?outlet_id=${T}&page=2`));
+  assert.equal(page1.total, page2.total); assert.equal(rows(page1.movements).length, 20); assert.equal(rows(page2.movements).length, 20);
+  assert.ok(rows(page2.movements).every(row => !rows(page1.movements).some(first => first.id === row.id)));
+  for (const [path, method, body, status] of [
+    [adjustPath, "POST", { ...adjustBody, quantity: 8 }, 409],
+    ["/api/owner/purchases", "POST", { ...purchaseBody, outlet_id: P }, 409],
+    [adjustPath, "POST", { ...adjustBody, request_id: requestId(2) }, 409],
+    [adjustPath, "POST", { ...adjustBody, outlet_id: P }, 403],
+    [`/api/owner/stock-movements?outlet_id=${P}&ingredient_id=${ingredientId}`, "GET", undefined, 403],
+    [`/api/owner/ingredients?id=${ingredientId}&outlet_id=${P}`, "DELETE", undefined, 403],
+    [`/api/owner/stock-movements?outlet_id=${T}&page=0`, "GET", undefined, 400],
+  ] as const) {
+    const before = sandbox.getSnapshot(); assert.equal((await call(request, path, method, body)).response.status, status); assert.equal(sandbox.getSnapshot(), before);
+  }
+  assert.equal(sentinel.mock.callCount(), 0);
+});
+
+function findRow(values: Record<string, unknown>[], id: string) { const row = values.find(row => row.id === id); assert.ok(row); return row; }
+
+test("Owner inventory rejects malformed purchases/counts atomically, protects movement history and edits negative-stock metadata", async () => {
+  const { sandbox, request } = owner(); const ingredientId = id("ingredient", 0), adjustPath = `/api/owner/ingredients/${ingredientId}/adjust`;
+  const base = { outlet_id: P, supplier: "Supplier", date: "2026-10-12", note: "Test", request_id: requestId(10), items: [{ ingredient_id: ingredientId, quantity: 1.25, unit_cost: 3.45 }] };
+  for (const patch of [
+    { items: [] }, { items: [base.items[0], base.items[0]] }, { items: [{ ...base.items[0], quantity: 0 }] },
+    { items: [{ ...base.items[0], quantity: "2" }] }, { items: [{ ...base.items[0], quantity: 1.001 }] },
+    { items: [{ ...base.items[0], unit_cost: 1.001 }] }, { items: [{ ...base.items[0], unit_cost: -1 }] },
+    { items: [base.items[0], { ingredient_id: id("ingredient", 0, T), quantity: 1, unit_cost: 1 }] },
+    { date: "2026-02-30" }, { date: "2026-10-13" }, { request_id: "not-a-uuid" },
+  ]) {
+    const before = sandbox.getSnapshot(); assert.ok(!(await call(request, "/api/owner/purchases", "POST", { ...base, ...patch })).response.ok); assert.equal(sandbox.getSnapshot(), before);
+  }
+  await ok(request, "/api/owner/purchases", "POST", base); // Failed attempts never reserve request_id.
+  const halfCent = record(await ok(request, "/api/owner/purchases", "POST", { ...base, request_id: requestId(13), items: [{ ingredient_id: ingredientId, quantity: 1.5, unit_cost: 0.29 }] }));
+  assert.equal(halfCent.total_amount, 0.44, "purchase decimal arithmetic rounds half cents exactly");
+  for (const patch of [{ note: "" }, { note: "   " }, { quantity: -1 }, { quantity: "5" }, { request_id: "bad" }, { outlet_id: T }]) {
+    const before = sandbox.getSnapshot(); const response = await call(request, adjustPath, "POST", { outlet_id: P, quantity: 5, note: "Valid", request_id: requestId(11), ...patch });
+    assert.ok(!response.response.ok); assert.equal(sandbox.getSnapshot(), before);
+  }
+  sandbox.run({ type: "order.create", outlet_id: P, tier_id: id("tier", 0), items: [{ product_id: id("product", 0), quantity: 1000 }], status: "completed", payment_method: "cash" });
+  const negative = sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!.stock_quantity; assert.ok(negative < 0);
+  await ok(request, "/api/owner/ingredients", "PATCH", { id: ingredientId, outlet_id: P, name: "Kopi diperbarui", unit: "gram", min_stock_alert: 25, cost_per_unit: 9, is_active: true });
+  assert.equal(sandbox.getSnapshot().ingredients.find(row => row.id === ingredientId)!.stock_quantity, negative);
+  const beforeDelete = sandbox.getSnapshot();
+  assert.ok(!(await call(request, "/api/owner/ingredients", "PATCH", { id: ingredientId, outlet_id: P, unit: "kg" })).response.ok);
+  assert.ok(!(await call(request, "/api/owner/ingredients", "PATCH", { id: ingredientId, outlet_id: P, stock_quantity: 0 })).response.ok);
+  const deleted = await call(request, `/api/owner/ingredients?id=${ingredientId}&outlet_id=${P}`, "DELETE"); assert.match(String(record(deleted.data).error), /deactivate/); assert.equal(sandbox.getSnapshot(), beforeDelete);
+  await ok(request, "/api/owner/ingredients", "PATCH", { id: ingredientId, outlet_id: P, is_active: false });
+  const deactivated = sandbox.getSnapshot(); assert.deepEqual(deactivated.products, beforeDelete.products); assert.deepEqual(deactivated.movements, beforeDelete.movements);
+  assert.ok(!(await call(request, "/api/owner/purchases", "POST", { ...base, request_id: requestId(12) })).response.ok); assert.equal(sandbox.getSnapshot(), deactivated);
+  assert.ok(!(await call(request, "/api/owner/products", "PATCH", { id: id("product", 0), name: "Cannot save", recipes: [{ ingredient_id: ingredientId, quantity_used: 18 }] })).response.ok); assert.equal(sandbox.getSnapshot(), deactivated);
+  await ok(request, "/api/owner/products", "PATCH", { id: id("product", 0), description: "Omitted recipe retains inactive references" });
+  assert.ok(rows(record(await ok(request, `/api/owner/stock-movements?outlet_id=${P}&ingredient_id=${ingredientId}`)).movements).some(row => row.type === "sale_deduction"));
+  const zero = record(await ok(request, "/api/owner/ingredients", "POST", { outlet_id: P, name: "Zero opening", unit: "pcs", stock_quantity: 0, min_stock_alert: 0, cost_per_unit: 0 }));
+  const before = sandbox.getSnapshot(); assert.ok(!(await call(request, `/api/owner/ingredients?id=${zero.id}&outlet_id=${P}`, "DELETE")).response.ok);
+  assert.ok(!(await call(request, "/api/owner/ingredients", "PATCH", { id: zero.id, outlet_id: P, unit: "gram" })).response.ok); assert.equal(sandbox.getSnapshot(), before);
+});
+
+test("Owner inventory/composition auth, quotas, receipt lifetime and network isolation remain local", async t => {
+  const sentinel = t.mock.method(globalThis, "fetch", () => { throw new Error("network escape"); });
+  const { sandbox, request } = owner();
+  const body = { outlet_id: P, name: "Receipt product", category_id: id("category", 0), price: 1000, prices: [], recipes: [], request_id: requestId(20) };
+  const created = record(await ok(request, "/api/owner/products", "POST", body));
+  assert.ok(!("request_receipts" in sandbox.getSnapshot()));
+  const purchase = { outlet_id: P, supplier: "Supplier", date: "2026-10-12", note: "Receipt", request_id: requestId(21), items: [{ ingredient_id: id("ingredient", 0), quantity: 1, unit_cost: 1 }] };
+  await ok(request, "/api/owner/purchases", "POST", purchase);
+  sandbox.run({ type: "session.cashier", outlet_id: P, employee_id: "fixture:rani_pusat", pin: "111111" });
+  for (const [path, method, value] of [["/api/owner/products", "POST", body], ["/api/owner/purchases", "POST", purchase], [`/api/owner/ingredients?outlet_id=${P}`, "GET", undefined], [`/api/owner/stock-movements?outlet_id=${P}`, "GET", undefined]] as const) {
+    const before = sandbox.getSnapshot(); assert.equal((await call(request, path, method, value)).response.status, 403); assert.equal(sandbox.getSnapshot(), before);
+  }
+  sandbox.run({ type: "session.logout", mode: "owner" });
+  assert.equal((await call(request, "/api/owner/purchases", "POST", purchase)).response.status, 401);
+  sandbox.run({ type: "session.owner" });
+  const invoice = sandbox.run({ type: "subscription.checkout", plan: "free", billing_cycle: "monthly" }) as { id: string }; sandbox.run({ type: "subscription.transition", id: invoice.id, status: "success" });
+  for (const [path, value] of [["/api/owner/purchases", { ...purchase, request_id: requestId(22) }], [`/api/owner/ingredients/${id("ingredient", 0)}/adjust`, { outlet_id: P, quantity: 1, note: "Gated", request_id: requestId(23) }], ["/api/owner/ingredients", { outlet_id: P, name: "Over quota", unit: "pcs", stock_quantity: 0 }]] as const) {
+    const before = sandbox.getSnapshot(), result = await call(request, path, "POST", value); assert.equal(result.response.status, 403); assert.equal(record(result.data).code, "PLAN_LIMIT"); assert.equal(sandbox.getSnapshot(), before);
+  }
+  for (let n = sandbox.getSnapshot().products.length; n < 30; n++) await ok(request, "/api/owner/products", "POST", { ...body, name: `Quota ${n}`, request_id: requestId(100 + n) });
+  const capped = sandbox.getSnapshot(); assert.equal((await call(request, "/api/owner/products", "POST", { ...body, request_id: requestId(200) })).response.status, 403); assert.equal(sandbox.getSnapshot(), capped);
+  assert.equal(record(await ok(request, "/api/owner/products", "POST", body)).id, created.id); assert.equal(sandbox.getSnapshot(), capped);
+  for (const path of ["https://live.invalid/api/owner/purchases", "//live.invalid/api/owner/stock-movements", "/api/owner/stock-movements/unknown", "/api/owner/ingredients/unknown/adjust/extra"]) assert.ok(!(await call(request, path, "POST", purchase)).response.ok);
+  request.destroy(); const adapter = createDemoRequestAdapter(sandbox, { app: "owner" });
+  assert.equal(record(await ok(adapter, "/api/owner/products", "POST", body)).id, created.id, "adapter disposal does not reset visitor receipts");
+  sandbox.destroy(); await assert.rejects(adapter("/api/owner/purchases"), { name: "AbortError" });
+  const fresh = owner(), replacement = record(await ok(fresh.request, "/api/owner/products", "POST", body)); assert.notEqual(replacement.id, created.id);
+  assert.equal(sentinel.mock.callCount(), 0);
 });

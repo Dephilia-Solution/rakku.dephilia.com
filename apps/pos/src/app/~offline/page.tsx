@@ -27,6 +27,7 @@ export default function OfflinePage() {
         <p style={{ color: "#666", margin: "0 0 1.5rem" }}>
           Periksa koneksi internet Anda lalu coba lagi.
         </p>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full document reload retries connectivity after the offline fallback. */}
         <a
           href="/"
           style={{

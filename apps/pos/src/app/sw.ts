@@ -1,7 +1,6 @@
-import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
-import { CacheFirst, NetworkFirst, NetworkOnly, StaleWhileRevalidate } from "serwist";
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from "serwist";
 import { ExpirationPlugin } from "serwist";
 import { CacheableResponsePlugin } from "serwist";
 
@@ -24,13 +23,11 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname === "/demo" || url.pathname.startsWith("/demo/"),
       handler: new NetworkOnly(),
     },
-    // App shell navigations: network first, fallback to offline page
+    // Authenticated documents, API responses and RSC payloads must never survive a session.
     {
-      matcher: ({ request }) => request.mode === "navigate",
-      handler: new NetworkFirst({
-        cacheName: "pages",
-        plugins: [new CacheableResponsePlugin({ statuses: [0, 200] })],
-      }),
+      matcher: ({ request, url }) => request.mode === "navigate" || url.pathname.startsWith("/api/")
+        || request.headers.get("RSC") === "1" || url.searchParams.has("_rsc"),
+      handler: new NetworkOnly(),
     },
 
     // Static assets (JS, CSS, fonts): cache first
@@ -60,20 +57,6 @@ const serwist = new Serwist({
       }),
     },
 
-    // Supabase API: network first (POS tetap butuh data fresh), fallback cache
-    {
-      matcher: ({ url }) => url.hostname.includes("supabase.co"),
-      handler: new NetworkFirst({
-        cacheName: "supabase-api",
-        plugins: [
-          new CacheableResponsePlugin({ statuses: [0, 200] }),
-          new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 5 * 60 }),
-        ],
-      }),
-    },
-
-    // Default (Next.js default cache for the rest)
-    ...defaultCache,
   ],
   fallbacks: {
     entries: [
@@ -87,4 +70,9 @@ const serwist = new Serwist({
   },
 });
 
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys
+    .filter(key => !["static-resources", "images"].includes(key) && !key.includes("precache"))
+    .map(key => caches.delete(key)))));
+});
 serwist.addEventListeners();

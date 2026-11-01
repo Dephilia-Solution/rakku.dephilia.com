@@ -13,6 +13,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        primary: { DEFAULT: "#2E7D32", container: "#eaf3ea" },
         cream: "#F7F5F0",
         moss: "#A9D6A2",
         muted: "#5C6560",
@@ -22,6 +23,8 @@ const config: Config = {
         "leaf-dark": "#1B4F1F",
       },
       fontFamily: {
+        display: ["var(--font-sans)", "Arial", "sans-serif"],
+        body: ["var(--font-sans)", "Arial", "sans-serif"],
         sans: ["var(--font-sans)", "DM Sans", "sans-serif"],
         serif: ["var(--font-serif)", "Fraunces", "serif"],
       },

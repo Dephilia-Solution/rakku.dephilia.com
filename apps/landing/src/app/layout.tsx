@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { MotionProvider } from "@/components/motion";
+import { isIndexable, siteDescription, siteTitle, siteUrl } from "@/lib/seo";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -18,19 +19,28 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "Rakku | Kasir, stok, dan laba dalam satu alur",
+    default: siteTitle,
     template: "%s | Rakku",
   },
-  description:
-    "Rakku membantu kedai dan cafe mengelola kasir, stok bahan baku, resep, outlet, dan laba dalam satu sistem.",
-  keywords: ["POS cafe", "inventory F&B", "kasir kedai", "Rakku"],
+  description: siteDescription,
+  applicationName: "Rakku",
+  robots: {
+    index: isIndexable,
+    follow: isIndexable,
+    googleBot: { index: isIndexable, follow: isIndexable, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+  },
+  verification: { google: process.env.GOOGLE_SITE_VERIFICATION || undefined },
   openGraph: {
-    title: "Rakku | Kasir, stok, dan laba dalam satu alur",
-    description: "Satu alur kerja untuk kasir, stok, resep, outlet, dan laba.",
+    title: siteTitle,
+    description: siteDescription,
+    siteName: "Rakku",
+    url: siteUrl,
     type: "website",
     locale: "id_ID",
   },
+  twitter: { card: "summary_large_image", title: siteTitle, description: siteDescription },
 };
 
 export const viewport: Viewport = {

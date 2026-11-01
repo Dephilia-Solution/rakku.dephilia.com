@@ -1,5 +1,7 @@
 # Demo publik Rakku POS
 
+> Panduan presentasi langkah-demi-langkah (durasi, narasi, skenario, checklist): **[DEMO_FLOW.md](DEMO_FLOW.md)**.
+
 ## Route dan penggunaan
 
 Jalankan aplikasi Owner dengan `pnpm dev:owner`, lalu buka `http://localhost:3000/demo`.
@@ -35,7 +37,7 @@ Company **Rakku Demo Cafe** (`DEMO_CAFE`), Owner **Owner Demo Rakku**, email `ow
 | Rakku Demo Cafe — Pusat | Jl. Contoh Raya No. 10 | Rani / `rani_pusat` / Manager Outlet / `111111`; Bima / `bima_pusat` / Kasir / `222222` |
 | Rakku Demo Cafe — Taman | Jl. Contoh Taman No. 25 | Dita / `dita_taman` / Manager Outlet / `333333`; Raka / `raka_taman` / Kasir / `444444` |
 
-Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS; Kasir memiliki Register, Orders, Reports, Tax & Discounts. Role, menu-level `can_view`, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
+Owner tidak dihitung dalam empat karyawan. Assignment awal hanya ke outlet masing-masing. Manager mempunyai sembilan menu POS dengan akses penuh; Kasir memiliki akses penuh ke Register, Orders, Reports, dan Tax & Discounts. Setiap menu memakai satu checkbox akses penuh; Role, revision, PIN, status, assignment dan opsi all-outlets dapat dicoba melalui komponen karyawan asli.
 
 Setiap outlet mempunyai sepuluh produk, tiga kategori, empat tier, 15 bahan, delapan meja, 60 order completed dalam 30 hari, dua draft, satu pending QRIS, satu cancelled, empat pembelian multi-item, enam pengeluaran, dua opname. Produk: Espresso, Americano, Cappuccino, Caffe Latte, Kopi Susu Gula Aren, Matcha Latte, Chocolate Latte, Lemon Tea, Butter Croissant, French Fries. Harga/BOM/unit menggunakan `packages/demo/src/fixture.ts`.
 
@@ -86,7 +88,7 @@ Form logout/switch-user terikat lewat `MerchantForm`; tidak ada listener global 
 | `apps/owner/src/app/demo/(sandbox)/` | Route namespace Owner/POS dan wrapper per fitur |
 | `apps/owner/public/demo-assets/` | Ilustrasi statis lokal |
 | `packages/demo/src/*.test.ts` | Domain, adapter, source parity, provider/storage sentinels, route contracts |
-| `packages/demo/e2e/routed.mjs` | Browser acceptance terhadap route dan UI asli |
+| `packages/demo/e2e/routed.mjs`, `isolation.mjs`, `browser.mjs`, `chrome.mjs` | Browser acceptance terhadap route/UI asli, kebijakan request, dan helper browser bersama |
 
 Tidak ada backend state, `Map` server tenant, token/cookie demo, TTL, layanan berbayar, atau schema/migration baru. Instance browser memiliki salinan immutable fixture dan store sendiri. `pnpm db:demo` adalah **tenant testing permanen Neon yang terpisah** dan tidak digunakan/reset oleh demo publik.
 
@@ -118,9 +120,19 @@ Subscription invoice/retry/expiry/aktivasi/renewal di memori mengikuti period/gr
 
 Upload JPG/PNG/WebP maksimum 2 MiB disimpan melalui object URL terdaftar di sandbox, tidak ke Silos/Sharp/server. Seed assets tidak terhapus oleh remove image. Public QR mengarah ke dua outlet fixture awal di origin Owner, tidak membawa generation/session capability. Produk/resep/cost/PIN/internal stock tidak menjadi payload menu publik.
 
-Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Aturan menu adalah **`can_view`**, bukan create/edit/delete grants terpisah.
+Kontrak command rinci ada di [`packages/demo/README.md`](packages/demo/README.md). Editor role demo memakai kontrak grant `{ grants, revision }` yang sama dengan produksi dan menormalkan seluruh capability sesuai checkbox penuh/nonaktif. Dispatcher POS demo mensimulasikan akses per menu; enforcement request produksi tetap dilakukan oleh server POS.
 
 ## Pengujian
+
+### Dashboard dan import Owner terbaru
+
+Dashboard demo memakai analitik periode WIB dan filter outlet yang sama dengan presentasi merchant: completed orders, tren harian, produk terlaris, metode utama pembayaran, bahan menipis, dan pembelian. Angka fixture dihasilkan dari state sandbox; tidak ada query Neon.
+
+Panel import asli kini aktif pada demo, termasuk unduhan template/contoh terisi, unggah XLSX, preview nilai/error, konflik kode, persetujuan kategori, konfirmasi atomik, replay, serta riwayat di memori. Produk v2 memetakan tier melalui UUID surrogate yang hanya berlaku pada generasi sandbox; template generasi/outlet lain ditolak. ZIP gambar dibaca lokal dan dikonversi WebP memakai decoder/Canvas browser; tidak mengakses Silos atau server upload. Template pembelian mensimulasikan beberapa transaksi dan deduplikasi referensi, tanpa menggandakan stok.
+
+Parsing spreadsheet dimuat dinamis pada pemakaian import pertama. Reset/logout/refresh membuang batch, receipt, dan gambar lokal. PIN import tidak muncul di preview, history, atau snapshot publik. Harga katalog dua desimal tetap dipertahankan hingga pembulatan final rupiah saat checkout.
+
+`node packages/demo/e2e/run-production.mjs --owner-upgrade --isolated-build` menambahkan pemeriksaan dashboard, viewport 360–1920px, sheet/fokus/Back, XLSX+ZIP gambar, pembelian massal, serta emulasi sentuh iPhone/Android/iPad. Prasyarat build, port loopback, dan Playwright mengikuti runner routed. Rincian kontrak serta batas verifikasi ada di [OWNER_UPGRADE.md](OWNER_UPGRADE.md).
 
 ```powershell
 pnpm test:demo
@@ -131,7 +143,7 @@ pnpm lint --concurrency=1
 pnpm build --concurrency=1
 ```
 
-`test:demo` memeriksa domain, facade existing API, route contracts, isolasi antarvisitor, BOM/ledger/report, idempotency, quota/period/permission, gambar, serta imports provider yang sengaja melempar. `test:db` memakai PGlite, bukan Neon bersama. Node 24 direkomendasikan (provider hook memerlukan ≥22.15).
+`test:demo` memeriksa domain, facade existing API, route contracts, isolasi antarvisitor, BOM/ledger/report, idempotency, quota/period/permission, gambar, imports provider yang sengaja melempar, serta 3 request-policy tests. `browser.mjs` dan `chrome.mjs` adalah helper aktif yang dipakai `routed.mjs`/`isolation.mjs`; keduanya harus tetap dilacak Git. `.gitignore` hanya mengecualikan scenario harness mandiri lama. `test:db` memakai PGlite, bukan Neon bersama. Node 24 direkomendasikan (provider hook memerlukan ≥22.15).
 
 Build dan browser production lokal:
 

@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
     bankAccountId: String(body?.bank_account_id ?? "").trim(),
     amount: Number(body?.amount),
     note: body?.note ? String(body.note).trim() : null,
+    requestId: typeof body?.requestId === "string"
+      ? body.requestId
+      : request.headers.get("idempotency-key"),
   });
 
   if ("error" in result) {

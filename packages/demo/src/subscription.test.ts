@@ -178,9 +178,11 @@ test("active seed plus baseline defaults match the demo catalog; grace/calendar 
   const source = (path: string) => readFileSync(new URL(path, root), "utf8");
   const plansSource = source("packages/plans/src/index.ts");
   assert.equal(GRACE_DAYS, Number(plansSource.match(/export const GRACE_DAYS = (\d+)/)![1]));
-  const activation = source("apps/owner/src/lib/billing/subscription.ts");
+  const activation = source("packages/db/src/subscription-billing.ts");
   assert.match(activation, /end\.setFullYear\(end\.getFullYear\(\) \+ 1\)/); assert.match(activation, /end\.setMonth\(end\.getMonth\(\) \+ 1\)/);
-  assert.match(activation, /company\?\.plan_id === invoice\.plan_id[\s\S]*existingExpiry\.getTime\(\) > now\.getTime\(\)/);
+  assert.match(activation, /samePlan && existingExpiry && existingExpiry\.getTime\(\) > now\.getTime\(\)/);
+  const orchestration = source("apps/owner/src/lib/billing/subscription.ts");
+  assert.match(orchestration, /processInvoice/); assert.match(orchestration, /activateSubscriptionInvoice/);
   const baseline = source("packages/db/migrations/0001_baseline.sql").match(/CREATE TABLE plans \(([\s\S]*?)\n\);/)![1];
   assert.match(baseline, /features jsonb NOT NULL DEFAULT '\{\}'/);
   assert.match(baseline, /is_active boolean NOT NULL DEFAULT true/);

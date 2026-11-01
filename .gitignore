@@ -1,27 +1,54 @@
 node_modules/
+.next-hardening*/
 .next/
 .turbo/
 dist/
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
 .env.local
 .env*.local
 .env.neon
+/config/environments/*.env.local
+
+# Salinan env lokal per app (tidak dibaca Next.js, hanya referensi/backup)
+/env/
+/env.rar
+/env.zip
+/env.7z
+
+/RAKKU_HANDOFF
+
+# Local implementation plans and audit reports (kept out of application repo)
+/DEMO_FLOW.md
+/IMPLEMENTATION_PLAN.md
+/NEXT_PHASE_PROMPTS.md
+/PHASE_[1-9]_REPORT.md
+/PRODUCTION_READINESS_AUDIT.md
+/SYSTEM_MAP.md
+/config/environments/README.md
+/config/operations/README.md
+/config/pilot/README.md
+/config/provider/README.md
+/config/rbac/README.md
+/config/settlement/README.md
 
 # Next.js
 apps/*/next-env.d.ts
-apps/*/.next/
 
 # PWA
 apps/*/public/sw.js
 apps/*/public/sw.js.map
 apps/*/public/swe-worker*.js
 
-# Build
-.turbo/
-
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # IDE
 .vscode/
@@ -30,11 +57,21 @@ Thumbs.db
 # Backup
 .package-lock.json.bak
 
-# Demo e2e: harness standalone lama (UI dihapus, digantikan suite routed)
+# Local tooling output
+.vercel/
+.cache/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Demo e2e: scenario scripts mandiri lama (suite routed memakai helper bersama)
 packages/demo/e2e/acceptance.mjs
 packages/demo/e2e/billing.mjs
-packages/demo/e2e/browser.mjs
-packages/demo/e2e/chrome.mjs
 packages/demo/e2e/commerce.mjs
 packages/demo/e2e/lifecycle.mjs
 packages/demo/e2e/management.mjs
@@ -65,6 +102,3 @@ supabase/.temp/
 /index.html
 /landing.css
 /scripts/generate-pwa-icons.mjs
-/scripts/run-migration.js
-/scripts/run-migration.ts
-/scripts/migration-004.ts

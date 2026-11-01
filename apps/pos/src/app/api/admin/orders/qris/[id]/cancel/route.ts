@@ -26,15 +26,14 @@ export async function POST(
     return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
   }
 
-  if (order.status === "pending_payment") {
-    await supabase
-      .from("orders")
-      .update({ status: "cancelled" })
-      .eq("id", id)
-      .eq("company_id", session.company_id);
+  try {
+    await expirePendingIntents(supabase, id);
+    const { data: cancelled, error } = await supabase.from("orders").update({ status: "cancelled" })
+      .eq("id", id).eq("company_id", session.company_id).eq("status", "pending_payment").eq("payment_status", "unpaid").select("id").maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!cancelled) return NextResponse.json({ error: "Order sudah berubah. Muat ulang order." }, { status: 409 });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "QRIS belum dapat dibatalkan" }, { status: 409 });
   }
-
-  await expirePendingIntents(supabase, id);
-
-  return NextResponse.json({ success: true });
 }

@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { Tax } from "@rakku/shared-types";
 import {
-  SlideOver,
   FormField,
   fieldInputClass,
 } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 
 interface Props {

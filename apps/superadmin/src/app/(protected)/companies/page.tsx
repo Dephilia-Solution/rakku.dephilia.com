@@ -91,7 +91,7 @@ export default function CompaniesPage() {
     fetchPlans();
   }, []);
 
-  const fetchCompanies = async () => {
+  async function fetchCompanies() {
     try {
       const res = await fetch("/api/superadmin/companies");
       const data = await res.json();
@@ -99,9 +99,9 @@ export default function CompaniesPage() {
     } catch {
       showToast("error", "Gagal memuat data");
     }
-  };
+  }
 
-  const fetchPlans = async () => {
+  async function fetchPlans() {
     try {
       const res = await fetch("/api/superadmin/plans");
       const data = await res.json();
@@ -109,7 +109,7 @@ export default function CompaniesPage() {
     } catch {
       setPlans([]);
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!form.code || !form.name) {
