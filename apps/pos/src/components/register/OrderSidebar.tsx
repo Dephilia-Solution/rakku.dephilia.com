@@ -16,6 +16,7 @@ interface OrderSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onOpenDraft?: () => void;
+  onDraftChange?: () => void;
   onEditItem?: (itemId: string) => void;
   refreshKey?: number;
   initialDraftCount?: number;
@@ -27,6 +28,7 @@ export default function OrderSidebar({
   isOpen = false,
   onClose,
   onOpenDraft,
+  onDraftChange,
   onEditItem,
   refreshKey,
   initialDraftCount = 0,
@@ -70,6 +72,7 @@ export default function OrderSidebar({
     if (success) {
       showToast("success", "Pesanan disimpan sebagai draft!");
       clear();
+      onDraftChange?.();
       if (isDrawer && onClose) onClose();
     } else {
       showToast("error", "Gagal menyimpan draft");

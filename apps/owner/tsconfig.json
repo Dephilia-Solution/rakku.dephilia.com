@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -11,15 +15,45 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@pos/*": ["../pos/src/*"],
-      "@rakku/*": ["../../packages/*/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@pos/*": [
+        "../pos/src/*"
+      ],
+      "@rakku/*": [
+        "../../packages/*/src"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next-hardening/types/**/*.ts",
+    ".next-hardening-auth-session/types/**/*.ts",
+    ".next-hardening-phase1/types/**/*.ts",
+    ".next-hardening-phase1/dev/types/**/*.ts",
+    ".next-hardening-phase2/types/**/*.ts",
+    ".next-hardening-phase2/dev/types/**/*.ts",
+    ".next-hardening-phase34/types/**/*.ts",
+    ".next-hardening-phase34/dev/types/**/*.ts",
+    ".next-hardening-phase567/types/**/*.ts",
+    ".next-hardening-phase567/dev/types/**/*.ts",
+    ".next-hardening-phase89/types/**/*.ts",
+    ".next-hardening-phase89/dev/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

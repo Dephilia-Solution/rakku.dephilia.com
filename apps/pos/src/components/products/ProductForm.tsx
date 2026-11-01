@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect, type JSX } from "react";
 import { useRouter, MerchantLink as Link, useMerchantRequest, useMerchantToast, useMerchantImages, useMerchantRuntime } from "@pos/lib/merchant-runtime";
 import Image from "next/image";
 import {

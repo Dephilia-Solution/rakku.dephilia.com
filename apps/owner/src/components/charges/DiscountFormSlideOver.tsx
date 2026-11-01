@@ -7,11 +7,11 @@ import {
   ProductWithCategory,
 } from "@rakku/shared-types";
 import {
-  SlideOver,
   FormField,
   fieldInputClass,
   fieldSelectClass,
 } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 
 interface Props {

@@ -31,6 +31,7 @@ const MODERN_SYNTAX_REGEX = /\?\?=?|\|\|=\??|&&=\??|\?\.(?:[a-zA-Z_$])/;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.RAKKU_ISOLATED_BUILD === "1" ? process.env.RAKKU_BUILD_DIRECTORY || ".next-hardening" : ".next",
   experimental: { cpus: 2, webpackBuildWorker: true },
   async redirects() {
     return [
@@ -54,6 +55,7 @@ const nextConfig = {
     "@rakku/db",
     "@rakku/auth-utils",
     "@rakku/ui",
+    "@rakku/observability",
     "@rakku/pricing",
     "@rakku/inventory",
     "@rakku/payments",

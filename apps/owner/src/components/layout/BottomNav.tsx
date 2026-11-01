@@ -18,16 +18,17 @@ export default function BottomNav() {
         aria-label="Navigasi utama"
       >
         {ownerPrimaryItems.map((item) => {
-          const active =
-            item.href === "/"
+          const active = (item.href === "/outlets" && pathname.startsWith("/products/")) ||
+            (item.href === "/"
               ? pathname === "/"
-              : pathname.startsWith(item.href);
+              : pathname.startsWith(item.href));
           const Icon = item.icon;
 
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 ${
                 active
                   ? "text-primary"
@@ -46,6 +47,7 @@ export default function BottomNav() {
         })}
 
         <button
+          type="button" aria-expanded={showMore} aria-label="Lainnya"
           onClick={() => setShowMore(true)}
           className={`relative flex flex-col items-center justify-center flex-1 min-h-[56px] gap-0.5 transition-colors active:scale-95 text-on-surface-variant hover:text-on-surface`}
         >

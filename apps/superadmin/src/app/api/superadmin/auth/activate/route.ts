@@ -3,8 +3,10 @@ import { createAdminClient } from "@rakku/db";
 import { findSuperadminInvite, activateSuperadminInvite } from "@rakku/db/invitations";
 import { getAuth } from "@/lib/auth/server";
 import { isAllowedSuperadminOrigin } from "@/lib/auth/origins";
+import { getAuthorizedUser } from "@/lib/auth/require-superadmin";
 
 export async function POST(request: NextRequest) {
+  if (await getAuthorizedUser()) return NextResponse.json({ error: "Sesi sudah aktif", redirect: "/companies" }, { status: 409 });
   const origin = request.headers.get("origin");
   if (!origin || (origin !== new URL(request.url).origin && !isAllowedSuperadminOrigin(origin))) {
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });

@@ -386,7 +386,8 @@ test("entity CRUD whitelist, relations, monetary/date/unit checks and unique use
 test("new ingredients opening stock, tables generation, reorder and company/password commands", () => {
   const s = owner();
   const ingredient = save<{ id: string }>(s, "ingredients", { outlet_id: P, name: "New ingredient", unit: "kg", stock_quantity: 3, min_stock_alert: 1, cost_per_unit: 10000 });
-  assertStockLedger(s.getSnapshot()); s.run({ type: "entity.delete", entity: "ingredients", id: ingredient.id }); assertStockLedger(s.getSnapshot());
+  assertStockLedger(s.getSnapshot()); invalid(s, { type: "entity.delete", entity: "ingredients", id: ingredient.id }, /referenced/);
+  save(s, "ingredients", { id: ingredient.id, is_active: false }); assertStockLedger(s.getSnapshot());
   const tables = s.run({ type: "tables.generate", outlet_id: P, count: 3 }) as DemoState["tables"];
   assert.deepEqual(tables.map(t => t.name), ["Meja 9", "Meja 10", "Meja 11"]);
   const keys = s.getSnapshot().categories.filter(c => c.outlet_id === P).map(c => c.id).reverse();
@@ -415,4 +416,29 @@ test("invalid command, resource IDs, relation IDs and numbers cannot partially w
     { type: "tables.generate", outlet_id: P, count: 0 }, { type: "entity.delete", entity: "products", id: "missing" },
     { type: "entity.save", entity: "products", value: { id: 0, name: "Invalid ID", category_id: id("category", 0), price: 1 } },
   ]) invalid(s, command);
+});
+
+test("compound product commands publish one frozen composition and restore snapshot, receipts and ID sequence after failure", () => {
+  const s = owner(), original = s.getSnapshot(), seen: DemoState[] = [];
+  const unsubscribe = s.subscribe(() => seen.push(s.getSnapshot()));
+  const value = { outlet_id: P, category_id: id("category", 0), name: "Atomic product", price: 10000,
+    prices: { [id("tier", 0)]: 12500 }, recipe: [{ ingredient_id: id("ingredient", 0), quantity_used: 18 }] };
+  const request_id = "00000000-0000-4000-8000-000000000501";
+  invalid(s, { type: "product.save", value: { ...value, price: -1 }, request_id });
+  assert.equal(s.getSnapshot(), original); assert.equal(seen.length, 0);
+  const product = s.run({ type: "product.save", value, request_id }) as DemoProduct;
+  assert.equal(product.id, `${s.generation}:products:1`); assert.equal(seen.length, 1);
+  const saved = seen[0].products.find(row => row.id === product.id)!;
+  assert.deepEqual(saved.prices, value.prices); assert.deepEqual(saved.recipe, value.recipe); assert.ok(Object.isFrozen(saved.recipe[0])); assert.ok(Object.isFrozen(product));
+  assert.equal(original.products.length + 1, seen[0].products.length); assert.ok(!original.products.some(row => row.id === product.id));
+  const committed = s.getSnapshot();
+  invalid(s, { type: "product.save", value: { id: product.id, name: "Invalid replacement", prices: { [id("tier", 0)]: 20000 }, recipe: [{ ingredient_id: id("ingredient", 0), quantity_used: -1 }] } });
+  invalid(s, { type: "product.save", value: { ...value, recipe: [{ ingredient_id: id("ingredient", 0, T), quantity_used: 1 }] }, request_id: "00000000-0000-4000-8000-000000000502" });
+  assert.equal(s.getSnapshot(), committed); assert.equal(seen.length, 1);
+  assert.deepEqual(s.run({ type: "product.save", value, request_id }), product); assert.equal(s.getSnapshot(), committed); assert.equal(seen.length, 1);
+  const second = s.run({ type: "product.save", value: { ...value, name: "Next product" }, request_id: "00000000-0000-4000-8000-000000000502" }) as DemoProduct;
+  assert.equal(second.id, `${s.generation}:products:2`);
+  s.run({ type: "product.save", value: { id: product.id, recipe: [] } }); assert.deepEqual(s.getRecipes(product.id), []);
+  s.run({ type: "session.cashier", outlet_id: P, employee_id: "fixture:bima_pusat", pin: "222222" });
+  invalid(s, { type: "product.save", value, request_id }, /Owner access/); unsubscribe();
 });

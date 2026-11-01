@@ -11,6 +11,7 @@ export interface Owner {
 }
 
 export interface OwnerSession {
+  session_id?: string;
   owner_id: string;
   email: string;
   name: string;
@@ -34,6 +35,9 @@ export interface OwnerDashboardOutlet {
   created_at: string;
   qr_menu_slug: string | null;
   employee_count: number;
+  products_count?: number;
+  tables_count?: number;
+  categories_count?: number;
 }
 
 export interface OwnerDashboardEmployee {

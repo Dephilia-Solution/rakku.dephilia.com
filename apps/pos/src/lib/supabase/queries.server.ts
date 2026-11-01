@@ -149,15 +149,17 @@ export async function getProductTierPrices() {
   );
 }
 
-export async function getOrders() {
+export async function getOrders(options: { since?: string } = {}) {
   const supabase = createAdminClient();
   const { company_id, outlet_id } = await getSessionScope();
-  const { data } = await supabase
+  let query = supabase
     .from("orders")
     .select("*, order_items(*), dining_tables!fk_orders_table(name)")
     .eq("company_id", company_id)
     .eq("outlet_id", outlet_id)
     .order("created_at", { ascending: false });
+  if (options.since) query = query.gte("created_at", options.since);
+  const { data } = await query;
   return (
     (data as JsonLike[])?.map((o) => {
       const table = o.dining_tables as JsonLike | null;

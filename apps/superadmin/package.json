@@ -3,36 +3,36 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "next dev --webpack -p 3002",
     "build": "next build --webpack",
     "start": "next start -p 3002",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@neondatabase/auth": "0.6.0-beta",
+    "@rakku/db": "workspace:*",
     "@rakku/emails": "workspace:*",
     "@rakku/ledger": "workspace:*",
     "@rakku/pricing": "workspace:*",
     "@rakku/shared-types": "workspace:*",
-    "@rakku/db": "workspace:*",
     "@rakku/ui": "workspace:*",
-    "@neondatabase/auth": "0.5.0-beta",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.460.0",
-    "next": "16.4.0",
-    "react": "^18",
-    "react-dom": "^18"
+    "next": "16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.35",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.2",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
   }
 }

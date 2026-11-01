@@ -6,6 +6,7 @@ export interface Category {
 
 export interface Product {
   id: string;
+  code?: string | null;
   name: string;
   price: number;
   category_id: string;

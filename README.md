@@ -1,6 +1,8 @@
 # Rakku - POS Multi-Tenant untuk Bisnis F&B
 
-**Rakku** adalah sistem **Point of Sale (POS), inventory, billing, dan settlement** multi-tenant untuk bisnis F&B. Sistem memakai **Next.js App Router** (14 untuk Owner/POS/Landing, 16 untuk Superadmin), **Neon Postgres + Drizzle**, **Neon Managed Better Auth**, pnpm workspace, dan Turborepo.
+**Rakku** adalah sistem **Point of Sale (POS), inventory, billing, dan settlement** multi-tenant untuk bisnis F&B. Source saat ini memakai **Next.js 16.4.2 App Router**, **React 19.3.1**, **Neon Postgres + Drizzle**, **Neon Managed Better Auth**, pnpm workspace, dan Turborepo.
+
+Peningkatan Owner terbaru (dashboard, desain responsif, import tier/gambar/pembelian, demo, serta kebutuhan migrasi `0019`) dijelaskan di **[OWNER_UPGRADE.md](OWNER_UPGRADE.md)**. Catatan rollout di bawah adalah riwayat instalasi, bukan bukti semua migrasi terbaru sudah diterapkan pada database aktif.
 
 Runtime Neon sudah berjalan pada **database baru**, tanpa impor data Supabase lama. Empat migration, runtime role, data referensi, satu tenant DEMO, dan aktivasi Superadmin sudah selesai. Deployment development Vercel telah lolos smoke test login; status domain production dijelaskan di bawah.
 
@@ -50,7 +52,7 @@ Klasifikasi development/production ini adalah keputusan deployment Rakku. URL `*
 
 Buka **`/demo` pada aplikasi Owner** (lokal: `http://localhost:3000/demo`) untuk memilih Demo Owner atau Demo Kasir. Route mengikuti aplikasi asli, misalnya `/demo/owner/outlets`, `/demo/pos/products`, `/demo/pos/register`. Komponen/layout asli digunakan dengan sandbox cafe yang sama selama soft navigation; perubahan hanya di memori dan reset pada logout/reset/refresh. CTA Coba Demo tersedia di landing serta login Owner/POS.
 
-Demo publik ini terpisah dari tenant testing Neon `pnpm db:demo`. Data, PIN simulator, matriks fitur, arsitektur, dan pengujian dijelaskan di **[DEMO.md](DEMO.md)**.
+Demo publik ini terpisah dari tenant testing Neon `pnpm db:demo`. Data, PIN simulator, matriks fitur, arsitektur, dan pengujian dijelaskan di **[DEMO.md](DEMO.md)**; alur presentasi per durasi ada di **[DEMO_FLOW.md](DEMO_FLOW.md)**.
 
 ### Setup aplikasi
 
@@ -140,7 +142,7 @@ Setiap project Vercel memakai Root Directory `apps/<app>` dan konfigurasi `verce
 
 Sesuaikan `NEXT_PUBLIC_OWNER_URL`, `NEXT_PUBLIC_POS_URL`, dan `SUPERADMIN_URL` dengan matriks environment. Untuk production, Owner adalah `https://app.rakku.dephilia.com`; callback Vessel berada di `<URL Owner>/api/webhooks/vessel`. Origin Superadmin juga harus terdaftar pada trusted domains Neon Auth. Perubahan env/URL build-time memerlukan redeploy.
 
-File `.env.production` tracked saat ini berisi nilai publik, beberapa masih URL Vercel. Secret `.env.production.local` lokal tidak otomatis terkirim ke Vercel. Pembagian domain dalam dokumentasi tidak mengubah assignment domain, env cloud, atau resource database; langkah deployment lengkap ada di [DOCS.md](DOCS.md#12-panduan-development).
+File `.env`, `.env.*`, termasuk `.env.production`, tidak dilacak Git; file template `.env.example` tetap tersedia. Atur environment deployment pada Vercel Project Settings. `.env.production.local` hanya untuk pengujian build lokal dan tetap di-ignore. Pembagian domain dalam dokumentasi tidak mengubah assignment domain, env cloud, atau resource database; langkah deployment lengkap ada di [DOCS.md](DOCS.md#12-panduan-development).
 
 ## Dokumentasi
 

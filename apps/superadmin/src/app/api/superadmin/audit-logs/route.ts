@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/auth/database";
 
-async function requireSuperadmin() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data?.user) throw new Error("Unauthorized");
-  return data.user;
-}
-
 /**
  * GET /api/superadmin/audit-logs
  *
@@ -15,7 +8,6 @@ async function requireSuperadmin() {
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireSuperadmin();
     const supabase = await createClient();
 
     const { searchParams } = new URL(request.url);

@@ -7,6 +7,7 @@ import { createDemoSandbox, type DemoSandbox, type DemoOrder } from "@rakku/demo
 import { createDemoRequestAdapter, orderPayload, type DemoApplication, type DemoRequestAdapter } from "@rakku/demo/runtime";
 import type { MerchantCartTotals, MerchantRuntime } from "@rakku/ui/merchant-runtime";
 import { showToast } from "@rakku/ui";
+import { createOwnerDemoImportService } from "@/lib/import/demo-import";
 
 export const operationScope = (sandbox: DemoSandbox) => {
   const { session } = sandbox.getSnapshot();
@@ -20,6 +21,7 @@ export class DemoController {
   private stores = new Map<string, unknown>();
   private adapters = new Map<string, ReturnType<DemoController["createServices"]>>();
   private unsubscribe: () => void;
+  private imports = createOwnerDemoImportService(this.sandbox);
 
   constructor() {
     let previous = operationScope(this.sandbox);
@@ -47,7 +49,7 @@ export class DemoController {
     const active = () => this.active(scope);
     // Auth requests legitimately change employee/outlet scope before their response
     // is consumed. The adapter validates permissions; its lifetime follows generation.
-    const request = createDemoRequestAdapter(this.sandbox, { app, active: () => this.active(), publicMenuBaseUrl: window.location.origin });
+    const request = createDemoRequestAdapter(this.sandbox, { app, active: () => this.active(), publicMenuBaseUrl: window.location.origin, ...(app === "owner" ? { importService: this.imports } : {}) });
     const toast: MerchantRuntime["toast"] = (type, message) => { if (active()) showToast(type, message); };
     const images: MerchantRuntime["images"] = {
       create: file => { if (!active()) throw new Error("Sesi demo sudah berakhir."); return this.sandbox.attachImage(file); },
@@ -85,7 +87,7 @@ export class DemoController {
     this.destroyed = true;
     this.unsubscribe();
     for (const service of this.adapters.values()) service.request.destroy();
-    this.adapters.clear(); this.stores.clear(); this.sandbox.destroy();
+    this.adapters.clear(); this.stores.clear(); this.imports.destroy(); this.sandbox.destroy();
   }
 }
 

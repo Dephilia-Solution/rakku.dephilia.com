@@ -12,9 +12,10 @@ interface ToastData {
 }
 
 let toastListeners: ((toast: ToastData) => void)[] = [];
+let toastSequence = 0;
 
 export function showToast(type: ToastType, message: string) {
-  const toast: ToastData = { id: Date.now().toString(), type, message };
+  const toast: ToastData = { id: `${Date.now()}-${toastSequence++}`, type, message };
   toastListeners.forEach((fn) => fn(toast));
 }
 

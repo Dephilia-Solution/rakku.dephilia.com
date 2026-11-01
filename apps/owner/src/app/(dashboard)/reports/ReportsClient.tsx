@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Tabs } from "@rakku/ui";
-import { useMerchantRequest, useMerchantRuntime } from "@/lib/merchant-runtime";
+import { isWithinJakartaRange, type ReportRange } from "@rakku/shared-types";
+import { useMerchantRequest, useMerchantRuntime, useSearchParams } from "@/lib/merchant-runtime";
 import EmailReportModal from "@/components/reports/EmailReportModal";
 import ProfitLossClient from "@/components/reports/ProfitLossClient";
 import { usePlan } from "@/components/billing/PlanProvider";
@@ -30,6 +31,7 @@ interface Order {
   payment_method: string;
   outlet_name: string;
   items: OrderItem[];
+  item_count?: number;
 }
 
 interface ReportsClientProps {
@@ -39,35 +41,46 @@ interface ReportsClientProps {
 
 export default function ReportsClient({ outlets, companyName }: ReportsClientProps) {
   const request = useMerchantRequest();
-  const isActive = useMerchantRuntime()?.active;
+  const searchParams = useSearchParams();
+  const runtime = useMerchantRuntime();
+  const isActive = runtime?.active;
   const { hasFeature, openUpgrade } = usePlan();
   const [activeTab, setActiveTab] = useState("penjualan");
-  const [dateRange, setDateRange] = useState("today");
-  const [outletId, setOutletId] = useState<string>("");
+  const [dateRange, setDateRange] = useState(() => ["today", "yesterday", "week", "month", "all"].includes(searchParams.get("range") ?? "") ? searchParams.get("range")! : "today");
+  const [outletId, setOutletId] = useState<string>(() => outlets.some(outlet => outlet.id === searchParams.get("outlet")) ? searchParams.get("outlet")! : "");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [summary, setSummary] = useState<{ totalRevenue: number; totalTransactions: number; topItem: { name: string; count: number } | null } | null>(null);
 
   const fetchOrders = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted || isActive?.() === false) return;
     setLoading(true);
     try {
-      const url = outletId
-        ? `/api/owner/orders?outlet_id=${encodeURIComponent(outletId)}`
-        : "/api/owner/orders";
+      const params = new URLSearchParams({ range: dateRange, page: String(page) });
+      if (outletId) params.set("outlet_id", outletId);
+      const url = runtime
+        ? `/api/owner/orders${outletId ? `?outlet_id=${encodeURIComponent(outletId)}` : ""}`
+        : `/api/owner/reports/sales?${params}`;
       const res = await request(url, { signal });
       if (res.ok) {
         const data = await res.json();
         if (signal?.aborted || isActive?.() === false) return;
         setOrders(data.orders ?? []);
+        setSummary(data.summary ?? null);
+      } else {
+        setOrders([]);
+        setSummary(null);
       }
     } catch {
       if (signal?.aborted || isActive?.() === false) return;
       setOrders([]);
+      setSummary(null);
     } finally {
       if (!signal?.aborted && isActive?.() !== false) setLoading(false);
     }
-  }, [outletId, request, isActive]);
+  }, [outletId, dateRange, page, request, isActive, runtime]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -75,39 +88,27 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
     return () => controller.abort();
   }, [fetchOrders]);
 
-  const today = new Date();
-  const filtered = orders.filter((o) => {
-    const d = new Date(o.created_at);
-    if (dateRange === "today") return d.toDateString() === today.toDateString();
-    if (dateRange === "yesterday") {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      return d.toDateString() === y.toDateString();
-    }
-    if (dateRange === "week") {
-      const w = new Date(today);
-      w.setDate(w.getDate() - 7);
-      return d >= w;
-    }
-    return true;
-  });
+  const filtered = runtime ? orders.filter(o => isWithinJakartaRange(o.created_at, dateRange as ReportRange)) : orders;
 
-  const totalRevenue = filtered.reduce((s, o) => s + o.total_price, 0);
-  const totalTransactions = filtered.length;
+  const totalRevenue = summary?.totalRevenue ?? filtered.reduce((s, o) => s + o.total_price, 0);
+  const totalTransactions = summary?.totalTransactions ?? filtered.length;
 
   const itemCounts: Record<string, number> = {};
   filtered.forEach((o) =>
-    o.items.forEach((i) => {
+    (o.items ?? []).forEach((i) => {
       itemCounts[i.product_name] =
         (itemCounts[i.product_name] || 0) + i.quantity;
     })
   );
-  const topItem = Object.entries(itemCounts).sort((a, b) => b[1] - a[1])[0];
+  const topItem = summary?.topItem ? [summary.topItem.name, summary.topItem.count] : Object.entries(itemCounts).sort((a, b) => b[1] - a[1])[0];
+  const changeRange = (value: string) => { setDateRange(value); setPage(1); };
+  const changeOutlet = (value: string) => { setOutletId(value); setPage(1); };
 
   const ranges = [
     { value: "today", label: "Hari ini" },
     { value: "yesterday", label: "Kemarin" },
     { value: "week", label: "7 Hari" },
+    { value: "month", label: "Bulan Ini" },
     { value: "all", label: "Semua" },
   ];
 
@@ -141,7 +142,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
             <div className="flex flex-wrap gap-2 items-center">
               <select
                 value={outletId}
-                onChange={(e) => setOutletId(e.target.value)}
+                onChange={(e) => changeOutlet(e.target.value)}
                 className="bg-surface-container-lowest border border-surface-container rounded-xl px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 <option value="">Semua Outlet</option>
@@ -155,7 +156,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
               {ranges.map((r) => (
                 <button
                   key={r.value}
-                  onClick={() => setDateRange(r.value)}
+                  onClick={() => changeRange(r.value)}
                   className={`flex-shrink-0 whitespace-nowrap text-xs font-medium px-3 py-2 rounded-full transition-colors ${
                     dateRange === r.value
                       ? "bg-primary text-white"
@@ -276,7 +277,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
                             </span>
                           </td>
                           <td className="px-6 py-3 text-sm text-on-surface-variant">
-                            {order.items.length} item
+                            {order.item_count ?? order.items?.length ?? 0} item
                           </td>
                           <td className="px-6 py-3 text-sm text-on-surface-variant capitalize">
                             {order.payment_method}
@@ -310,7 +311,7 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
                         <span>&middot;</span>
                         <span>{formatDate(order.created_at)}</span>
                         <span>&middot;</span>
-                        <span>{order.items.length} item</span>
+                        <span>{order.item_count ?? order.items?.length ?? 0} item</span>
                         <span className="text-[10px] capitalize bg-surface-container rounded-full px-2 py-0.5">
                           {order.payment_method}
                         </span>
@@ -321,14 +322,21 @@ export default function ReportsClient({ outlets, companyName }: ReportsClientPro
               </>
             )}
           </div>
+          {!runtime && totalTransactions > 50 && (
+            <nav aria-label="Halaman laporan" className="flex items-center justify-between gap-4 text-sm">
+              <button type="button" disabled={loading || page === 1} onClick={() => setPage(value => value - 1)} className="min-h-11 rounded-xl border border-surface-container px-4 disabled:opacity-40">Sebelumnya</button>
+              <span>Halaman {page} / {Math.max(1, Math.ceil(totalTransactions / 50))}</span>
+              <button type="button" disabled={loading || page * 50 >= totalTransactions} onClick={() => setPage(value => value + 1)} className="min-h-11 rounded-xl border border-surface-container px-4 disabled:opacity-40">Berikutnya</button>
+            </nav>
+          )}
         </>
       ) : hasFeature("profit_loss") ? (
         <ProfitLossClient
           outlets={outlets}
           dateRange={dateRange}
           outletId={outletId}
-          onDateRangeChange={setDateRange}
-          onOutletChange={setOutletId}
+          onDateRangeChange={changeRange}
+          onOutletChange={changeOutlet}
         />
       ) : (
         <div className="bg-surface-container-lowest rounded-2xl border border-surface-container p-12 text-center">

@@ -1,3 +1,4 @@
+import { guardOwnerAuth } from "@/lib/auth/request-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerByEmail } from "@/lib/supabase/queries.owner";
 import { signOwnerSession, setOwnerSessionCookie } from "@/lib/auth/owner-session";
@@ -6,6 +7,7 @@ import bcrypt from "bcryptjs";
 import type { OwnerSession } from "@rakku/shared-types";
 
 export async function POST(request: NextRequest) {
+  const denied = await guardOwnerAuth(request); if (denied) return denied;
   const body = await request.json().catch(() => null);
 
   if (!body) {
@@ -15,7 +17,7 @@ export async function POST(request: NextRequest) {
   const { email, password, remember } = body;
   const rememberMe = remember === true;
 
-  if (!email || !password) {
+  if (typeof email !== "string" || typeof password !== "string" || password.length > 72) {
     return NextResponse.json(
       { error: "Email dan password harus diisi" },
       { status: 400 }
@@ -32,6 +34,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Akun dinonaktifkan" }, { status: 403 });
   }
 
+  const valid = await bcrypt.compare(password, owner.password_hash);
+  if (!valid) {
+    return NextResponse.json({ error: "Email atau password salah" }, { status: 401 });
+  }
+
   if (!owner.email_verified_at) {
     return NextResponse.json(
       {
@@ -42,12 +49,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const valid = await bcrypt.compare(password, owner.password_hash);
-  if (!valid) {
-    return NextResponse.json({ error: "Email atau password salah" }, { status: 401 });
-  }
-
   const supabase = createAdminClient();
+  if (owner.company_id) {
+    const { data: company, error: companyError } = await supabase.from("companies").select("status")
+      .eq("id", owner.company_id).eq("owner_id", owner.id).maybeSingle();
+    if (companyError) return NextResponse.json({ error: "Status perusahaan belum dapat diperiksa" }, { status: 503 });
+    if (!company || company.status !== "active") return NextResponse.json({ error: "Perusahaan dinonaktifkan. Hubungi pengelola." }, { status: 403 });
+  }
   await supabase
     .from("owners")
     .update({ last_login_at: new Date().toISOString() })

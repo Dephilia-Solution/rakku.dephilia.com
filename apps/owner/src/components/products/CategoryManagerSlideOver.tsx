@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Category } from "@rakku/shared-types";
-import { SlideOver, fieldInputClass } from "@rakku/ui";
+import { fieldInputClass } from "@rakku/ui";
+import SlideOver from "@/components/ui/OwnerSheet";
 import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {

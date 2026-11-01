@@ -2,6 +2,7 @@ import type { DatabaseClient } from "@rakku/db";
 
 export interface ReconciliationSummary {
   systemBalance: number;
+  totalUnsettled: number;
   totalCreditedNet: number;
   totalMdr: number;
   totalWithdrawn: number;
@@ -42,7 +43,7 @@ export async function getReconciliationSummary(
     await Promise.all([
       supabase
         .from("merchant_balances")
-        .select("available_balance, pending_balance"),
+        .select("available_balance, pending_balance, unsettled_balance"),
       supabase
         .from("balance_transactions")
         .select("type, amount, fee_amount")
@@ -56,7 +57,11 @@ export async function getReconciliationSummary(
 
   const systemBalance = (balancesResult.data ?? []).reduce(
     (sum, row) =>
-      sum + Number(row.available_balance) + Number(row.pending_balance),
+      sum + Number(row.available_balance) + Number(row.pending_balance) + Number(row.unsettled_balance ?? 0),
+    0
+  );
+  const totalUnsettled = (balancesResult.data ?? []).reduce(
+    (sum, row) => sum + Number(row.unsettled_balance ?? 0),
     0
   );
 
@@ -82,6 +87,7 @@ export async function getReconciliationSummary(
 
   return {
     systemBalance,
+    totalUnsettled,
     totalCreditedNet,
     totalMdr,
     totalWithdrawn,

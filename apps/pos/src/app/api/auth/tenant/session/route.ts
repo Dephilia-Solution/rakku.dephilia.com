@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { getTenantHome } from "@/lib/auth/menus";
 
 export async function GET() {
   const session = await getTenantSessionFromCookies();
@@ -9,6 +10,8 @@ export async function GET() {
   }
 
   return NextResponse.json({
+    redirect: await getTenantHome(session.role_id),
+    session_id: session.session_id,
     user_id: session.user_id,
     company_id: session.company_id,
     outlet_id: session.outlet_id,

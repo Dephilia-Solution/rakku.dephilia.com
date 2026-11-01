@@ -17,7 +17,7 @@ async function requireOwner(): Promise<OwnerWithCompany | null> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -28,7 +28,7 @@ export async function PATCH(
   }
 
   const { searchParams } = new URL(request.url);
-  const scope = (searchParams.get("scope") || "product") as "product" | "order";
+  const scope = ((await searchParams).get("scope") || "product") as "product" | "order";
 
   const body = await request.json().catch(() => null);
   if (!body) {
@@ -38,7 +38,7 @@ export async function PATCH(
   const { name, type, value, start_date, end_date, is_active, product_id } = body;
 
   const { error } = await updateCompanyDiscount({
-    discountId: params.id,
+    discountId: (await params).id,
     companyId: session.company_id,
     scope,
     name: name !== undefined ? String(name).trim() : undefined,
@@ -56,7 +56,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireOwner();
   if (!session) {
@@ -67,10 +67,10 @@ export async function DELETE(
   }
 
   const { searchParams } = new URL(request.url);
-  const scope = (searchParams.get("scope") || "product") as "product" | "order";
+  const scope = ((await searchParams).get("scope") || "product") as "product" | "order";
 
   const { error } = await deleteCompanyDiscount(
-    params.id,
+    (await params).id,
     session.company_id,
     scope
   );

@@ -2,6 +2,7 @@ export type IngredientUnit = "gram" | "ml" | "pcs" | "kg" | "liter";
 
 export interface Ingredient {
   id: string;
+  code?: string | null;
   company_id: string;
   outlet_id: string;
   name: string;

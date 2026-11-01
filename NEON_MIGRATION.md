@@ -21,7 +21,7 @@ Dokumen ini adalah panduan developer/operator untuk konfigurasi Neon, deployment
 
 Keputusan instalasi saat ini adalah **database baru**, tanpa memulihkan data Supabase lama. Baseline 4 migration sudah diterapkan, runtime role `rakku_runtime` sudah dibuat, dan Managed Better Auth pada database yang sama sudah terverifikasi.
 
-`.env.neon` menjadi sumber konfigurasi privat. Root `.env.local` dipakai script; `.env.local` dan `.env.production.local` masing-masing app sudah memakai pooled runtime URL yang sama. File production yang tracked hanya berisi URL publik. Variabel Supabase, SMTP legacy, `PG*`, dan template `POSTGRES_*` telah dibersihkan dari konfigurasi aktif.
+`.env.neon` menjadi sumber konfigurasi privat. Root `.env.local` dipakai script; `.env.local` dan `.env.production.local` masing-masing app memakai pooled runtime URL yang sama. File `.env.production` tidak dilacak Git; environment production diatur pada Vercel Project Settings. Variabel Supabase, SMTP legacy, `PG*`, dan template `POSTGRES_*` telah dibersihkan dari konfigurasi aktif.
 
 | Akun demo | Credential |
 |---|---|
@@ -134,7 +134,7 @@ Salin file `.env.example` root dan masing-masing app menjadi `.env.local`.
 | `OWNER_JWT_SECRET` / `POS_JWT_SECRET` | App terkait | Secret JWT minimal 32 karakter |
 | `ECHO_*`, `SILOS_*`, `VESSEL_*`, `CRON_SECRET` | Sesuai `.env.example` | Integrasi yang sudah ada |
 
-Tidak ada credential database dengan prefix `NEXT_PUBLIC_`. App tidak memerlukan URL/key Supabase lagi. `.env.neon` adalah sumber privat instalasi saat ini; scripts database default membaca `.env.local` root, sementara Next.js membaca env di direktori app. `.env.production.local` hanya untuk build/start lokal production dan tidak otomatis dikirim ke Vercel. `.env.production` tracked hanya boleh berisi nilai publik.
+Tidak ada credential database dengan prefix `NEXT_PUBLIC_`. App tidak memerlukan URL/key Supabase lagi. `.env.neon` adalah sumber privat instalasi saat ini; scripts database default membaca `.env.local` root, sementara Next.js membaca env di direktori app. `.env.production.local` hanya untuk build/start lokal production dan tidak otomatis dikirim ke Vercel. File `.env`/`.env.*` di-ignore, kecuali template `.env.example`.
 
 Driver menormalisasi URL Console: parameter libpq `channel_binding` tidak diteruskan sebagai server GUC; koneksi hosted memakai TLS dengan certificate verification (`sslmode=verify-full`). Script migrasi menolak URL Neon pooled/port transaction pooler. Snapshot/copy memakai koneksi direct.
 

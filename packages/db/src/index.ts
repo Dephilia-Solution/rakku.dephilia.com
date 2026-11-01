@@ -2,10 +2,10 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql, type SQL } from "drizzle-orm";
 import { DatabaseClient, type Catalog, type Row } from "./query";
-import { normalizeDatabaseUrl } from "./connection";
+import { configureDatabaseNetworking, normalizeDatabaseUrl } from "./connection";
 export { DatabaseClient, type DatabaseError, type QueryResult } from "./query";
 export { sql } from "drizzle-orm";
-export { normalizeDatabaseUrl } from "./connection";
+export { configureDatabaseNetworking, normalizeDatabaseUrl } from "./connection";
 
 type Connection = ReturnType<typeof postgres>;
 const connections = new Map<string, { connection: Connection; client: DatabaseClient }>();
@@ -33,6 +33,7 @@ export function createAdminClient(): DatabaseClient {
   const configured = process.env.DATABASE_URL;
   if (!configured) throw new Error("DATABASE_URL is required (Neon pooled PostgreSQL connection)");
   const url = normalizeDatabaseUrl(configured);
+  configureDatabaseNetworking();
   const existing = connections.get(url);
   if (existing) return existing.client;
   const connection = postgres(url, { max: 5, idle_timeout: 20, connect_timeout: 15, prepare: false,
@@ -50,7 +51,7 @@ export function createAdminClient(): DatabaseClient {
     const run = executor(transaction);
     await run(sql`select set_config('app.scope', 'platform', true)`);
     const scoped = new DatabaseClient(run, getCatalog);
-    // Errors returned by query helpers must be explicitly thrown by transactional use cases.
+    // DatabaseClient also marks transactions rollback-only when a query returns an error.
     return work(scoped);
   }));
   connections.set(url, { connection, client });

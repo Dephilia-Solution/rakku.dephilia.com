@@ -1,4 +1,5 @@
 export interface TenantSession {
+  session_id?: string;
   user_id: string;
   company_id: string;
   outlet_id: string;
@@ -9,6 +10,7 @@ export interface TenantSession {
 }
 
 export interface PendingLogin {
+  session_id?: string;
   company_id: string;
   company_name?: string;
   outlet_id?: string;

@@ -1,11 +1,13 @@
-import type { Menu, OwnerDashboardEmployee, OwnerDashboardOutlet } from "@rakku/shared-types";
+import type { Menu, OwnerDashboardAnalytics, OwnerDashboardEmployee, OwnerDashboardOutlet, OwnerDashboardQuery } from "@rakku/shared-types";
 import type { DemoSandbox } from "../engine";
 import { clone, deepFreeze, discountActive, fail, find } from "../business";
-import { DEMO_MENUS } from "../constants";
+import { DEMO_MENUS, demoMenuId } from "../constants";
+import { roleGrants, roleRevision } from "../access";
+import { aggregateDemoOwnerDashboard } from "./owner-dashboard";
+export { demoMenuId } from "../constants";
 
 const menuNames = ["Kasir", "Pesanan", "Laporan", "Produk", "Pajak & Diskon", "Bahan Baku", "Meja", "Pengeluaran", "Pembelian"];
 const menuIcons = ["ShoppingCart", "ClipboardList", "BarChart3", "Package", "Percent", "Boxes", "Grid3X3", "Wallet", "ShoppingBag"];
-export const demoMenuId = (slug: string) => `fixture:menu:${slug}`;
 export function demoMenus(_app: "owner" | "pos" = "owner"): Menu[] {
   return deepFreeze(DEMO_MENUS.map((slug, index) => ({ id: demoMenuId(slug), slug, name: menuNames[index], icon: menuIcons[index], path: `/${slug}`, sort_order: index + 1 })));
 }
@@ -24,7 +26,10 @@ export function createDemoProjections(sandbox: DemoSandbox) {
     const company = stable("company", { id: s.company.id, name: s.company.name, code: s.company.code, slug: "rakku-demo-cafe", logo_url: s.company.logo_url ?? null, status: "active", created_at: opened });
     const outlets = stable<OwnerDashboardOutlet[]>("outlets", s.outlets.map(row => ({ id: row.id, name: row.name, address: row.address, status: row.is_active ? "active" : "inactive", created_at: opened,
       qr_menu_slug: row.id === "fixture:pusat" ? "pusat" : row.id === "fixture:taman" ? "taman" : row.id,
-      employee_count: s.employees.filter(e => (e.all_outlets && e.is_active) || (!e.all_outlets && e.outlet_ids.includes(row.id))).length })));
+      employee_count: s.employees.filter(e => e.is_active && (e.all_outlets || e.outlet_ids.includes(row.id))).length,
+      products_count: s.products.filter(p => p.outlet_id === row.id).length,
+      tables_count: s.tables.filter(t => t.outlet_id === row.id).length,
+      categories_count: s.categories.filter(c => c.outlet_id === row.id).length })));
     const employees = stable<OwnerDashboardEmployee[]>("employees", s.employees.map(row => ({ id: row.id, name: row.name, username: row.username, role_id: row.role_id,
       role_name: s.roles.find(role => role.id === row.role_id)?.name ?? "", all_outlets: row.all_outlets ?? false, status: row.is_active ? "active" : "inactive", avatar_url: null,
       outlets: row.outlet_ids.map(id => { const outlet = find(s.outlets, id); return { id, name: outlet.name }; }), created_at: opened })));
@@ -49,7 +54,8 @@ export function createDemoProjections(sandbox: DemoSandbox) {
     const owner = stable("owner", sandbox.getOwnerSession());
     const tenant = stable("tenant", s.session.authenticated && s.session.mode === "pos" ? sandbox.getTenantSession() : null);
     const menus = stable("menus", demoMenus(s.session.mode).filter(menu => s.menus.includes(menu.slug)));
-    const roles = stable("roles", s.roles.map(row => ({ id: row.id, name: row.name, company_id: row.company_id })));
+    const roles = stable("roles", s.roles.map(row => ({ id: row.id, name: row.name, company_id: row.company_id,
+      menus: row.menus, grants: roleGrants(row), revision: roleRevision(row), menu_access: row.menus.map(demoMenuId) })));
     const invoices = stable("invoices", s.invoices.map(row => ({ ...row, plans: { name: s.plans.find(plan => plan.id === row.plan_id)?.name ?? "" } })));
     const balance = stable("balance", s.balance), banks = stable("banks", s.banks), withdrawals = stable("withdrawals", s.withdrawals), transactions = stable("transactions", [...s.ledger].reverse());
     const register = stable("register", { products: activeProducts, categories, modifiers, initialPricingTiers: tiers.filter(row => row.is_active), initialProductTierPrices: productTierPrices,
@@ -71,5 +77,9 @@ export function getOwnerDashboardData(sandbox: DemoSandbox) {
   const completed = view.orders.filter(row => row.status === "completed");
   return { owner: view.owner, session: view.owner, outlets: view.outlets, employees: view.employees, totalRevenue: completed.reduce((sum, row) => sum + row.total_price, 0), totalTransactions: completed.length,
     activeOutlets: view.outlets.filter(row => row.status === "active").length, activeEmployees: view.employees.filter(row => row.status === "active").length };
+}
+/** Initial demo-route payload; the local GET uses the identical pure helper. */
+export function getDemoOwnerDashboardAnalytics(sandbox: DemoSandbox, query: OwnerDashboardQuery = {}): OwnerDashboardAnalytics {
+  return deepFreeze(aggregateDemoOwnerDashboard(sandbox.getSnapshot(), query));
 }
 export type DemoViewData = ReturnType<typeof demoViewData>;

@@ -22,6 +22,7 @@ async function api(url: string, options?: RequestInit) {
 }
 
 async function createOrder(data: {
+  requestId?: string;
   orderType: OrderType;
   paymentMethod: PaymentMethod;
   items: CartItem[];

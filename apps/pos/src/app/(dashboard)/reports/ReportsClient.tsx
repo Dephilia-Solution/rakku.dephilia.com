@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { OrderWithItems } from "@rakku/shared-types";
+import { OrderWithItems, isWithinJakartaRange, type ReportRange } from "@rakku/shared-types";
 import { formatCurrency, formatDate } from "@pos/lib/format";
 import EmailReportModal from "@pos/components/reports/EmailReportModal";
 import { BarChart3, TrendingUp, CupSoda, Mail } from "lucide-react";
@@ -10,23 +10,9 @@ export default function ReportsClient({ orders }: { orders: OrderWithItems[] }) 
   const [dateRange, setDateRange] = useState("today");
   const [showEmailModal, setShowEmailModal] = useState(false);
 
-  const today = new Date();
-  const filtered = orders.filter((o) => {
-    const d = new Date(o.created_at);
-    if (dateRange === "today")
-      return d.toDateString() === today.toDateString();
-    if (dateRange === "yesterday") {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      return d.toDateString() === y.toDateString();
-    }
-    if (dateRange === "week") {
-      const w = new Date(today);
-      w.setDate(w.getDate() - 7);
-      return d >= w;
-    }
-    return true;
-  });
+  const filtered = orders.filter((order) =>
+    isWithinJakartaRange(order.created_at, dateRange as ReportRange)
+  );
 
   const totalRevenue = filtered.reduce((s, o) => s + o.total_price, 0);
   const totalTransactions = filtered.length;

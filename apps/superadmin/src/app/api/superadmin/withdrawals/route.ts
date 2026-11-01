@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/auth/database";
 
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-    return data.user;
-  });
-}
-
 export async function GET(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const supabase = await createClient();
 
     let query = supabase
       .from("withdrawals")

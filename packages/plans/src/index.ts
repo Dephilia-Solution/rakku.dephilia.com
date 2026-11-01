@@ -1,4 +1,5 @@
-import type { DatabaseClient } from "@rakku/db";
+import { sql, type DatabaseClient } from "@rakku/db";
+import { jakartaRangeBounds } from "@rakku/shared-types";
 import type {
   Plan,
   PlanCheck,
@@ -187,10 +188,7 @@ export function hasFeature(plan: Plan, feature: PlanFeatureKey): boolean {
 }
 
 function startOfMonth(): Date {
-  const start = new Date();
-  start.setDate(1);
-  start.setHours(0, 0, 0, 0);
-  return start;
+  return new Date(jakartaRangeBounds("month").start!);
 }
 
 export async function countMonthlyTransactions(
@@ -349,10 +347,10 @@ export async function getUsageSummary(
   supabase: DatabaseClient,
   companyId: string
 ): Promise<UsageSummary> {
-  const resolved = await getCompanyPlan(supabase, companyId);
-  const counts = await Promise.all(
-    PLAN_LIMIT_KEYS.map((key) => countResource(supabase, companyId, key))
-  );
+  const [resolved, counts] = await Promise.all([
+    getCompanyPlan(supabase, companyId),
+    countPlanResources(supabase, companyId),
+  ]);
 
   const usage = {} as Record<PlanLimitKey, number>;
   const limits = {} as Record<PlanLimitKey, number>;
@@ -388,4 +386,16 @@ export async function getUsageSummary(
     limits,
     features: resolved.plan.features ?? {},
   };
+}
+
+/** Five shell quota counts in one SQL request instead of five parallel transactions. */
+async function countPlanResources(supabase: DatabaseClient, companyId: string): Promise<number[]> {
+  const [row] = await supabase.execute(sql`
+    select
+      (select count(*) from public.outlets where company_id=${companyId}) as outlets,
+      (select count(*) from public.users where company_id=${companyId}) as employees,
+      (select count(*) from public.products where company_id=${companyId}) as products,
+      (select count(*) from public.ingredients where company_id=${companyId}) as ingredients,
+      (select count(*) from public.orders where company_id=${companyId} and status='completed' and created_at>=${startOfMonth().toISOString()}::timestamptz) as transactions`);
+  return PLAN_LIMIT_KEYS.map(key => Number(row?.[key] ?? 0));
 }

@@ -2,6 +2,7 @@ import type { Plan, PaymentIntent, Withdrawal } from "@rakku/shared-types";
 import type { DemoOrder, DemoState } from "./models";
 import { addSubscriptionPeriod, CASHIER_MENUS, DEMO_MENUS, QRIS_MDR_RATE } from "./constants";
 import { addTime, deriveBalance, jakartaDate, quote, shiftedDate } from "./business";
+import { fullMenusGrant } from "./access";
 
 export const DEMO_IDS = { company: "fixture:company", pusat: "fixture:pusat", taman: "fixture:taman", manager: "fixture:manager", cashier: "fixture:cashier" } as const;
 export const fixtureId = (outlet: string, kind: string, key: string | number): string => `${outlet}:${kind}:${key}`;
@@ -48,8 +49,8 @@ export function createFixture(now: string, generation: string): DemoState {
       { id: DEMO_IDS.pusat, company_id, name: "Rakku Demo Cafe — Pusat", address: "Jl. Contoh Raya No. 10", is_active: true },
       { id: DEMO_IDS.taman, company_id, name: "Rakku Demo Cafe — Taman", address: "Jl. Contoh Taman No. 25", is_active: true },
     ], employees: [], roles: [
-      { id: DEMO_IDS.manager, company_id, name: "Manager Outlet", menus: [...DEMO_MENUS] },
-      { id: DEMO_IDS.cashier, company_id, name: "Kasir", menus: [...CASHIER_MENUS] },
+      { id: DEMO_IDS.manager, company_id, name: "Manager Outlet", menus: [...DEMO_MENUS], grants: fullMenusGrant(DEMO_MENUS) },
+      { id: DEMO_IDS.cashier, company_id, name: "Kasir", menus: [...CASHIER_MENUS], grants: fullMenusGrant(CASHIER_MENUS) },
     ], categories: [], tiers: [], products: [], ingredients: [], tables: [], orders: [], movements: [], purchases: [], expenses: [], taxes: [], discounts: [], payments: [], ledger: [], balance: null,
     withdrawals: [], banks: [], invoices: [], outbox: [], plan: "business", plans: fixturePlans(now), menus: [],
     subscription: { id: "fixture:subscription:business", company_id, plan_id: "fixture:plan:business", status: "active", started_at: now,
@@ -65,11 +66,11 @@ export function createFixture(now: string, generation: string): DemoState {
     const fid = (kind: string, key: string | number) => fixtureId(outlet.id, kind, key);
     ["Coffee", "Non-Coffee", "Food"].forEach((name, i) => state.categories.push({ id: fid("category", i), company_id, outlet_id: outlet.id, name, sort_order: i + 1 }));
     ["Dine In", "Take Away", "Gojek", "Grab"].forEach((name, i) => state.tiers.push({ id: fid("tier", i), company_id, outlet_id: outlet.id, name, slug: ["dine-in", "take-away", "gojek", "grab"][i], is_active: true, sort_order: i + 1 }));
-    ingredientData.forEach(([name, unit, pusat, taman, min, cost], i) => state.ingredients.push({ id: fid("ingredient", i), company_id, outlet_id: outlet.id,
+    ingredientData.forEach(([name, unit, pusat, taman, min, cost], i) => state.ingredients.push({ id: fid("ingredient", i), code: `BHN${String(i + 1).padStart(3, "0")}`, company_id, outlet_id: outlet.id,
       name, unit, stock_quantity: outletIndex ? taman : pusat, min_stock_alert: min, cost_per_unit: cost, is_active: true, created_at: now, updated_at: now }));
     productData.forEach(([name, base, online, category, recipe], i) => {
       const id = fid("product", i);
-      state.products.push({ id, company_id, outlet_id: outlet.id, name, price: base * 1000, category_id: fid("category", category), sort_order: i + 1,
+      state.products.push({ id, code: `PRD${String(i + 1).padStart(3, "0")}`, company_id, outlet_id: outlet.id, name, price: base * 1000, category_id: fid("category", category), sort_order: i + 1,
         image_url: `/demo-assets/${["cafe", "cafe", "cafe", "cafe", "cafe", "latte", "chocolate", "tea", "food", "fries"][i]}.svg`, is_active: true, description: ["Espresso pekat dari biji kopi pilihan, disajikan hangat.", "Espresso dengan air mineral, ringan dan aromatik.", "Espresso dengan susu hangat dan foam lembut.", "Kopi susu creamy dengan espresso dan susu full cream.", "Kopi susu dingin dengan sirup gula aren dan es batu.", "Matcha lembut dengan susu full cream dan es batu.", "Cokelat creamy dengan susu full cream, disajikan dingin.", "Teh lemon segar dengan simple syrup dan es batu.", "Croissant mentega hangat dengan lapisan renyah.", "Kentang goreng renyah dengan saus tomat."][i],
         prices: Object.fromEntries([base, base, online, online].map((p, t) => [fid("tier", t), p * 1000])),
         recipe: recipe.map(([ingredient, quantity_used]) => ({ ingredient_id: fid("ingredient", ingredient), quantity_used })),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
+import { runFinancialCommand } from "@rakku/db/financial-commands";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 
 export async function GET() {
@@ -43,25 +44,32 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from("expenses")
-    .insert({
-      company_id: session.company_id,
-      outlet_id: session.outlet_id,
-      category: category.trim(),
-      amount,
-      description: description ?? null,
-      expense_date: expense_date ?? new Date().toISOString(),
-      created_by: session.user_id ?? null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const requestId = typeof body.requestId === "string" ? body.requestId : request.headers.get("idempotency-key");
+    const data = await runFinancialCommand(supabase, {
+      companyId: session.company_id,
+      requestId,
+      command: "expense.create",
+      payload: body,
+      execute: async tx => {
+        const result = await tx.from("expenses").insert({
+          company_id: session.company_id,
+          outlet_id: session.outlet_id,
+          category: category.trim(),
+          amount: Math.round(amount * 100) / 100,
+          description: description ?? null,
+          expense_date: expense_date ?? new Date().toISOString(),
+          created_by: session.user_id ?? null,
+        }).select().single();
+        if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal menyimpan pengeluaran");
+        return result.data;
+      },
+    });
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    const status = (error as { status?: number }).status ?? 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal menyimpan pengeluaran" }, { status });
   }
-
-  return NextResponse.json(data, { status: 201 });
 }
 
 export async function PATCH(request: NextRequest) {

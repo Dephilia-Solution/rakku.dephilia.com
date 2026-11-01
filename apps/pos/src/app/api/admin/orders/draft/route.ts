@@ -1,11 +1,19 @@
+import { quoteOrder, CheckoutError } from "@rakku/pricing/quote";
+import { checkoutIdentity, findCheckout } from "@rakku/db/checkout";
+import { checked, validateSplits } from "@rakku/db/merchant";
+import { deleteDraft } from "@rakku/db/merchant";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/db";
+import { createAdminClient as createPlatformClient } from "@rakku/db";
 import { checkLimit } from "@rakku/plans";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
+import { requireSessionCapability } from "@/lib/auth/authorize";
+import { isCheckoutPaused } from "@rakku/db/runtime-flags";
 import { deductStockForOrder } from "@rakku/inventory";
 import { sql } from "@rakku/db";
+import type { SplitPayment } from "@rakku/shared-types";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getTenantSessionFromCookies();
 
   if (!session) {
@@ -13,6 +21,13 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
+
+  if (request.nextUrl.searchParams.get("count_only") === "1") {
+    const result = await supabase.from("orders").select("id", { count: "exact", head: true })
+      .eq("company_id", session.company_id).eq("outlet_id", session.outlet_id).eq("status", "draft");
+    if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+    return NextResponse.json({ count: result.count ?? 0 }, { headers: { "Cache-Control": "private, no-store" } });
+  }
 
   const { data, error } = await supabase
     .from("orders")
@@ -31,34 +46,39 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { items, customerName, note, tableId, pricingTierId } = body;
+  const { customerName, note, tableId, pricingTierId } = body;
 
-  if (!customerName || !customerName.trim()) {
+  if (typeof customerName !== "string" || !customerName.trim()) {
     return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 });
   }
 
   const session = await getTenantSessionFromCookies();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!Array.isArray(items) || !items.length) return NextResponse.json({ error: "Items wajib diisi" }, { status: 400 });
+  if (!Array.isArray(body.items) || !body.items.length) return NextResponse.json({ error: "Items wajib diisi" }, { status: 400 });
   const cashierName = session.user_name ?? null;
 
   try {
   return await createAdminClient().transaction(async supabase => {
 
-  const subtotal = items.reduce((sum: number, item: { unit_price: number; quantity: number }) => sum + (item.unit_price * item.quantity), 0);
-  const total = subtotal;
+  const identity = checkoutIdentity(body.requestId, body);
+  const prior = await findCheckout(supabase, session, identity);
+  if (prior) return NextResponse.json(prior);
+  const quote = await quoteOrder(supabase, session, { items: body.items, pricingTierId, tableId });
+  const { items, subtotal, total } = quote;
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
-      order_type: "dine_in",
+      ...identity,
+      rounding_amount: quote.roundingAmount,
+      order_type: body.orderType || "dine_in",
       payment_method: "later",
       subtotal,
       tax_rate: 0,
-      tax_amount: 0,
-      taxes: null,
-      discounts: null,
-      discount_amount: 0,
+      tax_amount: quote.totalTaxAmount,
+      taxes: quote.appliedTaxes,
+      discounts: quote.appliedDiscounts,
+      discount_amount: quote.discountAmount,
       total_price: total,
       customer_name: customerName.trim(),
       table_id: tableId || null,
@@ -79,13 +99,14 @@ export async function POST(request: NextRequest) {
     throw new Error(orderError?.message ?? "Gagal membuat draft");
   }
 
-  const orderItems = items.map((item: { product: { id: string; name: string }; modifier_label?: string | null; note?: string | null; unit_price: number; quantity: number; subtotal: number }) => ({
+  const orderItems = items.map((item) => ({
     order_id: order.id,
     product_id: item.product.id,
     product_name: item.product.name,
     unit_price: item.unit_price,
     quantity: item.quantity,
     modifier_label: item.modifier_label || null,
+    modifier_ids: item.modifier_ids,
     note: item.note || null,
     subtotal: item.subtotal,
   }));
@@ -101,149 +122,70 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(order, { status: 201 });
   });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal membuat draft" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal membuat draft" }, { status: Number((error as { status?: number }).status) || 500 });
   }
 }
 
 export async function PATCH(request: NextRequest) {
   const session = await getTenantSessionFromCookies();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-  const body = await request.json();
-  const {
-    status,
-    payment_status,
-    payment_method,
-    cashier_name,
-    pricing_tier_id,
-    table_id,
-    subtotal,
-    tax_rate,
-    tax_amount,
-    taxes,
-    discounts,
-    total_price,
-    order_type,
-    items,
-  } = body;
-
-  if (!id) {
-    return NextResponse.json({ error: "id wajib diisi" }, { status: 400 });
-  }
-
+  const id = request.nextUrl.searchParams.get("id");
+  const body = await request.json().catch(() => null);
+  if (!id || !body || !["draft", "completed"].includes(body.status)) return NextResponse.json({ error: "Draft tidak valid" }, { status: 400 });
   try {
-  return await createAdminClient().transaction(async supabase => {
-  await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${session.company_id},0))`);
-  const locked = await supabase.execute(sql`select * from public.orders where id=${id} for update`);
-  if (!locked[0]) return NextResponse.json({ error: "Draft tidak ditemukan" }, { status: 404 });
-  if (locked[0].status === "completed") return NextResponse.json(locked[0]);
-  if (locked[0].status !== "draft") return NextResponse.json({ error: "Order bukan draft" }, { status: 400 });
-  if (status === "completed") {
-    const { data: existing } = await supabase
-      .from("orders")
-      .select("company_id, status")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (existing && existing.status !== "completed") {
-      const limit = await checkLimit(
-        supabase,
-        existing.company_id as string,
-        "transactions"
-      );
-      if (!limit.allowed) {
-        return NextResponse.json(limit, { status: 403 });
+    if (body.status === "completed") {
+      await requireSessionCapability(session, "register", "can_create");
+      if (await isCheckoutPaused(createPlatformClient())) {
+        return NextResponse.json({ error: "Checkout sedang dijeda sementara oleh operator.", code: "CHECKOUT_PAUSED" }, { status: 503 });
       }
     }
-  }
-
-  const orderUpdates: Record<string, unknown> = {};
-  if (status) orderUpdates.status = status;
-  if (payment_status) orderUpdates.payment_status = payment_status;
-  if (payment_method) orderUpdates.payment_method = payment_method;
-  if (cashier_name) orderUpdates.cashier_name = cashier_name;
-  if (pricing_tier_id !== undefined) orderUpdates.pricing_tier_id = pricing_tier_id;
-  if (subtotal !== undefined) orderUpdates.subtotal = subtotal;
-  if (tax_rate !== undefined) orderUpdates.tax_rate = tax_rate;
-  if (tax_amount !== undefined) orderUpdates.tax_amount = tax_amount;
-  if (taxes !== undefined) orderUpdates.taxes = taxes;
-  if (discounts !== undefined) orderUpdates.discounts = discounts;
-  if (total_price !== undefined) orderUpdates.total_price = total_price;
-  if (order_type) orderUpdates.order_type = order_type;
-  if (table_id !== undefined) orderUpdates.table_id = table_id;
-
-  const { data, error } = await supabase
-    .from("orders")
-    .update(orderUpdates)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (items && Array.isArray(items)) {
-    const deleted = await supabase.from("order_items").delete().eq("order_id", id);
-    if (deleted.error) throw new Error(deleted.error.message);
-
-    if (items.length > 0) {
-      const orderItems = items.map(
-        (item: {
-          product_id: string;
-          product_name: string;
-          unit_price: number;
-          quantity: number;
-          modifier_label: string | null;
-          note: string | null;
-          subtotal: number;
-        }) => ({
-          order_id: id,
-          product_id: item.product_id,
-          product_name: item.product_name,
-          unit_price: item.unit_price,
-          quantity: item.quantity,
-          modifier_label: item.modifier_label,
-          note: item.note,
-          subtotal: item.subtotal,
-        })
-      );
-
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
-
-      if (itemsError) {
-        throw new Error(itemsError.message);
+    return await createAdminClient().transaction(async supabase => {
+      await supabase.execute(sql`select pg_advisory_xact_lock(hashtextextended(${session.company_id},0))`);
+      const [order] = await supabase.execute(sql`select * from public.orders where id=${id} and company_id=${session.company_id} and outlet_id=${session.outlet_id} for update`);
+      if (!order) return NextResponse.json({ error: "Draft tidak ditemukan" }, { status: 404 });
+      if (order.status === "completed") return NextResponse.json(order);
+      if (order.status !== "draft") throw new CheckoutError("Order bukan draft");
+      if (body.status === "completed" && !["cash", "card", "qris"].includes(body.payment_method)) throw new CheckoutError("Metode bayar tidak valid");
+      const quote = await quoteOrder(supabase, session, { items: body.items, pricingTierId: body.pricing_tier_id ?? order.pricing_tier_id, tableId: body.table_id ?? order.table_id });
+      if (body.status === "completed" && Number(body.total_price) !== quote.total) throw new CheckoutError("Harga berubah. Muat ulang katalog sebelum membayar.");
+      validateSplits(body.split_payments, quote.total);
+      if (body.status === "completed" && body.payment_method === "cash" && !body.split_payments?.length
+        && (!Number.isFinite(body.amount_paid) || body.amount_paid < quote.total)) throw new CheckoutError("Nominal tunai kurang dari total tagihan");
+      if (body.status === "completed") {
+        const limit = await checkLimit(supabase, session.company_id, "transactions");
+        if (!limit.allowed) return NextResponse.json(limit, { status: 403 });
       }
-    }
-  }
-
-  // Deduksi stok memakai item terbaru dan berada dalam transaksi completion.
-  if (status === "completed") {
-    await deductStockForOrder(
-      supabase,
-      id,
-      (data?.company_id as string | null) ?? null,
-      (data?.outlet_id as string | null) ?? null
-    );
-
-    // Tandai meja occupied dalam transaksi yang sama.
-    const resolvedTableId = table_id ?? data?.table_id ?? null;
-    if (resolvedTableId) {
-      const tableResult = await supabase
-        .from("dining_tables")
-        .update({ status: "occupied" })
-        .eq("id", resolvedTableId);
-      if (tableResult.error) throw new Error(tableResult.error.message);
-    }
-  }
-
-  return NextResponse.json(data);
-  });
+      checked(await supabase.from("order_items").delete().eq("order_id", id));
+      checked(await supabase.from("order_items").insert(quote.items.map(item => ({ order_id: id, product_id: item.product.id,
+        product_name: item.product.name, unit_price: item.unit_price, quantity: item.quantity, subtotal: item.subtotal,
+        modifier_label: item.modifier_label, modifier_ids: item.modifier_ids, note: item.note }))));
+      const data = checked(await supabase.from("orders").update({ status: body.status,
+        payment_status: body.status === "completed" ? "paid" : "unpaid",
+        payment_method: body.status === "completed" ? body.payment_method : "later",
+        cashier_id: session.user_id, cashier_name: session.user_name,
+        pricing_tier_id: body.pricing_tier_id ?? order.pricing_tier_id,
+        table_id: body.table_id === undefined ? order.table_id : body.table_id,
+        order_type: body.order_type ?? order.order_type,
+        customer_name: typeof body.customer_name === "string" ? body.customer_name.trim() : order.customer_name,
+        note: typeof body.note === "string" ? body.note.slice(0, 1000) : order.note,
+        subtotal: quote.subtotal, total_price: quote.total, tax_rate: 0, tax_amount: quote.totalTaxAmount,
+        discount_amount: quote.discountAmount, taxes: quote.appliedTaxes, discounts: quote.appliedDiscounts,
+        rounding_amount: quote.roundingAmount, split_bill: !!body.split_payments?.length,
+      }).eq("id", id).select().single());
+      if (body.split_payments?.length) checked(await supabase.from("split_payments").insert(body.split_payments.map((split: SplitPayment) => ({
+        order_id: id, amount: split.amount, payment_method: split.payment_method, status: "paid", customer_name: split.customer_name ?? null, items: split.items ?? [],
+      }))));
+      if (body.status === "completed") {
+        await deductStockForOrder(supabase, id, session.company_id, session.outlet_id, session.user_id);
+        if (data.table_id) {
+          const table = await supabase.from("dining_tables").update({ status: "occupied" }).eq("id", data.table_id);
+          if (table.error) throw new Error(table.error.message);
+        }
+      }
+      return NextResponse.json(data);
+    });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal memperbarui draft" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal memperbarui draft" }, { status: Number((error as { status?: number }).status) || 500 });
   }
 }
 
@@ -255,15 +197,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "id wajib diisi" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from("orders")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
+  const session = await getTenantSessionFromCookies();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const removed = await deleteDraft(createAdminClient(), session.company_id, session.outlet_id, id);
+  if (!removed) return NextResponse.json({ error: "Draft tidak ditemukan atau sudah dibayar" }, { status: 409 });
   return NextResponse.json({ success: true });
 }

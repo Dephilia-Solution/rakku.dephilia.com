@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/db";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import InvoicePageClient from "./InvoicePageClient";
 
-export default async function InvoicePage({ params }: { params: { id: string } }) {
+export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getTenantSessionFromCookies();
   if (!session) return notFound();
 
@@ -11,7 +11,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   const { data: order } = await supabase
     .from("orders")
     .select("*, order_items(*), dining_tables!fk_orders_table(name)")
-    .eq("id", params.id)
+    .eq("id", (await params).id)
     .eq("company_id", session.company_id)
     .eq("outlet_id", session.outlet_id)
     .single();

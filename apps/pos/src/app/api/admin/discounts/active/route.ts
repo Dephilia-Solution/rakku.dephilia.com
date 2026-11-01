@@ -18,7 +18,7 @@ export async function GET() {
     .eq("outlet_id", session.outlet_id)
     .eq("is_active", true)
     .lte("start_date", now)
-    .gte("end_date", now);
+    .gte("end_date", now).order("created_at").order("id");
 
   if (pdError) {
     return NextResponse.json({ error: pdError.message }, { status: 500 });
@@ -31,7 +31,7 @@ export async function GET() {
     .eq("outlet_id", session.outlet_id)
     .eq("is_active", true)
     .lte("start_date", now)
-    .gte("end_date", now);
+    .gte("end_date", now).order("created_at").order("id");
 
   if (odError) {
     return NextResponse.json({ error: odError.message }, { status: 500 });

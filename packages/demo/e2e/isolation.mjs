@@ -117,11 +117,12 @@ export function allowedRequest(request, config) {
     || /^\/(?:sw\.js|swe-worker-[\w-]+\.js|workbox-[\w-]+\.js|manifest(?:\.webmanifest|\.json)|favicon\.ico|icon\.png|apple-icon\.png)$/.test(url.pathname);
 }
 
-export async function createEnvironment(browser, config, { pwa = false, history = false } = {}) {
+export async function createEnvironment(browser, config, { pwa = false, history = false, device = {} } = {}) {
   const events = [], violations = [], errors = [], consoleMessages = [], requests = [], pages = [], observations = [];
   const observed = new Map(), auditSessions = new Map();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 }, locale: 'id-ID', timezoneId: 'Asia/Jakarta',
+    ...device,
     serviceWorkers: pwa ? 'allow' : 'block',
     storageState: {
       cookies: [],

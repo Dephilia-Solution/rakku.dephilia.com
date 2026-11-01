@@ -15,13 +15,6 @@ const NUMERIC_FIELDS = [
   "sort_order",
 ] as const;
 
-function requireSuperadmin() {
-  const supabase = createClient();
-  return supabase.then((s) => s.auth.getUser()).then(({ data }) => {
-    if (!data?.user) throw new Error("Unauthorized");
-  });
-}
-
 function buildPayload(body: Record<string, unknown>) {
   const payload: Record<string, unknown> = {};
 
@@ -55,7 +48,6 @@ function buildPayload(body: Record<string, unknown>) {
 
 export async function GET() {
   try {
-    await requireSuperadmin();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("plans")
@@ -74,7 +66,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const body = await request.json();
     const payload = buildPayload(body);
 
@@ -85,7 +77,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
     const { data, error } = await supabase
       .from("plans")
       .insert(payload)
@@ -104,7 +95,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
@@ -114,7 +105,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const payload = buildPayload(body);
 
-    const supabase = await createClient();
     const { error } = await supabase
       .from("plans")
       .update(payload)
@@ -132,14 +122,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireSuperadmin();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    const supabase = await createClient();
     const { count } = await supabase
       .from("companies")
       .select("id", { count: "exact", head: true })

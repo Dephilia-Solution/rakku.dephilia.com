@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clearSessionCookie } from "@/lib/auth/tenant-session";
-import { clearPendingLoginCookie } from "@/lib/auth/pending-login";
+import { clearSessionCookie, verifySession } from "@/lib/auth/tenant-session";
+import { clearPendingLoginCookie, getPendingLoginFromCookies } from "@/lib/auth/pending-login";
+import { revokeSession } from "@rakku/db/sessions";
 import { getTenantSessionFromCookies } from "@/lib/auth/tenant-session";
 import { logAuthEvent } from "@rakku/auth-utils";
 import { createAdminClient } from "@rakku/db";
@@ -20,10 +21,15 @@ function getClientIp(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getTenantSessionFromCookies();
+  const db = createAdminClient();
+  const token = request.cookies.get("session")?.value;
+  const signed = token ? await verifySession(token) : null;
+  const pending = await getPendingLoginFromCookies();
+  await revokeSession(db, signed?.session_id);
+  await revokeSession(db, pending?.session_id);
   const ipAddress = getClientIp(request);
   const userAgent = request.headers.get("user-agent") || undefined;
-
-  const session = await getTenantSessionFromCookies();
 
   if (session) {
     const supabase = createAdminClient();
@@ -46,9 +52,7 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/login", request.url), {
     status: 303,
   });
-  response.headers.set(
-    "Set-Cookie",
-    [clearSessionCookie(), clearPendingLoginCookie()].join(", "),
-  );
+  response.headers.append("Set-Cookie", clearSessionCookie());
+  response.headers.append("Set-Cookie", clearPendingLoginCookie());
   return response;
 }

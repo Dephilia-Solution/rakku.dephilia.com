@@ -3,9 +3,9 @@ import { getPublicMenuBySlug } from "@/lib/supabase/queries.server";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const slug = params.slug;
+  const slug = (await params).slug;
 
   if (!slug || !slug.trim()) {
     return NextResponse.json({ error: "Slug wajib diisi" }, { status: 400 });

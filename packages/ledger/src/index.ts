@@ -10,6 +10,7 @@ export const QRIS_MDR_RATE = 0.007;
 export const EMPTY_BALANCE: Omit<MerchantBalance, "company_id"> = {
   available_balance: 0,
   pending_balance: 0,
+  unsettled_balance: 0,
   total_credited: 0,
   total_fees: 0,
   total_withdrawn: 0,
@@ -21,6 +22,7 @@ export interface BalanceMutationInput {
   type: BalanceTransactionType;
   amount: number;
   pendingDelta?: number;
+  unsettledDelta?: number;
   feeAmount?: number;
   outletId?: string | null;
   referenceType?: string | null;
@@ -33,6 +35,7 @@ export interface BalanceMutationResult {
   ok: boolean;
   txId?: string;
   available?: number;
+  unsettled?: number;
   inserted?: boolean;
   error?: string;
 }
@@ -40,6 +43,7 @@ export interface BalanceMutationResult {
 interface RpcRow {
   tx_id: string;
   new_available: number | string;
+  new_unsettled: number | string;
   inserted: boolean;
 }
 
@@ -57,6 +61,7 @@ export async function applyBalanceTransaction(
     p_type: input.type,
     p_amount: input.amount,
     p_pending_delta: input.pendingDelta ?? 0,
+    p_unsettled_delta: input.unsettledDelta ?? 0,
     p_fee_amount: input.feeAmount ?? 0,
     p_reference_type: input.referenceType ?? null,
     p_reference_id: input.referenceId ?? null,
@@ -79,6 +84,7 @@ export async function applyBalanceTransaction(
     ok: true,
     txId: row.tx_id,
     available: Number(row.new_available),
+    unsettled: Number(row.new_unsettled),
     inserted: Boolean(row.inserted),
   };
 }
@@ -105,10 +111,40 @@ export async function creditBalance(
     type: "sale_credit",
     amount: net,
     pendingDelta: 0,
+    unsettledDelta: net,
     feeAmount: fee,
     referenceType: input.referenceType,
     referenceId: input.referenceId,
     note: input.note ?? `Pembayaran QRIS (MDR ${fee})`,
+    createdBy: input.createdBy ?? "system",
+  });
+}
+
+/** Pindahkan dana yang sudah diterima provider dari unsettled ke available. */
+export async function settleBalance(
+  supabase: DatabaseClient,
+  input: {
+    companyId: string;
+    amount: number;
+    referenceType: string;
+    referenceId: string;
+    note?: string | null;
+    createdBy?: string | null;
+  }
+): Promise<BalanceMutationResult> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, error: "Nominal settlement tidak valid" };
+  }
+  return applyBalanceTransaction(supabase, {
+    companyId: input.companyId,
+    type: "settlement_credit",
+    amount: input.amount,
+    pendingDelta: 0,
+    unsettledDelta: -input.amount,
+    feeAmount: 0,
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+    note: input.note ?? "Settlement provider",
     createdBy: input.createdBy ?? "system",
   });
 }
@@ -194,6 +230,7 @@ export async function adjustBalance(
     companyId: string;
     amount: number;
     note: string;
+    referenceId?: string | null;
     createdBy?: string | null;
   }
 ): Promise<BalanceMutationResult> {
@@ -203,7 +240,7 @@ export async function adjustBalance(
     amount: input.amount,
     note: input.note,
     referenceType: "manual",
-    referenceId: null,
+    referenceId: input.referenceId ?? null,
     createdBy: input.createdBy ?? "superadmin",
   });
 }
@@ -224,6 +261,7 @@ export async function getBalance(
     company_id: data.company_id as string,
     available_balance: Number(data.available_balance),
     pending_balance: Number(data.pending_balance),
+    unsettled_balance: Number(data.unsettled_balance ?? 0),
     total_credited: Number(data.total_credited),
     total_fees: Number(data.total_fees),
     total_withdrawn: Number(data.total_withdrawn),

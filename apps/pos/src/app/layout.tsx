@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import DevServiceWorkerCleanup from "@/components/layout/DevServiceWorkerCleanup";
 import "./globals.css";
+import SessionGuard from "@/components/layout/SessionGuard";
 
 const APP_NAME = "Rakku POS";
 const APP_DEFAULT_TITLE = "Rakku POS";
@@ -63,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <body className="antialiased">
         <script
           dangerouslySetInnerHTML={{
@@ -71,6 +72,7 @@ export default function RootLayout({
           }}
         />
         <DevServiceWorkerCleanup />
+        <SessionGuard />
         {children}
       </body>
     </html>

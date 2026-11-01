@@ -74,6 +74,7 @@ export async function uploadFile(params: SilosUploadParams): Promise<SilosFile> 
     method: "POST",
     headers: { Authorization: `Bearer ${key}` },
     body: formData,
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {
@@ -90,8 +91,11 @@ export async function deleteFile(fileId: string): Promise<void> {
   const res = await fetch(`${url}/api/v1/files/${encodeURIComponent(fileId)}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(45_000),
   });
 
+  // A cleanup retry after a successful DELETE/transport loss is already complete.
+  if (res.status === 404) return;
   if (!res.ok) {
     throw new Error(await readError(res, "Hapus file di Silos gagal"));
   }

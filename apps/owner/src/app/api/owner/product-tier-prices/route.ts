@@ -1,3 +1,4 @@
+import { replaceProductTierPrices } from "@rakku/db/merchant";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSessionFromCookies } from "@/lib/auth/owner-session";
 import { createAdminClient } from "@rakku/db";
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
 
   if (productId) {
+    const { data: product } = await supabase.from("products").select("id").eq("id", productId).eq("company_id", session.company_id).maybeSingle();
+    if (!product) return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
     const { data, error } = await supabase
       .from("product_tier_prices")
       .select("*")
@@ -87,39 +90,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Pastikan produk milik perusahaan owner
-  const { data: product } = await supabase
-    .from("products")
-    .select("id")
-    .eq("id", String(productId))
-    .eq("company_id", session.company_id)
-    .maybeSingle();
-
-  if (!product) {
-    return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
+  try {
+    await replaceProductTierPrices(supabase, session.company_id, String(productId), prices);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal menyimpan harga" }, { status: 400 });
   }
-
-  // Hapus harga tier lama, lalu insert yang baru (replace-all)
-  await supabase
-    .from("product_tier_prices")
-    .delete()
-    .eq("product_id", String(productId));
-
-  if (prices.length > 0) {
-    const inserts = prices.map((p: { tier_id: string; price: number }) => ({
-      product_id: String(productId),
-      tier_id: p.tier_id,
-      price: Number(p.price) || 0,
-    }));
-
-    const { error } = await supabase
-      .from("product_tier_prices")
-      .insert(inserts);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-  }
-
-  return NextResponse.json({ success: true });
 }
