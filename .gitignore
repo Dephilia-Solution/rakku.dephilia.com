@@ -4,6 +4,12 @@ node_modules/
 .turbo/
 dist/
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
 .env.local
 .env*.local
 .env.neon
@@ -42,6 +48,7 @@ apps/*/public/swe-worker*.js
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # IDE
 .vscode/
@@ -49,6 +56,18 @@ Thumbs.db
 
 # Backup
 .package-lock.json.bak
+
+# Local tooling output
+.vercel/
+.cache/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
 
 # Demo e2e: scenario scripts mandiri lama (suite routed memakai helper bersama)
 packages/demo/e2e/acceptance.mjs
