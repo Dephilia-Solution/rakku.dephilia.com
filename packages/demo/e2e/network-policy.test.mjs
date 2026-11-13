@@ -37,14 +37,14 @@ test('business endpoints and foreign services remain forbidden even when shaped 
   ]) assert.equal(accepts(url), false, url);
   assert.equal(accepts(`${config.owner}/demo`, 'POST'), false);
   assert.equal(accepts(`${config.pos}/login`, 'DELETE'), false);
-  assert.equal(accepts(`${config.owner}/demo-assets/cafe.svg`, 'POST'), false);
+  assert.equal(accepts(`${config.owner}/demo-assets/espresso.webp`, 'POST'), false);
 });
 
 test('real public documents, Next assets and local image optimization remain allowed', () => {
   for (const url of [
     `${config.owner}/demo`, `${config.pos}/demo`, `${config.owner}/demo/menu/pusat`,
     `${config.owner}/demo/menu/taman`, `${config.pos}/login`, `${config.pos}/sw.js`,
-    `${config.pos}/~offline`, `${config.owner}/demo-assets/cafe.svg`,
+    `${config.pos}/~offline`, `${config.owner}/demo-assets/espresso.webp`,
     `${config.owner}/_next/static/chunks/app/demo/page-123abc.js`,
     `${config.owner}/_next/image?url=%2Fimages%2Frakku_logo.png&w=64&q=75`,
   ]) assert.equal(accepts(url), true, url);

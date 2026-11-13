@@ -1,18 +1,12 @@
 import Image from "next/image";
-
-const recipeIngredients = [
-  ["Espresso", "18 g"],
-  ["Fresh Milk", "120 ml"],
-  ["Gula Aren", "20 ml"],
-  ["Ice", "100 g"],
-] as const;
+import { dashboardExample, exampleMoney, menuPreview, recipeExample } from "@/content/product-story";
 
 export function CashierFeaturePreview() {
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50" aria-label="Contoh tampilan POS kasir">
       <div className="flex items-center justify-between gap-3 border-b border-neutral-200 bg-white px-3 py-2.5 text-[0.52rem] text-neutral-500">
         <span className="font-semibold text-neutral-900">Kasir</span>
-        <span>Outlet Kemang</span>
+        <span>Outlet Pusat</span>
       </div>
       <div className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <div className="min-w-0">
@@ -21,9 +15,9 @@ export function CashierFeaturePreview() {
             <span>Cari produk...</span>
           </div>
           <div className="mt-2 flex gap-1 overflow-hidden whitespace-nowrap text-[0.48rem] font-medium">
-            <span className="rounded-full bg-forest px-2.5 py-1 text-white">All Items</span>
+            <span className="rounded-full bg-forest px-2.5 py-1 text-white">Semua</span>
             <span className="rounded-full px-2.5 py-1 text-neutral-600">Coffee</span>
-            <span className="rounded-full px-2.5 py-1 text-neutral-600">Pastry</span>
+            <span className="rounded-full px-2.5 py-1 text-neutral-600">Food</span>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-2 ring-primary-500">
@@ -33,17 +27,17 @@ export function CashierFeaturePreview() {
               </div>
               <div className="p-1.5">
                 <strong className="block truncate text-[0.58rem] font-semibold text-neutral-900">Kopi Susu Gula Aren</strong>
-                <span className="mt-1 block font-mono text-[0.52rem] font-semibold text-forest">Rp 24.000</span>
+                <span className="mt-1 block font-mono text-[0.52rem] font-semibold text-forest">{exampleMoney(menuPreview[0].price)}</span>
               </div>
             </div>
             <div className="overflow-hidden rounded-xl bg-white shadow-sm">
               <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
                 <Image src="/images/croissant.webp" alt="Butter Croissant" fill sizes="140px" className="object-cover" />
-                <span className="absolute left-1.5 top-1.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[0.42rem] font-medium text-orange-800">Pastry</span>
+                <span className="absolute left-1.5 top-1.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[0.42rem] font-medium text-orange-800">Food</span>
               </div>
               <div className="p-1.5">
                 <strong className="block truncate text-[0.58rem] font-semibold text-neutral-900">Butter Croissant</strong>
-                <span className="mt-1 block font-mono text-[0.52rem] font-semibold text-forest">Rp 18.000</span>
+                <span className="mt-1 block font-mono text-[0.52rem] font-semibold text-forest">{exampleMoney(menuPreview[3].price)}</span>
               </div>
             </div>
           </div>
@@ -57,10 +51,10 @@ export function CashierFeaturePreview() {
             <span className="grid h-6 w-6 place-items-center rounded-lg border border-forest/40 text-[0.52rem] font-semibold text-forest">2</span>
           </div>
           <div className="mt-2 space-y-2 border-b border-neutral-200 pb-2 text-[0.55rem]">
-            <div className="flex justify-between gap-2"><span className="truncate text-neutral-600">Kopi Susu</span><span className="font-mono text-forest">24k</span></div>
-            <div className="flex justify-between gap-2"><span className="truncate text-neutral-600">Croissant</span><span className="font-mono text-forest">18k</span></div>
+            <div className="flex justify-between gap-2"><span className="truncate text-neutral-600">Kopi Susu</span><span className="font-mono text-forest">{exampleMoney(menuPreview[0].price)}</span></div>
+            <div className="flex justify-between gap-2"><span className="truncate text-neutral-600">Croissant</span><span className="font-mono text-forest">{exampleMoney(menuPreview[3].price)}</span></div>
           </div>
-          <div className="mt-auto flex justify-between gap-2 pt-2 text-[0.6rem] font-bold text-neutral-900"><span>Total</span><span className="font-mono">Rp 42k</span></div>
+          <div className="mt-auto flex justify-between gap-2 pt-2 text-[0.6rem] font-bold text-neutral-900"><span>Subtotal</span><span className="font-mono">{exampleMoney(menuPreview[0].price + menuPreview[3].price)}</span></div>
           <div className="mt-2 rounded-xl bg-forest px-2 py-2 text-center text-[0.52rem] font-semibold text-white">Payment</div>
         </aside>
       </div>
@@ -74,9 +68,9 @@ export function RecipeFeaturePreview() {
       <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-3 py-3">
         <div>
           <span className="block text-[0.52rem] text-on-surface-variant">Produk aktif</span>
-          <strong className="mt-1 block text-[0.82rem] font-semibold tracking-[-0.03em] text-on-surface">Kopi Susu Gula Aren</strong>
+          <strong className="mt-1 block text-[0.82rem] font-semibold tracking-[-0.03em] text-on-surface">{recipeExample.productName}</strong>
         </div>
-        <span className="rounded-lg bg-primary-50 px-2 py-1 text-[0.5rem] font-semibold text-primary">4 bahan</span>
+        <span className="rounded-lg bg-primary-50 px-2 py-1 text-[0.5rem] font-semibold text-primary">{recipeExample.ingredients.length} bahan</span>
       </div>
       <div className="space-y-2 bg-neutral-50 p-3">
         <div className="flex items-end justify-between gap-3">
@@ -87,13 +81,13 @@ export function RecipeFeaturePreview() {
           <span className="shrink-0 font-mono text-[0.5rem] font-semibold text-primary">Per porsi</span>
         </div>
         <div className="space-y-2">
-          {recipeIngredients.map(([name, amount]) => (
+          {recipeExample.ingredients.map(({name, perPortion, unit}) => (
             <div key={name} className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-low px-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                 <span className="truncate text-[0.66rem] font-semibold text-on-surface">{name}</span>
               </div>
-              <span className="shrink-0 font-mono text-[0.58rem] text-on-surface-variant">{amount}</span>
+              <span className="shrink-0 font-mono text-[0.58rem] text-on-surface-variant">{perPortion} {unit}</span>
             </div>
           ))}
         </div>
@@ -108,28 +102,29 @@ export function RecipeFeaturePreview() {
 
 export function OwnerFeaturePreview() {
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-surface-container-lowest" aria-label="Contoh laporan laba rugi owner">
+    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-surface-container-lowest" aria-label="Contoh dashboard penjualan Owner">
       <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-3 py-3">
         <div>
-          <span className="block text-[0.52rem] text-on-surface-variant">Laporan / Laba rugi</span>
-          <strong className="mt-1 block text-[0.82rem] font-semibold tracking-[-0.03em] text-on-surface">Hari ini</strong>
+          <span className="block text-[0.52rem] text-on-surface-variant">Dashboard Owner</span>
+          <strong className="mt-1 block text-[0.82rem] font-semibold tracking-[-0.03em] text-on-surface">7 hari terakhir</strong>
         </div>
         <span className="text-[0.5rem] font-medium text-primary">Contoh data</span>
       </div>
       <div className="grid grid-cols-2 gap-px bg-neutral-200">
         <div className="bg-white px-3 py-3">
-          <span className="block text-[0.55rem] text-on-surface-variant">Total omzet</span>
-          <strong className="mt-1 block font-mono text-[0.72rem] text-forest">Rp 2,84 jt</strong>
+          <span className="block text-[0.55rem] text-on-surface-variant">Penjualan</span>
+          <strong className="mt-1 block font-mono text-[0.72rem] text-forest">{exampleMoney(dashboardExample.sales)}</strong>
         </div>
         <div className="bg-white px-3 py-3">
-          <span className="block text-[0.55rem] text-on-surface-variant">Total HPP</span>
-          <strong className="mt-1 block font-mono text-[0.72rem] text-on-surface">Rp 1,62 jt</strong>
+          <span className="block text-[0.55rem] text-on-surface-variant">Transaksi selesai</span>
+          <strong className="mt-1 block font-mono text-[0.72rem] text-on-surface">{dashboardExample.transactions}</strong>
         </div>
       </div>
       <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-3">
-        <span className="text-[0.62rem] font-semibold text-on-surface">Laba bersih</span>
-        <span className="font-mono text-[0.7rem] font-bold text-forest">Rp 1,22 jt</span>
+        <span className="text-[0.62rem] font-semibold text-on-surface">Menu favorit</span>
+        <span className="font-mono text-[0.7rem] font-bold text-forest">{dashboardExample.favorite}</span>
       </div>
+      <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-3"><span className="text-[0.62rem] font-semibold text-on-surface">Bahan menipis</span><span className="font-mono text-[0.7rem] font-bold text-forest">{dashboardExample.lowStock} bahan</span></div>
     </div>
   );
 }

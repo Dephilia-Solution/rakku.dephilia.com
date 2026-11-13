@@ -43,6 +43,7 @@ const WITHDRAWAL_STATUS_LABEL: Record<string, string> = {
 function formatDateTime(value: string) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
     day: "numeric",
     month: "short",
     year: "numeric",

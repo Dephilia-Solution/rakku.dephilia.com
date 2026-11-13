@@ -5,8 +5,9 @@ import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-mot
 import { useEffect, useRef, useState } from "react";
 
 import { SearchIcon } from "./icons";
+import { exampleMoney, menuPreview } from "@/content/product-story";
 
-type ProductCategory = "Semua" | "Coffee" | "Pastry" | "Non-coffee";
+type ProductCategory = "Semua" | "Coffee" | "Food" | "Non-Coffee";
 
 type HeroProduct = {
   id: string;
@@ -16,23 +17,14 @@ type HeroProduct = {
   price: string;
 };
 
-const products: HeroProduct[] = [
-  { id: "kopi-susu-gula-aren", image: "/images/kopsuaren.webp", category: "Coffee", name: "Kopi Susu Gula Aren", price: "Rp 24.000" },
-  { id: "cafe-latte", image: "/images/caffelatte.webp", category: "Coffee", name: "Cafe Latte", price: "Rp 22.000" },
-  { id: "espresso", image: "/images/espresso.webp", category: "Coffee", name: "Espresso", price: "Rp 16.000" },
-  { id: "butter-croissant", image: "/images/croissant.webp", category: "Pastry", name: "Butter Croissant", price: "Rp 18.000" },
-  { id: "matcha-latte", image: "/images/matchalatte.webp", category: "Non-coffee", name: "Matcha Latte", price: "Rp 25.000" },
-  { id: "banana-bread", image: "/images/bananabread.webp", category: "Pastry", name: "Banana Bread", price: "Rp 19.000" },
-  { id: "lemon-tea", image: "/images/lemontea.webp", category: "Non-coffee", name: "Lemon Tea", price: "Rp 15.000" },
-  { id: "chocolate-cookie", image: "/images/chococookie.webp", category: "Pastry", name: "Chocolate Cookie", price: "Rp 12.000" },
-];
+const products: HeroProduct[] = menuPreview.map(product => ({...product, price: exampleMoney(product.price)}));
 
 const previewProducts = products.slice(0, 4);
 
 const categoryStyles: Record<HeroProduct["category"], string> = {
   Coffee: "bg-amber-100 text-amber-800",
-  Pastry: "bg-orange-100 text-orange-800",
-  "Non-coffee": "bg-green-100 text-green-800",
+  Food: "bg-orange-100 text-orange-800",
+  "Non-Coffee": "bg-green-100 text-green-800",
 };
 
 export function HeroProductMenu() {
@@ -48,7 +40,7 @@ export function HeroProductMenu() {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       setFrameIndex((current) => (current + 1) % previewProducts.length);
-    }, 2800);
+    }, 3600);
 
     return () => window.clearInterval(timer);
   }, [reduceMotion, inView]);
@@ -66,7 +58,7 @@ export function HeroProductMenu() {
       >
         <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-white px-3 text-[0.55rem] text-neutral-500 sm:h-10 sm:px-4 sm:text-[0.62rem]">
           <span className="font-display font-semibold text-neutral-900">Kasir</span>
-          <span className="truncate">Outlet Kemang</span>
+          <span className="truncate">Outlet Pusat</span>
         </div>
 
         <div className="flex min-h-0 flex-1">
@@ -87,9 +79,9 @@ export function HeroProductMenu() {
               </div>
 
               <div className="mt-2 flex gap-1 overflow-hidden whitespace-nowrap text-[0.5rem] font-medium sm:mt-3 sm:text-[0.58rem]">
-                <span className="shrink-0 rounded-full bg-forest px-2.5 py-1.5 text-white sm:px-3">All Items</span>
+                <span className="shrink-0 rounded-full bg-forest px-2.5 py-1.5 text-white sm:px-3">Semua</span>
                 <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Coffee</span>
-                <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Pastry</span>
+                <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Food</span>
                 <span className="shrink-0 rounded-full px-2.5 py-1.5 text-neutral-600 sm:px-3">Non-Coffee</span>
               </div>
 
@@ -100,7 +92,7 @@ export function HeroProductMenu() {
                   return (
                     <div
                       key={product.id}
-                      className={`min-w-0 overflow-hidden rounded-xl bg-white text-left shadow-sm ring-1 ring-inset transition-[box-shadow,ring-color] duration-300 ${
+                      className={`landing-menu-card min-w-0 overflow-hidden rounded-xl bg-white text-left shadow-sm ring-1 ring-inset transition-shadow duration-300 ${
                         isSelected ? "ring-2 ring-primary-500" : "ring-neutral-200"
                       }`}
                     >
@@ -114,7 +106,7 @@ export function HeroProductMenu() {
                           className="object-cover"
                         />
                         <span className={`absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[0.42rem] font-medium sm:text-[0.48rem] ${categoryStyles[product.category]}`}>
-                          {product.category === "Non-coffee" ? "Non-Coffee" : product.category}
+                          {product.category}
                         </span>
                       </div>
                       <div className="p-1.5 sm:p-2">
@@ -152,7 +144,7 @@ export function HeroProductMenu() {
                     initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
                     className="min-h-[3.7rem] border-b border-neutral-200 px-2 py-2 sm:min-h-[4.3rem] sm:px-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">

@@ -65,9 +65,11 @@ try {
   await verify("owner", "/api/auth/owner/login", [403], { method: "POST" });
   await verify("owner", "/api/webhooks/vessel", [503], { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   await verify("superadmin", "/companies", [307]);
-  for (const path of ["companies", "outlets", "menus", "plans", "balances", "subscriptions", "withdrawals", "reconciliation", "payments-analytics", "audit-logs"]) {
+  for (const path of ["companies", "outlets", "menus", "plans", "promotions", "balances", "subscriptions", "withdrawals", "reconciliation", "payments-analytics", "audit-logs"]) {
     await verify("superadmin", `/api/superadmin/${path}`, [401]);
   }
+  await verify("superadmin", "/promotions", [307]);
+  for (const method of ["POST", "PUT"]) await verify("superadmin", "/api/superadmin/promotions", [401], {method,headers: {origin: origins.superadmin,"Content-Type": "application/json"},body: "{}"});
   await verify("owner", "/api/owner/reports/sales", [403]);
   await verify("owner", "/api/owner/dashboard", [403]);
   await verify("owner", "/api/owner/import/template?domain=products", [401]);

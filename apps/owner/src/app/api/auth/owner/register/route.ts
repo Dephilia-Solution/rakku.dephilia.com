@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { owner, error } = await createOwner({
+  const { owner, error, code, status } = await createOwner({
     name,
     email,
     password,
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (error || !owner) {
-    return NextResponse.json({ error }, { status: 400 });
+    return NextResponse.json({ error, code }, { status: status ?? 400 });
   }
 
   const token = await signVerification(owner);

@@ -4,6 +4,8 @@
 
 Peningkatan Owner terbaru (dashboard, desain responsif, import tier/gambar/pembelian, demo, serta kebutuhan migrasi `0019`) dijelaskan di **[OWNER_UPGRADE.md](OWNER_UPGRADE.md)**. Catatan rollout di bawah adalah riwayat instalasi, bukan bukti semua migrasi terbaru sudah diterapkan pada database aktif.
 
+**Promo pendaftaran:** pengaturan campaign tersedia melalui **Superadmin → Promo Pendaftaran**. Default Pro gratis 3 bulan kalender sejak signup, untuk pendaftaran sampai 31 Desember 2026 WIB; pendaftar pada hari terakhir tetap memperoleh hak sampai Maret 2027. Membutuhkan migrasi **`0020_signup_promotions.sql`** sebelum deploy. Aturan, pengelolaan dan rollout ada di **[SIGNUP_PROMOTIONS.md](SIGNUP_PROMOTIONS.md)**. Akun existing tidak diubah otomatis.
+
 Runtime Neon sudah berjalan pada **database baru**, tanpa impor data Supabase lama. Empat migration, runtime role, data referensi, satu tenant DEMO, dan aktivasi Superadmin sudah selesai. Deployment development Vercel telah lolos smoke test login; status domain production dijelaskan di bawah.
 
 ---
@@ -126,6 +128,8 @@ Demo berisi Outlet Demo, Kopi Demo, Teh Demo, tier Dine In/Take Away, satu meja,
 
 ---
 
+Pengaturan dev Superadmin untuk mesin dengan memori terbatas, termasuk penanganan `Array buffer allocation failed`, dijelaskan di **[apps/superadmin/README.md](apps/superadmin/README.md)**. `pnpm dev:superadmin` memakai budget Node eksplisit dan cache memori development; konfigurasi cache production tetap mengikuti default Next.
+
 ## Infrastruktur
 
 - **Database**: Neon Postgres. Migration aktif ada di `packages/db/migrations/`; `supabase/migrations/` adalah riwayat schema lama untuk rekonsiliasi source.
@@ -146,6 +150,7 @@ File `.env`, `.env.*`, termasuk `.env.production`, tidak dilacak Git; file templ
 
 ## Dokumentasi
 
+- [CHANGELOG.md](CHANGELOG.md): riwayat pembaruan dan perubahan yang belum ditetapkan sebagai rilis; panduan pemeliharaan ada di [DOCS.md §15](DOCS.md#15-riwayat-versi).
 - [DOCS.md](DOCS.md): referensi teknis, arsitektur, konfigurasi, database, route/API, deployment, dan risiko aktual.
 - [PANDUAN.md](PANDUAN.md): panduan operasional lama dengan seed BUILD COFFEE; pembaruan ke DEMO ditunda ke tahap berikutnya.
 - [NEON_MIGRATION.md](NEON_MIGRATION.md): konfigurasi dan prosedur migrasi runtime Neon yang aktif.

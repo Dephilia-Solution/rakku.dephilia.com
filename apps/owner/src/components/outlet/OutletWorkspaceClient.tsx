@@ -49,7 +49,7 @@ export default function OutletWorkspaceClient({ outlet, initialTab }: Props) {
     const selected = new URLSearchParams(search).get("tab") ?? fallback;
     return selected && (TAB_KEYS as readonly string[]).includes(selected) ? selected as TabKey : DEFAULT_TAB;
   };
-  const [tab, setTabState] = useState<TabKey>(() => readTab(typeof window === "undefined" ? `?tab=${searchParams.get("tab") ?? initialTab ?? ""}` : window.location.search, initialTab));
+  const [tab, setTabState] = useState<TabKey>(() => readTab(searchParams.toString(), initialTab));
   useEffect(() => {
     const sync = () => setTabState(readTab(window.location.search, initialTab));
     window.addEventListener("popstate", sync);

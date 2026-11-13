@@ -7,25 +7,25 @@ const features = [
   {
     id: "kasir",
     label: "Kasir",
-    title: "Kasir yang mengikuti ritme antrean.",
-    description: "Produk, modifier, meja, pembayaran, dan invoice berada di satu alur yang singkat.",
-    items: ["Dine in & take away", "QRIS & tunai", "Split bill"],
+    title: "Pilih. Sesuaikan. Selesai.",
+    description: "Pilih menu, tambahkan add-on, tentukan harga sesuai jenis layanan, lalu bayar. Pesanan dan pembayaran tersusun dalam satu alur.",
+    items: ["Add-on & tier harga", "Tunai & QRIS", "Draft & split bill"],
     preview: <CashierFeaturePreview />,
   },
   {
     id: "resep",
     label: "Resep",
-    title: "Resep membuat stok lebih masuk akal.",
-    description: "Hubungkan produk dengan bahan baku. Setiap order selesai meninggalkan catatan pemakaian.",
-    items: ["Resep per produk", "Stock movement", "Peringatan stok"],
+    title: "Atur sampai ke resep.",
+    description: "Simpan bahan dan takaran per porsi untuk setiap menu. Begitu transaksi selesai, pemakaian bahan otomatis tercatat sesuai resep produk.",
+    items: ["Resep per menu", "Pemakaian bahan", "Peringatan stok"],
     preview: <RecipeFeaturePreview />,
   },
   {
     id: "laba",
     label: "Owner",
-    title: "Owner melihat yang perlu diputuskan.",
-    description: "Omzet, HPP, pengeluaran, outlet, dan laba tidak lagi tersebar di tempat berbeda.",
-    items: ["Laporan laba", "Multi-outlet", "Role & akses"],
+    title: "Semua angka, sekali buka.",
+    description: "Buka dashboard untuk membaca omzet, menu favorit restomu, dan bahan yang perlu perhatian. Laporan HPP dan laba rugi tersedia mulai paket Pro.",
+    items: ["Tren penjualan", "Menu terlaris", "HPP & laba (Pro)"],
     preview: <OwnerFeaturePreview />,
   },
 ] as const;
@@ -34,11 +34,11 @@ type Feature = (typeof features)[number];
 
 export function Features() {
   return (
-    <ScrollReveal className="bg-paper py-[clamp(4.5rem,8vw,7rem)]" id="fitur">
+    <ScrollReveal className="bg-paper py-[clamp(4.5rem,8vw,7rem)]" id="fitur" reveal="heading">
       <Container>
-        <div className="mb-12 max-w-[42rem] lg:mb-16">
-          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Yang dikerjakan Rakku di belakang layar.</h2>
-          <p className="mt-5 max-w-[34rem] text-[0.95rem] leading-[1.7] text-muted">Tiga bagian penting yang tetap terhubung ketika kedai mulai ramai.</p>
+        <div data-reveal-heading className="mb-12 max-w-[42rem] lg:mb-16">
+          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Kasir, resep, dan laporan. Nyambung.</h2>
+          <p className="mt-5 max-w-[34rem] text-[0.95rem] leading-[1.7] text-muted">Dari memilih menu sampai membaca penjualan, tiap bagian memakai data yang saling terhubung.</p>
         </div>
 
         <Stagger className="grid min-w-0 gap-px overflow-hidden rounded-2xl border border-green-950/15 bg-green-950/15 lg:grid-cols-3">
@@ -58,7 +58,7 @@ export function Features() {
 
 function FeaturePanel({ feature }: { feature: Feature }) {
   return (
-    <article id={feature.id} className="flex h-full flex-col p-5 sm:p-6">
+    <article id={feature.id} className="landing-feature flex h-full flex-col p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <span className="inline-flex border-l-2 border-green-700 pl-3 text-sm font-semibold text-green-800">{feature.label}</span>
         <span className="h-px flex-1 bg-green-950/10" aria-hidden="true" />
@@ -68,7 +68,7 @@ function FeaturePanel({ feature }: { feature: Feature }) {
         {feature.title}
       </h3>
 
-      <div className="mt-6 min-w-0">{feature.preview}</div>
+      <div className="landing-feature-preview mt-6 min-w-0">{feature.preview}</div>
 
       <div className="mt-6">
         <p className="max-w-[22rem] text-sm leading-[1.62] text-muted">{feature.description}</p>

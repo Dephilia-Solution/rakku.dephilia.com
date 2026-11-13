@@ -229,8 +229,10 @@ existing IDs must belong to that product, new modifiers omit ID. Modifiers use
 same-outlet tier deltas and fall back to `price_delta:0`. Images must match a local
 `/demo-assets/...svg|png|webp|jpg` path or an active blob URL registered by this
 sandbox's `attachImage`. Arbitrary blob, data, and HTTP(S) URLs are rejected.
-The fixture uses `/demo-assets/cafe.svg`, `/demo-assets/latte.svg`, and
-`/demo-assets/food.svg`.
+All ten fixture products use individual WebP photos from
+`apps/owner/public/demo-assets/`, shared by both demo outlets. The photos are
+converted from the supplied PNG originals without resizing; the old SVG product
+illustrations have been removed.
 
 ### Product image lifecycle
 

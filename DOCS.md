@@ -2,13 +2,15 @@
 
 > **Nama internal:** `rakku`
 > **Stack source aktif:** Next.js 16.4.2 / React 19.3.1 (App Router) · Neon Postgres + Drizzle 0.45.4 · Neon Managed Better Auth · Tailwind CSS 3 · pnpm + Turborepo
-> **Cakupan source:** fitur v6.1 M1–M4, Owner/import v2, migrasi tersedia sampai `0019`, demo publik browser-memory; status migrasi database aktif diperiksa terpisah
+> **Cakupan source:** fitur v6.1 M1–M4, Owner/import v2, promo pendaftaran, migrasi tersedia sampai `0020`, demo publik browser-memory; status migrasi database aktif diperiksa terpisah
 > **Author:** Alif Dhimas
 > **Pembaruan catatan Owner:** 1 November 2026; bagian rollout lama mempertahankan tanggal historisnya
 >
 > Dokumen ini menjelaskan implementasi yang ada di repository, termasuk keterbatasan dan risiko yang belum diperbaiki. Dokumen PRD/PROMPT adalah riwayat perencanaan dan bukan sumber kebenaran runtime.
 
 Dokumen ini adalah **referensi teknis untuk developer dan operator**: arsitektur, konfigurasi, schema, routes, dan keterbatasan runtime. [README.md](README.md) menyediakan quick start; [NEON_MIGRATION.md](NEON_MIGRATION.md) menyediakan prosedur setup/deploy/pemulihan; [DEMO.md](DEMO.md) menjelaskan demo publik `/demo` secara operasional. Database Neon aktif dimulai baru tanpa copy data Supabase. Hasil rollout yang disebutkan berasal dari pemeriksaan 8 Oktober 2026, bukan pemeriksaan ulang semua domain production. [PANDUAN.md](PANDUAN.md) masih panduan BUILD lama dan akan diperbarui ke DEMO pada tahap berikutnya.
+
+**Pembaruan promo signup:** [SIGNUP_PROMOTIONS.md](SIGNUP_PROMOTIONS.md) menjelaskan migrasi `0020`, menu Superadmin Promo Pendaftaran, reservasi hak pada pendaftaran akun, batas campaign 31 Desember 2026 WIB dan akses Pro 3 bulan kalender per pengguna. Aturan ini menggantikan trial 14 hari pada signup baru; contoh/trial testing serta catatan rollout historis di bagian lain tidak menjadi sumber kebijakan baru.
 
 ---
 
@@ -1940,6 +1942,22 @@ invitation Echo → /activate → sign-in Auth + transaksi allowlist
 ---
 
 ## 15. Riwayat Versi
+
+Riwayat rilis mulai dikelola di **[CHANGELOG.md](CHANGELOG.md)**. Pengguna Owner dapat membuka **Pengaturan → Riwayat Pembaruan** untuk melihat ringkasan yang lebih singkat. Riwayat di bawah mempertahankan nama dan milestone historis; baseline pencatatan baru adalah **v6.1.0**, tanpa mengasumsikan tanggal rilis atau versi yang sedang berjalan di production.
+
+### Pemeliharaan riwayat dan rilis
+
+Sumber data tunggal adalah `apps/owner/src/content/release-notes.json`. Berkas ini ikut di-build ke aplikasi Owner; `CHANGELOG.md` adalah hasil generate yang dapat dibaca tim di repository. Perubahan pada sumber belum otomatis tersedia di deployment yang sudah berjalan.
+
+1. Selama pengembangan, tambahkan catatan teknis pada `unreleased.new`, `unreleased.improved`, atau `unreleased.fixed`. Sebutkan aplikasi terdampak dan prasyarat migrasi bila relevan. Bagian ini tidak tampil di halaman pengguna dan bukan klaim bahwa fitur sudah dideploy.
+2. Saat menetapkan rilis, pindahkan perubahan yang termasuk rilis ke entri baru pada awal `releases`. Isi `version` dengan format `MAJOR.MINOR.PATCH`, `date` dengan tanggal rilis `YYYY-MM-DD`, `status` dengan `released`, `title` dan `summary`, serta `userChanges` yang singkat dan mudah dipahami. Isi `technicalChanges` untuk rincian tim; jangan masukkan perubahan yang belum termasuk rilis. Entri `historical` hanya untuk tonggak terdokumentasi yang tanggal/status rilisnya tidak diketahui.
+3. Tetapkan `buildVersion` ke versi `released` yang benar-benar dipaketkan pada build Owner tersebut. Nilai saat ini `null` karena versi build belum ditetapkan; tampilan tidak mengklaim baseline historis sebagai versi aktif. Saat mempersiapkan deployment Owner, ubah nilainya pada commit rilis dan build ulang. Setiap deployment Owner menampilkan nilai yang dibundel saat build-nya, bukan status POS, Superadmin, Landing, atau database.
+4. Jalankan `pnpm changelog:generate`, lalu `pnpm changelog:check`; sertakan perubahan JSON dan `CHANGELOG.md` dalam commit yang sama. Periksa hasilnya di halaman Owner dan demo. `changelog:check` memvalidasi versi, status, tanggal rilis, referensi build, dan kesesuaian hasil generate.
+5. Setelah rilis ditetapkan, beri Git tag pada commit rilis sesuai versi. Catat deployment dan hasil pemeriksaan masing-masing app/environment secara terpisah; periksa migration target melalui `rakku_migrations.history`. Git tag, angka versi source, dan file migrasi tidak membuktikan deployment atau penerapan database telah selesai.
+
+Aturan nomor versi: naikkan **major** untuk perubahan tidak kompatibel, **minor** untuk fitur kompatibel, dan **patch** untuk perbaikan kompatibel. Versi root `package.json` dan versi package app bukan sumber data versi produk. Jangan mencantumkan tanggal atau perubahan yang belum dapat diverifikasi sebagai rilis historis.
+
+### Ringkasan milestone historis
 
 | Versi | Fokus | Ringkasan |
 |-------|-------|-----------|

@@ -101,10 +101,10 @@ test("product images are session-owned, reject foreign/stale URLs, and retain sh
   const replacement = a.attachImage(image("image/webp")); productImage(a, id("product", 0), replacement);
   assert.deepEqual(revoked, [], "save must not implicitly revoke a shared URL");
   a.removeImage(first); assert.deepEqual(revoked, [], "the second product still uses the old URL");
-  productImage(a, id("product", 1), "/demo-assets/cafe.svg"); const snapshot = a.getSnapshot(), eventCount = events;
+  productImage(a, id("product", 1), "/demo-assets/americano.webp"); const snapshot = a.getSnapshot(), eventCount = events;
   a.removeImage(first); assert.deepEqual(revoked, [first]); assert.equal(a.getSnapshot(), snapshot); assert.equal(events, eventCount);
   invalid(a, { type: "entity.save", entity: "products", value: { id: id("product", 1), image_url: first } }, /Image/);
-  a.removeImage(first); b.removeImage(replacement); a.removeImage("/demo-assets/cafe.svg"); assert.deepEqual(revoked, [first], "unknown/foreign/released URLs are never revoked");
+  a.removeImage(first); b.removeImage(replacement); a.removeImage("/demo-assets/americano.webp"); assert.deepEqual(revoked, [first], "unknown/foreign/released URLs are never revoked");
   const pending = a.attachImage(image()); a.destroy(); a.destroy(); assert.deepEqual(revoked, [first, replacement, pending]);
   invalid(b, { type: "entity.save", entity: "products", value: { id: id("product", 0), image_url: replacement } }, /Image/);
   assert.throws(() => a.removeImage(replacement), /destroyed/); b.destroy(); assert.deepEqual(revoked, [first, replacement, pending]);

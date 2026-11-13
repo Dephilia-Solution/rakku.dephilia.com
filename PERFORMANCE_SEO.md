@@ -8,6 +8,7 @@
 - `/robots.txt`, `/sitemap.xml`, canonical homepage, metadata sosial, dan `/opengraph-image` dihasilkan Next.js.
 - Sitemap hanya berisi homepage yang benar-benar tersedia. Anchor seperti `#harga` bukan URL halaman baru.
 - Deployment dengan `VERCEL_ENV=preview` memakai noindex dan robots yang melarang crawling.
+- `SITE_INDEXABLE=false` secara eksplisit menonaktifkan indexing untuk production personal/non-production: HTML mengirim `noindex, nofollow`, sitemap kosong, dan robots tetap mengizinkan crawler membaca metadata noindex. Tanpa nilai `false`, production tetap indexable. `VERCEL_ENV=preview` tetap noindex dan memblokir crawling meskipun variabel disetel `true`.
 - JSON-LD memuat Organization, WebSite, WebApplication, dan FAQPage. Jawaban schema memakai sumber yang sama dengan FAQ tampilan.
 - Semua jawaban FAQ dirender server dan accordion native berfungsi tanpa JavaScript.
 - Konten utama tidak disembunyikan oleh animasi awal. Animasi preview berhenti saat tidak terlihat/tab browser tidak aktif.
@@ -92,12 +93,13 @@ Pengukuran p95 request merchant dengan login/data staging serta Core Web Vitals 
 ## Deploy dan indexing
 
 1. Deploy perubahan landing ke production Vercel yang melayani `rakku.dephilia.com`.
-2. Pastikan production memakai `SITE_URL=https://rakku.dephilia.com`, dan tidak membawa `VERCEL_ENV=preview`. `SITE_URL` memiliki default domain tersebut.
-3. Pastikan `NEXT_PUBLIC_OWNER_URL` dan `NEXT_PUBLIC_POS_URL` tetap menunjuk domain aplikasi production.
-4. Periksa respons publik `/robots.txt`, `/sitemap.xml`, canonical homepage, dan `/opengraph-image` setelah deploy.
-5. Verifikasi properti Search Console. Gunakan DNS atau isi `GOOGLE_SITE_VERIFICATION` dengan token HTML-tag lalu rebuild bila memilih metode tersebut.
-6. Submit `https://rakku.dephilia.com/sitemap.xml`, lakukan URL Inspection pada homepage, lalu minta indexing.
-7. Pantau Page indexing, canonical yang dipilih Google, dan Performance Search Console. Gunakan PageSpeed Insights/data lapangan untuk LCP, INP, dan CLS.
+2. Pada project Vercel pribadi (`alifdhimasctr/stocko`), set `SITE_INDEXABLE=false` di environment deployment yang digunakan dan redeploy. Ini mengirim meta robots `noindex, nofollow` dan mengosongkan sitemap. Robots mengizinkan crawler membaca metadata noindex sambil tetap melarang `/api/`.
+3. Pada project Vercel production organization, set `SITE_URL=https://rakku.dephilia.com` dan `SITE_INDEXABLE=true` (atau biarkan tidak disetel). Jangan gunakan `VERCEL_ENV=preview`. `SITE_URL` memiliki default domain tersebut.
+4. Pastikan `NEXT_PUBLIC_OWNER_URL` dan `NEXT_PUBLIC_POS_URL` pada production organization menunjuk domain aplikasi production.
+5. Periksa respons publik `/robots.txt`, `/sitemap.xml`, canonical homepage, dan `/opengraph-image` setelah deploy.
+6. Verifikasi properti Search Console. Gunakan DNS atau isi `GOOGLE_SITE_VERIFICATION` dengan token HTML-tag lalu rebuild bila memilih metode tersebut.
+7. Submit `https://rakku.dephilia.com/sitemap.xml`, lakukan URL Inspection pada homepage, lalu minta indexing.
+8. Pantau Page indexing, canonical yang dipilih Google, dan Performance Search Console. Gunakan PageSpeed Insights/data lapangan untuk LCP, INP, dan CLS.
 
 Perubahan kode lokal tidak otomatis melakukan deploy atau meminta Google mengindeks.
 

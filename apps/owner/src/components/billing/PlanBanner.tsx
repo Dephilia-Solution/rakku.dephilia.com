@@ -61,10 +61,10 @@ export default function PlanBanner() {
       <div className={`${wrapper} relative bg-primary-50 border-primary-100 text-forest pr-11`}>
         <Clock size={18} className="shrink-0" />
         <div className="flex-1">
-          <b>Trial Pro aktif.</b>{" "}
+          <b>Akses {summary.plan.name} gratis aktif.</b>{" "}
           {daysLeft !== null
             ? `Sisa ${daysLeft} hari lagi.`
-            : "Nikmati semua fitur Pro."}{" "}
+            : `Nikmati fitur ${summary.plan.name}.`}{" "}
           Setelah berakhir, akun otomatis turun ke paket Free.
         </div>
         <Link

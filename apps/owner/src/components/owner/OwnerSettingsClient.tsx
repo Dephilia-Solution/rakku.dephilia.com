@@ -12,8 +12,10 @@ import {
   QrCode,
   Copy,
   Check,
+  History,
+  ChevronRight,
 } from "lucide-react";
-import { useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
+import { MerchantLink, useMerchantRequest, useMerchantRuntime, useMerchantToast } from "@/lib/merchant-runtime";
 import { QRCodeSVG } from "qrcode.react";
 
 export default function OwnerSettingsPage() {
@@ -404,6 +406,17 @@ export default function OwnerSettingsPage() {
           </button>
         </form>
       </div>
+
+      <MerchantLink href="/settings/updates" className="flex min-h-16 items-center gap-3 rounded-2xl border border-surface-container bg-surface-container-lowest p-5 transition-colors hover:bg-surface-container-low focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <History size={20} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold text-on-surface">Riwayat Pembaruan</span>
+          <span className="mt-0.5 block text-xs text-on-surface-variant">Lihat versi dan pembaruan Rakku</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-on-surface-variant" aria-hidden="true" />
+      </MerchantLink>
 
       {/* Info Card */}
       <div className="bg-surface-container-low rounded-2xl border border-surface-container p-5">

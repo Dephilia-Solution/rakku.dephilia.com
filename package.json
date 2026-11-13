@@ -4,6 +4,8 @@
   "private": true,
   "packageManager": "pnpm@11.10.0",
   "scripts": {
+    "changelog:generate": "node scripts/changelog.mjs",
+    "changelog:check": "node scripts/changelog.mjs --check",
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "build:isolated": "node scripts/build-isolated.mjs",
@@ -61,6 +63,7 @@
     "test:owner-import": "tsx --test apps/owner/src/lib/import/*.test.ts",
     "test:owner:browser": "node packages/demo/e2e/run-production.mjs --owner-upgrade",
     "test:landing:seo": "node scripts/test-landing-seo.mjs",
+    "test:landing:seo-policy": "tsx --test apps/landing/src/lib/seo.test.ts",
     "test:demo": "pnpm --filter @rakku/demo test",
     "test:demo:browser": "node packages/demo/e2e/run-production.mjs --routed"
   },

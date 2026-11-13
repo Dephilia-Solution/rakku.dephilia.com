@@ -4,9 +4,9 @@ import { InteractiveRow } from "./motion";
 import { ScrollReveal } from "./scroll-reveal";
 
 const trace = [
-  ["01", "Kasir", "Order selesai dan pembayaran tercatat."],
-  ["02", "Resep", "Bahan yang dipakai mengikuti konfigurasi produk."],
-  ["03", "Owner", "HPP, stok, dan laporan diperbarui dalam konteks outlet."],
+  ["01", "Omzet?", "Lihat penjualan dan tren dari transaksi yang sudah selesai."],
+  ["02", "Laku?", "Kenali menu favorit restomu dari jumlah yang terjual."],
+  ["03", "Stok?", "Cek bahan yang mencapai stok minimum sebelum waktunya restock."],
 ] as const;
 
 export function Problem() {
@@ -15,14 +15,12 @@ export function Problem() {
       <Container>
         <div className="grid gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-[clamp(4rem,9vw,9rem)]">
           <div>
-            <h2 className="max-w-[10ch] text-balance font-display text-[clamp(2.8rem,5vw,4.7rem)] font-bold leading-[0.95] tracking-[-0.07em] text-green-950">
-              Satu penjualan
+            <h2 className="max-w-[13ch] text-balance font-display text-[clamp(2.8rem,5vw,4.7rem)] font-bold leading-[0.95] tracking-[-0.07em] text-green-950">
+              Pesanan rame.
               <br />
-              meninggalkan
-              <br />
-              jejak.
+              Datanya bikin bingung?
             </h2>
-            <p className="mt-6 max-w-[28rem] text-[0.95rem] leading-[1.7] text-muted">Bukan hanya angka omzet. Rakku menjaga hubungan antara pesanan, bahan baku, dan keputusan yang dibuat owner.</p>
+            <p className="mt-6 max-w-[28rem] text-[0.95rem] leading-[1.7] text-muted">Pas kedai tutup, kamu masih perlu tahu jualan berapa, menu apa yang laku, dan bahan yang mau abis. Kalau masih ngecek satu-satu, capek, kan?</p>
           </div>
 
           <ol className="border-t border-green-950/15">

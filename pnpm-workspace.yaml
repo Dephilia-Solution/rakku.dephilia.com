@@ -1,10 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "remotion"
 
 allowBuilds:
   core-js: false
   esbuild: true
+  ffmpeg-static: set this to true or false
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
