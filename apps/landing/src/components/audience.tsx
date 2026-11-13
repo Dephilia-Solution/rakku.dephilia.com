@@ -20,24 +20,24 @@ export function Audience() {
     <ScrollReveal className="bg-paper py-[clamp(4.5rem,8vw,7rem)]" id="untuk-siapa">
       <Container>
         <div className="mb-12 max-w-[38rem] lg:mb-16">
-          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Satu sistem. Dua ritme kerja.</h2>
-          <p className="mt-5 max-w-[32rem] text-[0.95rem] leading-[1.7] text-muted">Rakku memberi owner konteks dan memberi kasir ruang untuk bergerak cepat.</p>
+          <h2 className="text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">Produk, bahan, meja, staf. Satu sistem.</h2>
+          <p className="mt-5 max-w-[32rem] text-[0.95rem] leading-[1.7] text-muted">Owner menyiapkan menu dan memantau usaha. Kasir memakai pengaturan yang sama untuk melayani pesanan.</p>
         </div>
 
         <div className="border-t border-green-950/15">
           <AudienceCard
             id="outlet"
             label="Portal Owner"
-            title={<>Untuk keputusan<br className="hidden sm:block" /> di balik layar.</>}
-            description="Kelola outlet, tim, katalog, harga, resep, pengeluaran, dan laporan dari satu dashboard."
-            items={["Outlet & karyawan", "HPP & laba rugi", "QR menu per outlet"]}
+            title={<>Atur usahamu.<br className="hidden sm:block" /> Baca hasilnya.</>}
+            description="Kelola produk, bahan baku, meja, dan staf per outlet. Buka dashboard penjualan, lalu telusuri laporan yang kamu butuhkan."
+            items={["Menu, resep & harga", "Outlet, meja & staf", "Dashboard & laporan"]}
             href={`${ownerUrl}/login`}
           />
           <AudienceCard
             label="POS Kasir"
-            title={<>Untuk transaksi<br className="hidden sm:block" /> di garis depan.</>}
-            description="Pilih produk, atur modifier, kelola meja, terima pembayaran, dan cetak invoice tanpa pindah alur."
-            items={["Register cepat", "Draft & split bill", "PWA untuk operasional"]}
+            title={<>Layani pesanan.<br className="hidden sm:block" /> Selesaikan pembayaran.</>}
+            description="Pilih menu, sesuaikan add-on dan harga layanan, kelola meja, lalu terima pembayaran. Resep tersimpan dipakai untuk mencatat pemakaian bahan."
+            items={["Menu & add-on", "Tunai, kartu & QRIS", "Draft & split bill"]}
             href={`${posUrl}/login`}
           />
         </div>

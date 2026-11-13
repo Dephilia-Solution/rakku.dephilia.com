@@ -113,7 +113,7 @@ function Metric({ label, value, change, href, primary, note }: { label: string; 
   </Link>;
 }
 
-function SalesTrend({ data }: { data: OwnerDashboardAnalytics }) {
+export function SalesTrend({ data }: { data: OwnerDashboardAnalytics }) {
   const [metric, setMetric] = useState<"revenue" | "transactions">("revenue");
   const [selected, setSelected] = useState<number | null>(null);
   const values = data.trend;
@@ -128,7 +128,7 @@ function SalesTrend({ data }: { data: OwnerDashboardAnalytics }) {
       {values.length > 1 && <polygon points={`20,190 ${points} 680,190`} fill="#2e7d32" opacity=".05" />}
       <polyline points={points} fill="none" stroke="#2e7d32" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       {values.map((row,index) => {const [x,y]=xy(index);return <g key={row.date} tabIndex={0} role="img" aria-label={`${shortDate(row.date)}: ${money(row.revenue)}, ${row.transactions} transaksi`} onFocus={()=>setSelected(index)} onBlur={()=>setSelected(null)} onPointerEnter={()=>setSelected(index)}>
-        <circle cx={x} cy={y} r={15} fill="transparent" /><circle cx={x} cy={y} r={selected===index||values.length===1?5:3} fill="#2e7d32" stroke="white" strokeWidth="2" /><title>{shortDate(row.date)}: {money(row.revenue)} · {row.transactions} transaksi</title>
+        <circle cx={x} cy={y} r={15} fill="transparent" /><circle cx={x} cy={y} r={selected===index||values.length===1?5:3} fill="#2e7d32" stroke="white" strokeWidth="2" /><title>{`${shortDate(row.date)}: ${money(row.revenue)} · ${row.transactions} transaksi`}</title>
       </g>;})}
     </svg>
     <div className="flex justify-between text-[11px] text-on-surface-variant">{values.filter((_,index)=>index===0 || index===values.length-1 || values.length>4 && index===Math.floor(values.length/2)).map(row=><span key={row.date}>{shortDate(row.date)}</span>)}</div>

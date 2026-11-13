@@ -28,7 +28,8 @@
     "./categories": "./src/categories.ts",
     "./owner-dashboard": "./src/owner-dashboard.ts",
     "./platform-analytics": "./src/platform-analytics.ts",
-    "./owner-session": "./src/owner-session.ts"
+    "./owner-session": "./src/owner-session.ts",
+    "./signup-promotions": "./src/signup-promotions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

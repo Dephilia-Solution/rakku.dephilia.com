@@ -139,6 +139,7 @@ export default function PurchasesClient({ purchases: initialPurchases }: Props) 
                   <tr key={p.id} className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
                       {new Date(p.purchase_date).toLocaleDateString("id-ID", {
+                        timeZone: "Asia/Jakarta",
                         day: "numeric",
                         month: "short",
                         year: "numeric",
@@ -185,6 +186,7 @@ export default function PurchasesClient({ purchases: initialPurchases }: Props) 
                     </p>
                     <p className="text-xs text-on-surface-variant">
                       {new Date(p.purchase_date).toLocaleDateString("id-ID", {
+                        timeZone: "Asia/Jakarta",
                         day: "numeric",
                         month: "short",
                         year: "numeric",

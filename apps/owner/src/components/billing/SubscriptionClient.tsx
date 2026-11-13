@@ -63,7 +63,7 @@ function invoicePlanName(invoice: InvoiceRow): string {
 }
 
 function statusLabel(summary: UsageSummary) {
-  if (summary.is_trial) return "Trial Pro";
+  if (summary.is_trial) return `Akses ${summary.plan.name} gratis`;
   if (summary.status === "grace") return "Masa tenggang";
   if (summary.status === "expired") return "Berakhir";
   if (summary.status === "cancelled") return "Dibatalkan";
@@ -163,14 +163,14 @@ export default function SubscriptionClient({
           <div className="text-right text-xs text-neutral-500">
             {summary.is_trial && summary.trial_ends_at ? (
               <p>
-                Trial berakhir{" "}
-                {new Date(summary.trial_ends_at).toLocaleDateString("id-ID")}
+                Akses gratis berakhir{" "}
+                {new Date(summary.trial_ends_at).toLocaleDateString("id-ID", {timeZone: "Asia/Jakarta"})} WIB
                 {trialDays !== null ? ` (${trialDays} hari lagi)` : ""}
               </p>
             ) : summary.plan_expires_at ? (
               <p>
                 Aktif sampai{" "}
-                {new Date(summary.plan_expires_at).toLocaleDateString("id-ID")}
+                {new Date(summary.plan_expires_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
               </p>
             ) : (
               <p>Tanpa tanggal berakhir</p>
@@ -214,7 +214,7 @@ export default function SubscriptionClient({
           <p className="text-xs text-amber-700 mt-4">
             Masa tenggang transaksi sampai{" "}
             {new Date(summary.transaction_grace_ends_at).toLocaleDateString(
-              "id-ID"
+              "id-ID", { timeZone: "Asia/Jakarta" }
             )}{" "}
             — setelah itu transaksi baru diblokir sampai upgrade.
           </p>
@@ -373,7 +373,7 @@ export default function SubscriptionClient({
                       {formatRupiah(invoice.amount)}
                     </td>
                     <td className="px-5 py-3 text-neutral-500">
-                      {new Date(invoice.created_at).toLocaleDateString("id-ID")}
+                      {new Date(invoice.created_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
                     </td>
                     <td className="px-5 py-3">
                       <span

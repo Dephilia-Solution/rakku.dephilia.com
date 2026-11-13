@@ -12,6 +12,7 @@ import {
   Settings,
   FileText,
   CreditCard,
+  Gift,
   Wallet,
   Landmark,
   ArrowDownToLine,
@@ -23,6 +24,7 @@ import { ToastContainer } from "@rakku/ui";
 const superadminNav = [
   { href: "/companies", icon: Building2, label: "Companies" },
   { href: "/plans", icon: CreditCard, label: "Plans" },
+  { href: "/promotions", icon: Gift, label: "Promo Pendaftaran" },
   { href: "/subscriptions", icon: Wallet, label: "Subscriptions" },
   { href: "/balances", icon: Landmark, label: "Balances" },
   { href: "/withdrawals", icon: ArrowDownToLine, label: "Withdrawals" },
@@ -63,7 +65,7 @@ export default async function SuperadminLayout({
           </Link>
         </div>
 
-        <nav className="flex-1 px-2 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-2 space-y-1">
           {superadminNav.map((item) => (
             <Link
               key={item.href}

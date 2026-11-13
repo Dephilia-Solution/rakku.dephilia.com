@@ -7,10 +7,11 @@ import { usePlan } from "./PlanProvider";
 
 export default function LimitBanner() {
   const { summary, upgradeUrl } = usePlan();
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    const initial = setTimeout(() => setNow(Date.now()), 0);
     const timer = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(timer);
+    return () => { clearTimeout(initial); clearInterval(timer); };
   }, []);
 
   const max = summary.limits.transactions;
@@ -24,7 +25,7 @@ export default function LimitBanner() {
     "mx-4 mt-4 rounded-xl border px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 lg:mx-8";
 
   if (used >= max) {
-    const blocked = !graceEndsAt || new Date(graceEndsAt).getTime() < now;
+    const blocked = !graceEndsAt || (now !== null && new Date(graceEndsAt).getTime() < now);
     return (
       <div
         className={`${wrapper} ${
@@ -36,11 +37,13 @@ export default function LimitBanner() {
         <AlertTriangle size={18} className="shrink-0" />
         <div className="flex-1">
           <b>Kuota transaksi habis ({used}/{max}).</b>{" "}
-          {blocked
+          {now === null && graceEndsAt
+            ? "Memeriksa masa tenggang transaksi."
+            : blocked
             ? "Transaksi baru diblokir. Upgrade paket untuk lanjut berjualan."
             : `Masih bisa berjualan sampai masa tenggang berakhir${
                 graceEndsAt
-                  ? ` (${new Date(graceEndsAt).toLocaleDateString("id-ID")})`
+                  ? ` (${new Date(graceEndsAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })})`
                   : ""
               }.`}
         </div>

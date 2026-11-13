@@ -132,20 +132,27 @@ async function run(request: NextRequest) {
       const period = String(company.trial_ends_at).slice(0, 10);
 
       if (end <= now) {
-        await supabase
+        const expired = await supabase
           .from("companies")
           .update({ subscription_status: "expired" })
-          .eq("id", companyId);
+          .eq("id", companyId)
+          .eq("subscription_status", "trial")
+          .eq("trial_ends_at", company.trial_ends_at)
+          .select("id").maybeSingle();
+        // A paid activation or admin extension may have committed since this
+        // batch was read. Do not downgrade or notify that company from stale data.
+        if (expired.error) throw new Error(expired.error.message);
+        if (!expired.data) continue;
 
         const sent = await sendBillingEmail(supabase, {
           companyId,
           type: "trial_ended",
           period,
-          subject: "Trial Pro Anda telah berakhir",
+          subject: "Masa akses gratis Anda telah berakhir",
           eyebrow: "Langganan",
-          title: "Trial Pro berakhir.",
+          title: "Masa akses gratis berakhir.",
           paragraphs: [
-            "Masa trial Pro 14 hari Anda sudah selesai. Akun kini berjalan dengan paket Free.",
+            "Masa akses gratis paket Anda sudah selesai. Akun kini berjalan dengan paket Free.",
             "Semua data tetap aman. Upgrade kapan saja untuk membuka kembali fitur Pro.",
           ],
           note: "Paket Free tetap bisa dipakai untuk operasional harian dengan batas yang berlaku.",
@@ -156,11 +163,11 @@ async function run(request: NextRequest) {
           companyId,
           type: "trial_h3",
           period,
-          subject: "Trial Pro Anda tersisa 3 hari",
+          subject: "Masa akses gratis Anda tersisa 3 hari",
           eyebrow: "Langganan",
-          title: "Trial Pro hampir berakhir.",
+          title: "Masa akses gratis hampir berakhir.",
           paragraphs: [
-            "Trial Pro Anda tinggal beberapa hari lagi. Setelah berakhir, akun otomatis turun ke paket Free.",
+            "Masa akses gratis Anda tinggal beberapa hari lagi. Setelah berakhir, akun otomatis turun ke paket Free kecuali telah berlangganan.",
             "Upgrade sekarang agar laporan laba rugi, pembelian, dan opname tetap berjalan.",
           ],
           note: "Pembayaran QRIS — paket aktif otomatis setelah pembayaran berhasil.",

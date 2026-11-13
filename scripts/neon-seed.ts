@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { createAdminClient, closeDatabase } from "@rakku/db";
+import { seedDefaultSignupPromotion } from "@rakku/db/signup-promotions";
 
 config({ path: process.env.NEON_ENV_FILE || ".env.local" });
 async function main() {
@@ -30,7 +31,8 @@ async function main() {
         features: { ...pro, audit_log: true, priority_support: true }, sort_order: 3 },
     ], { onConflict: "slug", ignoreDuplicates: true });
     if (plans.error) throw new Error(plans.error.message);
+    await seedDefaultSignupPromotion(tx);
   });
-  console.log("Default menus/plans ready. Existing values were preserved.");
+  console.log("Default menus/plans/signup promotion ready. Existing values were preserved.");
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; }).finally(closeDatabase);

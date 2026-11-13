@@ -48,7 +48,7 @@ export default function AddPurchaseForm({ ingredients }: Props) {
   const [supplierName, setSupplierName] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
   const [note, setNote] = useState("");
-  const [items, setItems] = useState<ItemRow[]>([newRow()]);
+  const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM, key: "initial" }]);
   const [saving, setSaving] = useState(false);
 
   const totalAmount = items.reduce((sum, i) => {

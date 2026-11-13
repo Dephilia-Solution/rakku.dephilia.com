@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase/queries.owner";
 import { isValidCompanyCode, normalizeCompanyCode } from "@/lib/company-code";
 import { sendBillingEmail } from "@rakku/emails";
+import { formatPromotionDate } from "@rakku/shared-types";
 import {
   signOwnerSession,
   setOwnerSessionCookie,
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { company, error } = await createCompanyWithOnboarding({
+  const { company, error, promotion, status: serviceStatus, code: serviceCode } = await createCompanyWithOnboarding({
     ownerId: session.owner_id,
     companyName,
     companyCode: code,
@@ -87,33 +88,25 @@ export async function POST(request: NextRequest) {
   });
 
   if (error || !company) {
-    const status = error?.toLowerCase().includes("kode perusahaan sudah digunakan") ? 409 : 400;
-    return NextResponse.json({ error }, { status });
+    const status = serviceStatus ?? (error?.toLowerCase().includes("kode perusahaan sudah digunakan") ? 409 : 400);
+    return NextResponse.json({ error, code: serviceCode }, { status });
   }
 
-  // Email trial Pro dimulai (idempotent, tidak menggagalkan onboarding).
+  // Email reflects the entitlement actually awarded; no permanent 14-day claim.
   try {
     const supabase = createAdminClient();
-    const { data: trialCompany } = await supabase
-      .from("companies")
-      .select("trial_ends_at")
-      .eq("id", company.id)
-      .maybeSingle();
-
-    const trialEndsAt = trialCompany?.trial_ends_at as string | undefined;
+    const hasBenefit = promotion?.active === true;
     await sendBillingEmail(supabase, {
       companyId: company.id,
-      type: "trial_started",
-      period: trialEndsAt?.slice(0, 10) ?? "start",
-      subject: "Trial Pro 14 hari aktif — selamat datang di Rakku",
+      type: hasBenefit ? "trial_started" : "welcome_free",
+      period: promotion?.endsAt.slice(0, 10) ?? "start",
+      subject: hasBenefit ? `Akses ${promotion.planName} gratis ${promotion.durationMonths} bulan aktif — Rakku` : "Selamat datang di Rakku",
       eyebrow: "Langganan",
       title: `Selamat datang, ${session.name}.`,
-      paragraphs: [
-        "Trial Pro 14 hari Anda sudah aktif. Semua fitur Pro — laba rugi, pembelian, opname, role custom — bisa dicoba sekarang.",
-        trialEndsAt
-          ? `Trial berakhir pada ${new Date(trialEndsAt).toLocaleDateString("id-ID")}. Setelah itu akun otomatis turun ke paket Free.`
-          : "Setelah trial berakhir, akun otomatis turun ke paket Free.",
-      ],
+      paragraphs: hasBenefit ? [
+        `Anda mendapatkan akses ${promotion.planName} gratis ${promotion.durationMonths} bulan kalender sejak pendaftaran akun pada ${formatPromotionDate(promotion.startsAt)}.`,
+        `Akses gratis berakhir pada ${formatPromotionDate(promotion.endsAt)} WIB, bukan pada batas pendaftaran promo. Setelah itu akun otomatis menggunakan paket Free kecuali telah berlangganan.`,
+      ] : ["Usaha Anda sudah siap menggunakan paket Free Rakku. Pilih paket berlangganan kapan saja jika membutuhkan fitur atau kuota tambahan."],
       note: "Data Anda tetap aman di paket Free. Upgrade kapan saja untuk kembali ke Pro.",
     });
   } catch (err) {

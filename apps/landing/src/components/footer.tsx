@@ -16,7 +16,7 @@ export function Footer() {
           <MotionLink href="#top" className="inline-flex items-center" aria-label="Rakku, kembali ke atas">
             <Image src="/images/rakku_logotype.png" alt="Rakku" width={803} height={250} sizes="136px" className="h-auto w-[8.5rem] brightness-0 invert" />
           </MotionLink>
-          <p className="mt-4 max-w-[15rem] text-xs leading-[1.6] text-ivory/50">Software operasional untuk bisnis yang ingin lebih rapi.</p>
+          <p className="mt-4 max-w-[15rem] text-xs leading-[1.6] text-ivory/50">Kasir, stok, dan laporan untuk kedai, cafe, dan resto. Nyambung jadi satu.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-16">
@@ -42,7 +42,7 @@ export function Footer() {
 
       <Container className="flex flex-col gap-3 border-t border-ivory/15 py-4 font-mono text-[0.5rem] text-ivory/40 sm:flex-row sm:justify-between sm:py-5">
         <span>© 2026 Rakku.</span>
-        <span>Kasir · Resep · Stok · Outlet · Laba</span>
+        <span>Kasir · Produk · Resep · Stok · Laporan</span>
       </Container>
     </footer>
   );

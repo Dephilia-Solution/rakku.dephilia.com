@@ -1,27 +1,8 @@
 "use client";
 
-import { useState, type PropsWithChildren } from "react";
-import {
-  MotionConfig,
-  motion,
-  useMotionValueEvent,
-  useReducedMotion,
-  useScroll,
-  type HTMLMotionProps,
-  type Variants,
-} from "framer-motion";
-
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
-
-export const fadeRise: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.52, ease: EASE } },
-};
-
-export const stagger: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.09, delayChildren: 0.04 } },
-};
+import { useRef, useState, type PropsWithChildren } from "react";
+import { MotionConfig, motion, useMotionValueEvent, useScroll, type HTMLMotionProps } from "framer-motion";
+import { useEntrance } from "./use-entrance";
 
 export function MotionProvider({ children }: PropsWithChildren) {
   return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
@@ -30,124 +11,60 @@ export function MotionProvider({ children }: PropsWithChildren) {
 type HeaderFrameProps = PropsWithChildren<{ className?: string }>;
 
 export function HeaderFrame({ children, className = "" }: HeaderFrameProps) {
-  const { scrollY } = useScroll();
+  const { scrollY, scrollYProgress } = useScroll();
   const [scrolled, setScrolled] = useState(false);
-  const reduceMotion = useReducedMotion();
+  const threshold = useRef(false);
 
-  useMotionValueEvent(scrollY, "change", (latest) => {
+  useMotionValueEvent(scrollY, "change", latest => {
     const next = latest > 12;
-    setScrolled((current) => (current === next ? current : next));
+    if (next !== threshold.current) { threshold.current = next; setScrolled(next); }
   });
 
-  return (
-    <motion.header
-      initial={false}
-      animate={{
-        opacity: 1,
-        y: 0,
-        backgroundColor: scrolled ? "rgba(243, 239, 230, 0.95)" : "rgba(243, 239, 230, 0.85)",
-        boxShadow: scrolled ? "0 8px 24px rgba(24, 49, 38, 0.06)" : "0 0 0 rgba(24, 49, 38, 0)",
-      }}
-      transition={{ duration: reduceMotion ? 0 : 0.35, ease: EASE }}
-      className={`sticky top-0 z-50 border-b bg-paper/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl ${
-        scrolled
-          ? "border-green-950/20"
-          : "border-green-950/10"
-      } ${className}`}
-    >
-      {children}
-    </motion.header>
-  );
+  return <header data-scrolled={scrolled} className={`landing-header sticky top-0 z-50 border-b border-green-950/10 bg-paper/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl ${className}`}>
+    {children}
+    <motion.div aria-hidden="true" className="landing-reading-progress pointer-events-none absolute inset-x-0 bottom-[-1px] h-px origin-left bg-green-700/65" style={{scaleX: scrollYProgress}} />
+  </header>;
 }
 
 type StaggerProps = HTMLMotionProps<"div">;
 
 export function Stagger({ children, className = "", ...props }: StaggerProps) {
-  return (
-    <motion.div
-      {...props}
-      className={className}
-      variants={stagger}
-      initial={false}
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.25, margin: "0px 0px -8% 0px" }}
-    >
-      {children}
-    </motion.div>
-  );
+  const ref = useEntrance<HTMLDivElement>({selector: ":scope > [data-motion-item]", name: "stagger", distance: 18, duration: 560, stagger: 65, opacity: .68});
+  return <motion.div {...props} ref={ref} className={className} data-motion-stagger>{children}</motion.div>;
 }
 
 export function StaggerItem({ children, className = "", ...props }: StaggerProps) {
-  return (
-    <motion.div {...props} className={className} variants={fadeRise}>
-      {children}
-    </motion.div>
-  );
+  return <motion.div {...props} className={className} data-motion-item>{children}</motion.div>;
 }
 
 type MotionLinkProps = HTMLMotionProps<"a">;
 
 export function MotionLink({ children, className = "", ...props }: MotionLinkProps) {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <motion.a
-      {...props}
-      className={className}
-      whileHover={reduceMotion ? undefined : { y: -1 }}
-      whileTap={reduceMotion ? undefined : { y: 1, scale: 0.985 }}
-      transition={{ duration: 0.18, ease: EASE }}
-    >
-      {children}
-    </motion.a>
-  );
+  return <motion.a {...props} className={className}>{children}</motion.a>;
 }
 
-type ButtonLinkProps = MotionLinkProps;
-
-export function ButtonLink({ children, className = "", ...props }: ButtonLinkProps) {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <motion.a
-      {...props}
-      className={`landing-button ${className}`}
-      whileHover={reduceMotion ? undefined : { y: -1, scale: 1.015 }}
-      whileTap={reduceMotion ? undefined : { y: 1, scale: 0.98 }}
-      transition={{ duration: 0.18, ease: EASE }}
-    >
-      {children}
-    </motion.a>
-  );
+export function ButtonLink({ children, className = "", ...props }: MotionLinkProps) {
+  // CSS owns hover/press transforms, avoiding competing Framer + CSS transforms.
+  return <motion.a {...props} className={`landing-button ${className}`}>{children}</motion.a>;
 }
 
 type HeroCopyProps = PropsWithChildren<{ className?: string }>;
 
 export function HeroCopy({ children, className = "" }: HeroCopyProps) {
-  return <div className={`${className} space-y-6`}>{children}</div>;
+  const ref = useEntrance<HTMLDivElement>({selector: ":scope > :not(h1):not(aside)", name: "hero-copy", distance: 8, duration: 440, stagger: 45, opacity: 1});
+  // The headline is never hidden or delayed: preserve first-paint readability/LCP.
+  return <div ref={ref} className={`${className} space-y-6`}>{children}</div>;
 }
 
 export function HeroVisual({ children, className = "" }: HeroCopyProps) {
-  return <div className={className}>{children}</div>;
+  const ref = useEntrance<HTMLDivElement>({selector: ":scope > *", name: "hero-visual", distance: 20, duration: 650, opacity: 1});
+  return <div ref={ref} className={className}>{children}</div>;
 }
 
-type InteractiveRowProps = PropsWithChildren<{ className?: string }>;
-
-export function InteractiveRow({ children, className = "" }: InteractiveRowProps) {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <motion.div
-      className={className}
-      whileHover={reduceMotion ? undefined : { y: -2 }}
-      whileTap={reduceMotion ? undefined : { y: 1 }}
-      transition={{ duration: 0.2, ease: EASE }}
-    >
-      {children}
-    </motion.div>
-  );
+export function InteractiveRow({ children, className = "" }: HeroCopyProps) {
+  return <div className={`landing-interactive-row ${className}`}>{children}</div>;
 }
 
 export function Lift({ children, className = "" }: HeroCopyProps) {
-  return <motion.div className={className}>{children}</motion.div>;
+  return <div className={`landing-lift ${className}`}>{children}</div>;
 }

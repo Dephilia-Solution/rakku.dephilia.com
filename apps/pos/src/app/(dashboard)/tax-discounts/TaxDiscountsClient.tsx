@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Tax,
   ProductDiscount,
@@ -49,6 +49,12 @@ export default function TaxDiscountsClient({
     initialProductDiscounts
   );
   const [orderDiscounts, setOrderDiscounts] = useState(initialOrderDiscounts);
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const initial = setTimeout(() => setNow(Date.now()), 0);
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => { clearTimeout(initial); clearInterval(timer); };
+  }, []);
 
   const [showTaxForm, setShowTaxForm] = useState(false);
   const [editingTax, setEditingTax] = useState<Tax | null>(null);
@@ -176,9 +182,8 @@ export default function TaxDiscountsClient({
     }
   };
 
-  const now = new Date();
   const inPeriod = (start: string, end: string) =>
-    now >= new Date(start) && now <= new Date(end);
+    now !== null && now >= new Date(start).getTime() && now <= new Date(end).getTime();
 
   const discountList = (
     list: (ProductDiscount | OrderDiscount)[],
@@ -208,7 +213,7 @@ export default function TaxDiscountsClient({
                     {d.name}
                   </p>
                   <Badge variant={active ? "active" : "inactive"}>
-                    {active ? "Berjalan" : "Kadaluarsa"}
+                    {now === null ? "Memeriksa periode" : active ? "Berjalan" : "Kadaluarsa"}
                   </Badge>
                 </div>
                 <p className="text-xs text-on-surface-variant font-mono mt-0.5">
@@ -221,8 +226,8 @@ export default function TaxDiscountsClient({
                     }`}
                 </p>
                 <p className="text-[10px] text-on-surface-variant mt-0.5">
-                  {new Date(d.start_date).toLocaleDateString("id-ID")} —{" "}
-                  {new Date(d.end_date).toLocaleDateString("id-ID")}
+                  {new Date(d.start_date).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })} —{" "}
+                  {new Date(d.end_date).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
                 </p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">

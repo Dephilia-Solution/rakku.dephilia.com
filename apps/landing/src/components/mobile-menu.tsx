@@ -99,20 +99,20 @@ export function MobileMenu({ links, ownerUrl }: MobileMenuProps) {
             key="panel"
             ref={panelRef}
             aria-label="Navigasi mobile"
-            variants={panel}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            variants={reduceMotion ? undefined : panel}
+            initial={reduceMotion ? false : "hidden"}
+            animate={reduceMotion ? {opacity: 1, y: 0} : "visible"}
+            exit={reduceMotion ? {opacity: 1, y: 0, transition: {duration: 0}} : "exit"}
             className="absolute right-0 top-[calc(100%+0.5rem)] w-[min(18rem,calc(100vw-2rem))] origin-top-right rounded-md border border-brand bg-ivory p-2 shadow-card"
           >
             {links.map(([label, href]) => (
-              <motion.a key={href} href={href} onClick={closeMenu} variants={item} whileHover={reduceMotion ? undefined : { x: 3 }} whileTap={reduceMotion ? undefined : { x: 1, scale: 0.99 }} transition={{ duration: 0.16, ease: MENU_EASE }} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-950 transition-colors hover:bg-paper-deep active:bg-paper-deep">
+              <motion.a key={href} href={href} onClick={closeMenu} variants={reduceMotion ? undefined : item} whileHover={reduceMotion ? undefined : { x: 3 }} whileTap={reduceMotion ? undefined : { x: 1, scale: 0.99 }} transition={{ duration: 0.16, ease: MENU_EASE }} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-950 transition-colors hover:bg-paper-deep active:bg-paper-deep">
                 {label}
               </motion.a>
             ))}
-            <motion.div variants={item} className="my-1 border-t border-brand" />
-            <motion.a href={`${ownerUrl.replace(/\/$/, "")}/demo`} onClick={closeMenu} variants={item} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800">Coba Demo</motion.a>
-            <motion.a href={`${ownerUrl}/login`} onClick={closeMenu} variants={item} whileHover={reduceMotion ? undefined : { x: 3 }} whileTap={reduceMotion ? undefined : { x: 1, scale: 0.99 }} transition={{ duration: 0.16, ease: MENU_EASE }} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800 transition-colors hover:bg-paper-deep active:bg-paper-deep">
+            <motion.div variants={reduceMotion ? undefined : item} className="my-1 border-t border-brand" />
+            <motion.a href={`${ownerUrl.replace(/\/$/, "")}/demo`} onClick={closeMenu} variants={reduceMotion ? undefined : item} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800">Lihat produk</motion.a>
+            <motion.a href={`${ownerUrl}/login`} onClick={closeMenu} variants={reduceMotion ? undefined : item} whileHover={reduceMotion ? undefined : { x: 3 }} whileTap={reduceMotion ? undefined : { x: 1, scale: 0.99 }} transition={{ duration: 0.16, ease: MENU_EASE }} className="flex min-h-12 items-center rounded px-3 text-sm font-semibold text-green-800 transition-colors hover:bg-paper-deep active:bg-paper-deep">
               Masuk ke portal owner
             </motion.a>
           </motion.nav>

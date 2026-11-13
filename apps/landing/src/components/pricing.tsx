@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { SignupPromotionNotice } from "@rakku/ui";
+import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 
 import { CheckIcon } from "./icons";
-import { ButtonLink } from "./motion";
+import { ButtonLink, Stagger, StaggerItem } from "./motion";
 import { Container, SectionKicker } from "./primitives";
 import { ownerUrl } from "./site";
 import { ScrollReveal } from "./scroll-reveal";
@@ -26,7 +28,7 @@ const plans: PlanCard[] = [
   {
     slug: "free",
     name: "Free",
-    tagline: "Untuk kedai yang baru mulai",
+    tagline: "Mulai berjualan dengan fitur kasir inti",
     monthly: 0,
     yearly: 0,
     limits: [
@@ -47,7 +49,7 @@ const plans: PlanCard[] = [
   {
     slug: "pro",
     name: "Pro",
-    tagline: "Untuk cafe yang sedang berkembang",
+    tagline: "Baca lebih dalam, kelola lebih leluasa",
     monthly: 99000,
     yearly: 990000,
     limits: [
@@ -64,13 +66,13 @@ const plans: PlanCard[] = [
       "Role custom + laporan via email",
       "QR menu tanpa branding Rakku",
     ],
-    cta: "Coba Pro 14 hari",
+    cta: "Coba Rakku",
     highlighted: true,
   },
   {
     slug: "business",
     name: "Business",
-    tagline: "Untuk bisnis multi-cabang",
+    tagline: "Untuk tim dan usaha dengan banyak cabang",
     monthly: 249000,
     yearly: 2490000,
     limits: [
@@ -81,10 +83,10 @@ const plans: PlanCard[] = [
     ],
     features: [
       "Semua fitur Pro",
-      "Audit log tenant",
+      "Kuota untuk banyak cabang",
       "Prioritas support",
     ],
-    cta: "Mulai Business",
+    cta: "Daftarkan usaha",
   },
 ];
 
@@ -94,23 +96,25 @@ function formatRupiah(value: number): string {
 
 export function Pricing() {
   const [cycle, setCycle] = useState<Cycle>("monthly");
+  const [changedCycle, setChangedCycle] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   return (
-    <ScrollReveal className="bg-paper-deep py-[clamp(4.5rem,8vw,7rem)]" id="harga">
+    <ScrollReveal className="bg-paper-deep py-[clamp(4.5rem,8vw,7rem)]" id="harga" reveal="heading">
       <Container>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div data-reveal-heading className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <SectionKicker>Harga/Paket</SectionKicker>
             <h2 className="max-w-[16ch] text-balance font-display text-[clamp(2.65rem,5vw,4.5rem)] font-bold leading-[0.97] tracking-[-0.07em] text-green-950">
-              Gratis untuk mulai, upgrade saat tumbuh.
+              Mulai gratis. Pilih ruang untuk berkembang.
             </h2>
             <p className="mt-6 max-w-[34rem] text-[0.95rem] leading-[1.7] text-muted">
-              Fitur kasir inti selalu gratis. Batas paket naik mengikuti jumlah
-              outlet, karyawan, dan transaksi — tanpa biaya tersembunyi.
+              Pakai paket Free untuk mulai berjualan. Pilih Pro atau Business saat kamu membutuhkan fitur dan kuota tambahan untuk restomu.
             </p>
           </div>
 
-          <div className="inline-flex w-fit rounded-full border border-green-950/15 bg-ivory p-1">
+          <LayoutGroup id="landing-pricing-cycle">
+          <div role="group" aria-label="Periode langganan" className="inline-flex w-fit rounded-full border border-green-950/15 bg-ivory p-1">
             {(
               [
                 { value: "monthly", label: "Bulanan" },
@@ -120,29 +124,31 @@ export function Pricing() {
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setCycle(option.value)}
+                onClick={() => { setCycle(option.value); setChangedCycle(true); }}
                 aria-pressed={cycle === option.value}
-                className={`rounded-full px-4 py-2 text-[0.75rem] font-bold transition-colors duration-200 ${
+                className={`relative isolate min-h-11 rounded-full px-4 py-2 text-[0.75rem] font-bold transition-colors duration-200 ${
                   cycle === option.value
-                    ? "bg-green-950 text-ivory"
+                    ? "text-ivory"
                     : "text-green-950/60 hover:text-green-950"
                 }`}
               >
-                {option.label}
+                {cycle === option.value && <motion.span data-cycle-indicator aria-hidden="true" layoutId={reduceMotion ? undefined : "selected-cycle"} className="absolute inset-0 -z-10 rounded-full bg-green-950" transition={{type: "spring", stiffness: 420, damping: 36}} />}
+                <span>{option.label}</span>
               </button>
             ))}
           </div>
+          </LayoutGroup>
         </div>
 
-        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+        <Stagger className="mt-12 grid gap-5 lg:grid-cols-3">
           {plans.map((plan) => {
             const price = cycle === "yearly" ? plan.yearly : plan.monthly;
             const highlighted = Boolean(plan.highlighted);
 
             return (
-              <article
-                key={plan.slug}
-                className={`flex flex-col p-6 sm:p-7 ${
+              <StaggerItem key={plan.slug} className="h-full min-w-0">
+              <article data-plan={plan.slug}
+                className={`landing-plan relative flex h-full flex-col p-6 sm:p-7 ${
                   highlighted
                     ? "bg-green-950 text-ivory shadow-[0_24px_60px_-30px_rgba(16,44,29,0.9)]"
                     : "border border-green-950/12 bg-ivory text-green-950"
@@ -154,7 +160,7 @@ export function Pricing() {
                   </h3>
                   {highlighted ? (
                     <span className="rounded-full bg-lime px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-green-950">
-                      Populer
+                      Lebih leluasa
                     </span>
                   ) : null}
                 </div>
@@ -167,9 +173,9 @@ export function Pricing() {
                 </p>
 
                 <div className="mt-6 flex items-baseline gap-1">
-                  <span className="font-display text-[2.6rem] font-bold leading-none tracking-[-0.06em]">
+                  <motion.span key={cycle} initial={changedCycle && reduceMotion === false ? {opacity: .65, y: 5} : false} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : .22, ease: [.16,1,.3,1]}} className="inline-block font-display text-[2.6rem] font-bold leading-none tracking-[-0.06em]">
                     {price === 0 ? "Gratis" : formatRupiah(price)}
-                  </span>
+                  </motion.span>
                   {price > 0 ? (
                     <span
                       className={`text-[0.8rem] ${
@@ -180,6 +186,7 @@ export function Pricing() {
                     </span>
                   ) : null}
                 </div>
+                <div className="min-h-5">
                 {cycle === "yearly" && plan.monthly > 0 ? (
                   <p
                     className={`mt-1 text-[0.75rem] ${
@@ -189,6 +196,16 @@ export function Pricing() {
                     setara {formatRupiah(Math.round(plan.yearly / 12))}/bulan
                   </p>
                 ) : null}
+                </div>
+
+                {plan.slug === "pro" && (
+                  <SignupPromotionNotice
+                    endpoint={`${ownerUrl.replace(/\/$/, "")}/api/public/signup-promotion`}
+                    variant="plan"
+                    planName={plan.name}
+                    className="mt-5 border-t border-ivory/15 pt-5 text-ivory"
+                  />
+                )}
 
                 <ul
                   className={`mt-6 space-y-2.5 border-t pt-6 text-[0.85rem] ${
@@ -239,14 +256,13 @@ export function Pricing() {
                   </ButtonLink>
                 </div>
               </article>
+              </StaggerItem>
             );
           })}
-        </div>
+        </Stagger>
 
         <p className="mt-8 text-center text-[0.8rem] text-muted">
-          Langganan dibayar via QRIS di dashboard Owner. Pembayaran pelanggan
-          juga bisa lewat QRIS dinamis — uangnya masuk saldo dan bisa dicairkan
-          ke rekening Anda.
+          Pilih siklus bulanan atau tahunan, lalu bayar langganan lewat QRIS di dashboard Owner. Penawaran pengguna baru mengikuti campaign dan S&amp;K yang sedang aktif.
         </p>
       </Container>
     </ScrollReveal>

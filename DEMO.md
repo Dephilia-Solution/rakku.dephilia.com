@@ -86,7 +86,7 @@ Form logout/switch-user terikat lewat `MerchantForm`; tidak ada listener global 
 | `packages/demo/src/runtime/` | HTTP-compatible adapter, stable projection, payload normalizer, resolver route |
 | `apps/owner/src/components/demo/` | Provider tab-local, runtime area, guard/shell bindings, kontrol ringkas dan slot simulasi |
 | `apps/owner/src/app/demo/(sandbox)/` | Route namespace Owner/POS dan wrapper per fitur |
-| `apps/owner/public/demo-assets/` | Ilustrasi statis lokal |
+| `apps/owner/public/demo-assets/` | Sepuluh foto produk WebP lokal dan PNG sumber |
 | `packages/demo/src/*.test.ts` | Domain, adapter, source parity, provider/storage sentinels, route contracts |
 | `packages/demo/e2e/routed.mjs`, `isolation.mjs`, `browser.mjs`, `chrome.mjs` | Browser acceptance terhadap route/UI asli, kebijakan request, dan helper browser bersama |
 

@@ -1,10 +1,13 @@
 import { questions } from "@/content/faq";
+import { shouldIndexSite } from "./indexing";
+
+export { shouldIndexSite } from "./indexing";
 
 // Keep discovery URLs stable across the custom domain and Vercel aliases.
 export const siteUrl = new URL(process.env.SITE_URL || "https://rakku.dephilia.com").origin;
-export const isIndexable = process.env.VERCEL_ENV !== "preview";
-export const siteTitle = "Rakku | Aplikasi Kasir Cafe, Stok & Laporan Laba";
-export const siteDescription = "Aplikasi kasir untuk kedai kopi, cafe, dan bisnis F&B. Kelola POS, resep, stok bahan baku, multi-outlet, dan laporan laba. Tersedia paket gratis.";
+export const isIndexable = shouldIndexSite(process.env.VERCEL_ENV, process.env.SITE_INDEXABLE);
+export const siteTitle = "Rakku POS | Kasir, Stok & Laporan untuk Cafe dan Resto";
+export const siteDescription = "Kasir, stok, dan laporan dalam satu tempat. Atur menu dan resep, catat pemakaian bahan otomatis, lalu baca omzet dan menu favorit restomu. Mulai gratis.";
 
 export function homeStructuredData() {
   return {

@@ -44,10 +44,10 @@ export function createFixture(now: string, generation: string): DemoState {
   const company_id = DEMO_IDS.company;
   const plan_expires_at = addSubscriptionPeriod(now, "monthly");
   const state: DemoState = {
-    generation, now, company: { id: company_id, name: "Rakku Demo Cafe", code: "DEMO_CAFE", owner_name: "Owner Demo Rakku", email: "owner@rakku.invalid", password: "DemoCafe2026!" },
+    generation, now, company: { id: company_id, name: "Rakku Cafe", code: "DEMO_CAFE", owner_name: "John Doe", email: "owner@rakku.example", password: "DemoCafe2026!" },
     outlets: [
-      { id: DEMO_IDS.pusat, company_id, name: "Rakku Demo Cafe — Pusat", address: "Jl. Contoh Raya No. 10", is_active: true },
-      { id: DEMO_IDS.taman, company_id, name: "Rakku Demo Cafe — Taman", address: "Jl. Contoh Taman No. 25", is_active: true },
+      { id: DEMO_IDS.pusat, company_id, name: "Outlet Pusat", address: "Jl. Utama No. 10", is_active: true },
+      { id: DEMO_IDS.taman, company_id, name: "Outlet Dekat Taman", address: "Jl. Taman No. 25", is_active: true },
     ], employees: [], roles: [
       { id: DEMO_IDS.manager, company_id, name: "Manager Outlet", menus: [...DEMO_MENUS], grants: fullMenusGrant(DEMO_MENUS) },
       { id: DEMO_IDS.cashier, company_id, name: "Kasir", menus: [...CASHIER_MENUS], grants: fullMenusGrant(CASHIER_MENUS) },
@@ -71,7 +71,7 @@ export function createFixture(now: string, generation: string): DemoState {
     productData.forEach(([name, base, online, category, recipe], i) => {
       const id = fid("product", i);
       state.products.push({ id, code: `PRD${String(i + 1).padStart(3, "0")}`, company_id, outlet_id: outlet.id, name, price: base * 1000, category_id: fid("category", category), sort_order: i + 1,
-        image_url: `/demo-assets/${["cafe", "cafe", "cafe", "cafe", "cafe", "latte", "chocolate", "tea", "food", "fries"][i]}.svg`, is_active: true, description: ["Espresso pekat dari biji kopi pilihan, disajikan hangat.", "Espresso dengan air mineral, ringan dan aromatik.", "Espresso dengan susu hangat dan foam lembut.", "Kopi susu creamy dengan espresso dan susu full cream.", "Kopi susu dingin dengan sirup gula aren dan es batu.", "Matcha lembut dengan susu full cream dan es batu.", "Cokelat creamy dengan susu full cream, disajikan dingin.", "Teh lemon segar dengan simple syrup dan es batu.", "Croissant mentega hangat dengan lapisan renyah.", "Kentang goreng renyah dengan saus tomat."][i],
+        image_url: `/demo-assets/${["espresso", "americano", "cappuccino", "caffe-latte", "kopi-susu-gula-aren", "matcha-latte", "chocolate-latte", "lemon-tea", "butter-croissant", "french-fries"][i]}.webp`, is_active: true, description: ["Espresso pekat dari biji kopi pilihan, disajikan hangat.", "Espresso dengan air mineral, ringan dan aromatik.", "Espresso dengan susu hangat dan foam lembut.", "Kopi susu creamy dengan espresso dan susu full cream.", "Kopi susu dingin dengan sirup gula aren dan es batu.", "Matcha lembut dengan susu full cream dan es batu.", "Cokelat creamy dengan susu full cream, disajikan dingin.", "Teh lemon segar dengan simple syrup dan es batu.", "Croissant mentega hangat dengan lapisan renyah.", "Kentang goreng renyah dengan saus tomat."][i],
         prices: Object.fromEntries([base, base, online, online].map((p, t) => [fid("tier", t), p * 1000])),
         recipe: recipe.map(([ingredient, quantity_used]) => ({ ingredient_id: fid("ingredient", ingredient), quantity_used })),
         modifiers: (category === 0 ? [["Extra Shot", 5000], ["Extra Susu", 3000]] : category === 1 && i !== 7 ? [["Extra Susu", 3000]] : []).map(([name, delta], m) => ({ id: fid(`modifier:${i}`, m), product_id: id,
@@ -79,12 +79,12 @@ export function createFixture(now: string, generation: string): DemoState {
       });
     });
     for (let i = 1; i <= 8; i++) state.tables.push({ id: fid("table", i), company_id, outlet_id: outlet.id, name: `Meja ${i}`, status: i <= 3 ? "occupied" : "available", created_at: now });
-    state.taxes.push({ id: fid("tax", 0), company_id, outlet_id: outlet.id, name: "Pajak Demo", type: "percentage", value: 10, is_active: true, sort_order: 1, created_at: now },
-      { id: fid("tax", 1), company_id, outlet_id: outlet.id, name: "Service Demo", type: "fixed", value: 1000, is_active: false, sort_order: 2, created_at: now });
+    state.taxes.push({ id: fid("tax", 0), company_id, outlet_id: outlet.id, name: "PPN", type: "percentage", value: 11, is_active: true, sort_order: 1, created_at: now },
+      { id: fid("tax", 1), company_id, outlet_id: outlet.id, name: "Service Tax", type: "fixed", value: 1000, is_active: false, sort_order: 2, created_at: now });
     state.discounts.push(
       { id: fid("discount", 0), company_id, outlet_id: outlet.id, product_id: fid("product", 5), name: "Matcha Latte 10%", type: "percentage", value: 10, start_date: shiftedDate(now, -30), end_date: shiftedDate(now, 7), is_active: true, created_at: now },
-      { id: fid("discount", 1), company_id, outlet_id: outlet.id, product_id: null, name: "Promo Demo", type: "fixed", value: 5000, start_date: shiftedDate(now, -7), end_date: shiftedDate(now, 7), is_active: false, created_at: now },
-      { id: fid("discount", 2), company_id, outlet_id: outlet.id, product_id: null, name: "Promo lampau", type: "percentage", value: 20, start_date: shiftedDate(now, -60), end_date: shiftedDate(now, -31), is_active: true, created_at: now },
+      { id: fid("discount", 1), company_id, outlet_id: outlet.id, product_id: null, name: "Promo Harian", type: "fixed", value: 5000, start_date: shiftedDate(now, -7), end_date: shiftedDate(now, 7), is_active: false, created_at: now },
+      { id: fid("discount", 2), company_id, outlet_id: outlet.id, product_id: null, name: "Promo Akhir Tahun", type: "percentage", value: 20, start_date: shiftedDate(now, -60), end_date: shiftedDate(now, -31), is_active: true, created_at: now },
     );
     for (let i = 0; i < 60; i++) {
       const daysAgo = Math.floor(i / 2);

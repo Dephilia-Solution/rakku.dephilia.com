@@ -13,3 +13,4 @@ export {
 export { default as Toggle } from "./Toggle";
 export { default as SessionBoundary } from "./SessionBoundary";
 export { default as RegisterProductCard, type RegisterProductCardProps } from "./RegisterProductCard";
+export { default as SignupPromotionNotice, type SignupPromotionNoticeProps } from "./SignupPromotionNotice";

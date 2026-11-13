@@ -381,6 +381,7 @@ export default function ExpensesClient({ expenses: initialExpenses }: Props) {
                   >
                     <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
                       {new Date(expense.expense_date).toLocaleDateString("id-ID", {
+                        timeZone: "Asia/Jakarta",
                         day: "numeric",
                         month: "short",
                         year: "numeric",
@@ -435,6 +436,7 @@ export default function ExpensesClient({ expenses: initialExpenses }: Props) {
                     </p>
                     <p className="text-xs text-on-surface-variant">
                       {new Date(expense.expense_date).toLocaleDateString("id-ID", {
+                        timeZone: "Asia/Jakarta",
                         day: "numeric",
                         month: "short",
                         year: "numeric",

@@ -4,6 +4,7 @@ import { deleteRole, getRoleGrants, saveRoleGrants, onboardingRoleGrants } from 
 import bcrypt from "bcryptjs";
 import { createAdminClient, sql } from "@rakku/db";
 import { readOwnerOutletStats } from "@rakku/db/owner-dashboard";
+import { reserveSignupPromotion, applySignupPromotion, SignupPromotionError, type AppliedSignupBenefit } from "@rakku/db/signup-promotions";
 import { cache } from "react";
 import { hashPin } from "@rakku/auth-utils";
 import { isValidCompanyCode, normalizeCompanyCode } from "@/lib/company-code";
@@ -153,7 +154,7 @@ export async function createOwner(params: {
   email: string;
   password: string;
   phone?: string;
-}): Promise<{ owner: Owner | null; error: string | null }> {
+}): Promise<{ owner: Owner | null; error: string | null; code?: string; status?: number }> {
   const supabase = createAdminClient();
   const { name, email, password, phone } = params;
 
@@ -170,7 +171,9 @@ export async function createOwner(params: {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const { data: owner, error } = await supabase
+  try {
+  return await supabase.transaction(async tx => {
+  const { data: owner, error } = await tx
     .from("owners")
     .insert({
       email: email.toLowerCase(),
@@ -183,10 +186,15 @@ export async function createOwner(params: {
     .single();
 
   if (error || !owner) {
-    return { owner: null, error: "Gagal mendaftar, coba lagi" };
+    throw new Error(error?.code === "23505" ? "Email sudah terdaftar" : "Gagal mendaftar, coba lagi");
   }
-
+  await reserveSignupPromotion(tx, owner.id);
   return { owner: owner as Owner, error: null };
+  });
+  } catch (error) {
+    if (error instanceof SignupPromotionError) return {owner: null,error: error.message,code: error.code,status: error.status};
+    return {owner: null,error: error instanceof Error ? error.message : "Gagal mendaftar, coba lagi"};
+  }
 }
 
 // ============================================================
@@ -343,6 +351,9 @@ export async function createCompanyWithOnboarding(params: {
 }): Promise<{
   company: { id: string; name: string; slug: string; code: string } | null;
   error: string | null;
+  promotion?: AppliedSignupBenefit | null;
+  status?: number;
+  code?: string;
 }> {
   const supabase = createAdminClient();
   const { ownerId, companyName, companyPassword, outletName, outletAddress } = params;
@@ -465,33 +476,17 @@ export async function createCompanyWithOnboarding(params: {
     });
   }
 
-  // 5. Trial Pro 14 hari (v6 M2). Setelah habis, resolusi plan otomatis
-  //    turun ke Free tanpa menghapus data.
-  const { data: proPlan } = await supabase
-    .from("plans")
-    .select("id")
-    .eq("slug", "pro")
-    .maybeSingle();
-
-  if (proPlan) {
-    const trial = await supabase
-      .from("companies")
-      .update({
-        plan_id: proPlan.id,
-        subscription_status: "trial",
-        trial_ends_at: new Date(
-          Date.now() + 14 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      })
-      .eq("id", company.id);
-    if (trial.error) throw new Error(trial.error.message);
-  }
+  // Signup reserved the campaign and absolute end date. Delayed verification or
+  // onboarding must neither lose the offer nor restart its three-month clock.
+  // Owners without a signup reservation keep the default Free resolution.
+  const promotion = await applySignupPromotion(supabase, ownerId, company.id);
 
   return {
     company: { id: company.id, name: company.name, slug, code },
     error: null,
+    promotion,
   };
-  }).catch(error => ({ company: null, error: error instanceof Error ? error.message : "Gagal onboarding" }));
+  }).catch(error => ({ company: null, error: error instanceof Error ? error.message : "Gagal onboarding", ...(error instanceof SignupPromotionError ? {status: error.status,code: error.code} : {}) }));
 }
 
 // ============================================================

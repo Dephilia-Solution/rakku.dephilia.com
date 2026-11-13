@@ -37,6 +37,11 @@ dist/
 /config/rbac/README.md
 /config/settlement/README.md
 
+# Remotion project, prompts, and generated build output
+/remotion/
+/remotion-*.md
+**/.next-remotion*/
+
 # Next.js
 apps/*/next-env.d.ts
 
