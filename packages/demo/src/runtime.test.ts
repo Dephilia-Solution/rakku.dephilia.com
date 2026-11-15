@@ -30,11 +30,11 @@ test("local auth selectors never expose PINs; company/PIN/Owner login have sourc
   const session = await ok(request, "/api/auth/tenant/session"); assert.equal(record(session).user_name, "Dita"); assert.equal(record(session).role_name, "Manager Outlet"); assert.ok(!("token" in record(session)));
   const switched = await call(request, "/api/auth/tenant/switch-user", "POST"); assert.equal(switched.response.status, 303); assert.equal(switched.response.headers.get("Location"), "/login/select-user"); assert.equal(sandbox.getSnapshot().session.employee_id, null);
   const ownerRequest = createDemoRequestAdapter(sandbox, { app: "owner" });
-  const ownerLogin = await ok(ownerRequest, "/api/auth/owner/login", "POST", { email: "owner@rakku.invalid", password: "DemoCafe2026!", remember: true }); assert.equal(record(ownerLogin).redirect, "/");
+  const ownerLogin = await ok(ownerRequest, "/api/auth/owner/login", "POST", { email: "owner@rakku.example", password: "DemoCafe2026!", remember: true }); assert.equal(record(ownerLogin).redirect, "/");
   const ownerSession = await ok(ownerRequest, "/api/auth/owner/session"); assert.equal(record(record(ownerSession).owner).has_company, true);
   const settings = await ok(ownerRequest, "/api/owner/settings", "PUT", { new_company_password: "ABC123" }); assert.equal(record(settings).updated, "password");
   await ok(request, "/api/auth/tenant/company", "POST", { code: "DEMO_CAFE", password: "ABC123" });
-  await ok(ownerRequest, "/api/auth/owner/login", "POST", { email: "owner@rakku.invalid", password: "DemoCafe2026!" });
+  await ok(ownerRequest, "/api/auth/owner/login", "POST", { email: "owner@rakku.example", password: "DemoCafe2026!" });
 });
 
 test("original Owner catalog contracts cover category/tier/product prices/modifiers/recipes and strict foreign relations", async () => {
@@ -115,10 +115,10 @@ test("original cart DTOs are server-priced, custom modifiers are local snapshots
   const { sandbox, request } = pos(false), before = sandbox.getSnapshot().ingredients;
   const item = { ...cart(), modifiers: [{ id: "custom-123", product_id: id("product", 4), name: "Vanilla", price_delta: 2500, group_name: "Tambahan" }] };
   const draft = record(await ok(request, "/api/admin/orders/draft", "POST", { items: [item], customerName: "Nadia", pricingTierId: id("tier", 0), tableId: null, companyId: DEMO_IDS.company, outletId: P, cashierId: "fixture:bima_pusat" }));
-  assert.equal(draft.total_price, 62700); assert.equal(rows(draft.order_items)[0].unit_price, 28500); assert.equal(sandbox.getSnapshot().movements.filter(row => row.reference_id === draft.id).length, 0);
+  assert.equal(draft.total_price, 63270); assert.equal(rows(draft.order_items)[0].unit_price, 28500); assert.equal(sandbox.getSnapshot().movements.filter(row => row.reference_id === draft.id).length, 0);
   const completed = record(await ok(request, `/api/admin/orders/draft?id=${draft.id}`, "PATCH", { status: "completed", payment_method: "cash", pricing_tier_id: id("tier", 0), customer_name: "Nadia edited", table_id: null, order_type: "take_away", subtotal: 1, total_price: 1,
-    items: [{ ...item, quantity: 3 }], splits: [{ method: "cash", amount: 30000, customer_name: "A", items: [{ cart_item_id: "cart-kopi", quantity: 1 }] }, { method: "card", amount: 64050, customer_name: "B", items: [{ cart_item_id: "cart-kopi", quantity: 2 }] }] }));
-  assert.equal(completed.id, draft.id); assert.equal(completed.total_price, 94050); assert.equal(completed.status, "completed"); assert.equal(rows(completed.split_payments)[0].customer_name, "A");
+    items: [{ ...item, quantity: 3 }], splits: [{ method: "cash", amount: 30000, customer_name: "A", items: [{ cart_item_id: "cart-kopi", quantity: 1 }] }, { method: "card", amount: 64905, customer_name: "B", items: [{ cart_item_id: "cart-kopi", quantity: 2 }] }] }));
+  assert.equal(completed.id, draft.id); assert.equal(completed.total_price, 94905); assert.equal(completed.status, "completed"); assert.equal(rows(completed.split_payments)[0].customer_name, "A");
   sandbox.run({ type: "session.owner" }); assert.equal(sandbox.getSnapshot().ingredients.find(row => row.id === id("ingredient", 0))!.stock_quantity, 5946); assert.equal(sandbox.getSnapshot().products.find(row => row.id === id("product", 4))!.modifiers.length, 2);
   const once = sandbox.getSnapshot(); sandbox.run({ type: "order.complete", id: key(draft.id), payment_method: "cash" }); assert.equal(sandbox.getSnapshot(), once);
   assert.equal(before.length, 0, "cashier cannot inspect ingredient records");
@@ -127,7 +127,7 @@ test("original cart DTOs are server-priced, custom modifiers are local snapshots
 test("dynamic QRIS facade creates/polls/retries/cancels without provider finalization and manual QRIS never credits", async () => {
   const { sandbox, request } = pos(false); const body = { items: [cart()], orderType: "dine_in", customerName: "Guest", tableId: null, pricingTierId: id("tier", 0), subtotal: 1, total: 1 };
   const qris = record(await ok(request, "/api/admin/orders/qris", "POST", body)), order = record(qris.order), intent = record(qris.intent);
-  assert.equal(intent.amount, 57200); assert.match(key(intent.qr_string), /NOT-PAYABLE/);
+  assert.equal(intent.amount, 57720); assert.match(key(intent.qr_string), /NOT-PAYABLE/);
   assert.equal(record(record(await ok(request, `/api/admin/orders/qris/${order.id}`)).order).status, "pending_payment");
   const retried = record(await ok(request, `/api/admin/orders/qris/${order.id}/retry`, "POST")); assert.notEqual(record(retried.intent).id, intent.id);
   sandbox.run({ type: "payment.transition", id: key(record(retried.intent).id), status: "success" }); assert.equal(record(record(await ok(request, `/api/admin/orders/qris/${order.id}`)).order).status, "completed");
@@ -278,10 +278,10 @@ test("Owner opening stock, purchases, opname and paginated history stay in the r
   const history = record(await ok(request, `/api/owner/stock-movements?outlet_id=${T}&ingredient_id=${ingredientId}&page=1`));
   assert.equal(history.total, 4); assert.equal(history.page, 1); assert.equal(history.pageSize, 20);
   assert.deepEqual(rows(history.movements).map(row => row.type), ["purchase", "adjustment", "purchase", "adjustment"]);
-  assert.ok(rows(history.movements).every(row => row.ingredient_name === "Sirup baru" && row.unit === "ml" && row.actor_name === "Owner Demo Rakku"));
+  assert.ok(rows(history.movements).every(row => row.ingredient_name === "Sirup baru" && row.unit === "ml" && row.actor_name === "John Doe"));
   assert.ok(rows(history.movements).some(row => row.note === "Opening stock" && row.quantity_change === 10.25));
   const purchases = record(await ok(request, `/api/owner/purchases?outlet_id=${T}&page=1`)); assert.equal(purchases.total, 6);
-  const mapped = findRow(rows(purchases.purchases), key(purchase.id)); assert.equal(mapped.supplier_name, purchaseBody.supplier); assert.equal(mapped.purchase_date, purchaseBody.date); assert.equal(mapped.actor_name, "Owner Demo Rakku");
+  const mapped = findRow(rows(purchases.purchases), key(purchase.id)); assert.equal(mapped.supplier_name, purchaseBody.supplier); assert.equal(mapped.purchase_date, purchaseBody.date); assert.equal(mapped.actor_name, "John Doe");
   assert.deepEqual(rows(mapped.items)[0], { ingredient_id: ingredientId, ingredient_name: "Sirup baru", unit: "ml", quantity: 2.5, unit_cost: 12.34, subtotal: 30.85 });
   assert.equal(record(await ok(request, `/api/owner/purchases?outlet_id=${P}`)).total, 4);
   assert.deepEqual(sandbox.getSnapshot().ingredients.filter(row => row.outlet_id === P), pusatBefore);

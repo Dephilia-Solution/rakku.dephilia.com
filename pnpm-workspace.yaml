@@ -25,11 +25,16 @@ onlyBuiltDependencies:
   - esbuild
   - unrs-resolver
 
-# Align the API-key UI plugin with Neon Auth SDK 0.6 pinned Better Auth.
+# Neon Auth SDK 0.6 pins vulnerable Better Auth/Zod versions. Keep its auth
+# plugins on the same patched release until the SDK updates its dependencies.
 overrides:
-  "@better-auth/api-key": "1.7.6"
+  "better-auth@<1.7.7": "1.7.7"
+  "@better-auth/core@<1.7.7": "1.7.7"
+  "@better-auth/api-key": "1.7.7"
+  "@better-auth/passkey@<1.7.7": "1.7.7"
   "@daveyplate/better-auth-ui@3.4.0>better-call": "1.4.0"
   "postcss-selector-parser@>=6.0.0 <7.1.6": "7.1.6"
+  "zod@<4.6.6": "4.6.7"
 
 # Neon SDK and API-key plugin require better-call 1.4; the UI package
 # declares an unused 2.0.2 dependency which otherwise supplies an incompatible peer.

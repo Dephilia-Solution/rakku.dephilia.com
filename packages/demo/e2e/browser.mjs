@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 
 export const PRODUCT = 'Kopi Susu Gula Aren';
-export const PUSAT = 'Rakku Demo Cafe — Pusat';
-export const TAMAN = 'Rakku Demo Cafe — Taman';
+export const PUSAT = 'Outlet Pusat';
+export const TAMAN = 'Outlet Dekat Taman';
 export const rp = (number) => `Rp ${number.toLocaleString('id-ID')}`;
 export const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

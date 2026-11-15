@@ -473,13 +473,15 @@ retryable. It never turns a payment, invoice, or withdrawal into success.
 
 ## Fixture
 
-Company: Rakku Demo Cafe / DEMO_CAFE / Owner Demo Rakku /
-owner@rakku.invalid / DemoCafe2026!; fictional Pusat and Taman outlets. Each outlet
+Company: Rakku Cafe / DEMO_CAFE / John Doe /
+owner@rakku.example / DemoCafe2026!; fictional Outlet Pusat (Jl. Utama No. 10)
+and Outlet Dekat Taman (Jl. Taman No. 25). Each outlet
 has 10 products in Coffee/Non-Coffee/Food, 4 price tiers, 15 ingredients, 8 tables,
 60 completed orders across 30 days including today, 2 drafts, 1 pending QR order,
 1 cancelled order, 4 multi-item purchases, 6 expenses, and 2 stock opnames.
 Opening stock is computed once per ingredient from target stock minus all other
 movements. Pusat Matcha and Taman Croissant start below minimum stock.
+PPN is 11%; the fixed Rp1,000 Service Tax is initially inactive.
 
 | Employee | Role | Outlet | PIN |
 | --- | --- | --- | --- |

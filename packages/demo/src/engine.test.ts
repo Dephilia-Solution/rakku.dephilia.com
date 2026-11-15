@@ -41,8 +41,8 @@ function invalid(s: DemoSandbox, cmd: unknown, pattern?: RegExp): void {
 
 test("fixture is exact, deterministic, related, and stock/ledger reconciled", () => {
   const a = owner(), b = owner(), state = a.getSnapshot();
-  assert.equal(state.company.name, "Rakku Demo Cafe"); assert.equal(state.company.code, "DEMO_CAFE");
-  assert.equal(state.company.owner_name, "Owner Demo Rakku"); assert.equal(state.company.email, "owner@rakku.invalid"); assert.equal(state.company.password, "DemoCafe2026!");
+  assert.equal(state.company.name, "Rakku Cafe"); assert.equal(state.company.code, "DEMO_CAFE");
+  assert.equal(state.company.owner_name, "John Doe"); assert.equal(state.company.email, "owner@rakku.example"); assert.equal(state.company.password, "DemoCafe2026!");
   assert.deepEqual(state.employees.map(e => [e.name, e.username, e.pin, e.outlet_ids]), [
     ["Rani", "rani_pusat", "111111", [P]], ["Bima", "bima_pusat", "222222", [P]], ["Dita", "dita_taman", "333333", [T]], ["Raka", "raka_taman", "444444", [T]],
   ]);
@@ -78,8 +78,8 @@ test("fixture is exact, deterministic, related, and stock/ledger reconciled", ()
   const totals = a.report();
   assert.deepEqual({ revenue: totals.revenue, cogs: totals.cogs, expenses: totals.expenses, subtotal: totals.subtotal, tax: totals.tax, discounts: totals.discounts },
     // Seed modifiers add Rp216,000 before Rp8,400 additional Matcha discounts;
-    // BOM-only HPP is unchanged. Tax is 10% of the discounted item subtotal.
-    { revenue: 11155980, cogs: 1998180, expenses: 750000, subtotal: 10141800, tax: 1014180, discounts: 136200 });
+    // BOM-only HPP is unchanged. PPN is 11% of the discounted item subtotal.
+    { revenue: 11257398, cogs: 1998180, expenses: 750000, subtotal: 10141800, tax: 1115598, discounts: 136200 });
   assert.deepEqual({ ...state, generation: "same" }, { ...b.getSnapshot(), generation: "same" });
 });
 
@@ -128,7 +128,7 @@ test("destroy and generations reject stale callbacks and new state is untouched"
 
 test("public menu is safe, filtered and validates outlets without login", () => {
   const s = createDemoSandbox(NOW), menu = s.publicMenu(P);
-  assert.equal(menu.outletName, "Rakku Demo Cafe — Pusat"); assert.equal(menu.categories.flatMap(c => c.products).length, 10);
+  assert.equal(menu.outletName, "Outlet Pusat"); assert.equal(menu.categories.flatMap(c => c.products).length, 10);
   assert.deepEqual(Object.keys(menu.categories[0].products[0]).sort(), ["description", "id", "image_url", "name", "price"]);
   assert.ok(Object.isFrozen(menu.categories[0].products)); assert.throws(() => s.publicMenu("invalid"));
   s.run({ type: "session.owner" }); save(s, "products", { id: id("product", 0), is_active: false });
@@ -184,19 +184,19 @@ test("quote uses exact four-tier prices, modifiers, active/expired discounts and
     assert.equal(q.items[0].unit_price, p[tier > 1 ? 1 : 0] * 1000);
   }
   const q = s.run({ type: "order.quote", ...input(), items: [{ product_id: id("product", 4), quantity: 2, modifier_ids: [id("modifier:4", 0), id("modifier:4", 1)], note: "Less ice" }] }) as DemoOrder;
-  assert.equal(q.items[0].unit_price, 34000); assert.equal(q.subtotal, 68000); assert.equal(q.tax_amount, 6800); assert.equal(q.total, 74800); assert.equal(q.items[0].note, "Less ice"); assert.match(q.items[0].modifier_label!, /Extra Shot/);
+  assert.equal(q.items[0].unit_price, 34000); assert.equal(q.subtotal, 68000); assert.equal(q.tax_rate, 11); assert.equal(q.tax_amount, 7480); assert.equal(q.total, 75480); assert.equal(q.items[0].note, "Less ice"); assert.match(q.items[0].modifier_label!, /Extra Shot/);
   const matcha = s.run({ type: "order.quote", ...input(5, 2) }) as DemoOrder;
-  assert.equal(matcha.discount_amount, 6400); assert.equal(matcha.subtotal, 57600); assert.equal(matcha.tax_amount, 5760); assert.equal(matcha.total, 63360);
+  assert.equal(matcha.discount_amount, 6400); assert.equal(matcha.subtotal, 57600); assert.equal(matcha.tax_amount, 6336); assert.equal(matcha.total, 63936);
   save(s, "discounts", { id: id("discount", 1), is_active: true }); save(s, "taxes", { id: id("tax", 1), is_active: true });
   const promo = s.run({ type: "order.quote", ...input() }) as DemoOrder;
-  assert.equal(promo.discount_amount, 5000); assert.equal(promo.tax_amount, 5700); assert.equal(promo.total, 52700);
+  assert.equal(promo.discount_amount, 5000); assert.equal(promo.tax_amount, 6170); assert.equal(promo.total, 53170);
 });
 
 test("two Kopi Susu consume exact coffee/milk/aren/water/ice amounts only once", () => {
   const s = owner(), before = s.getSnapshot(), o = create(s);
   const expected = new Map([[0, 36], [1, 300], [2, 50], [8, 60], [9, 200]]);
   for (let i = 0; i < 15; i++) assert.equal(stock(s, i), before.ingredients.find(g => g.id === id("ingredient", i))!.stock_quantity - (expected.get(i) ?? 0));
-  assert.equal(o.total, 57200); assert.equal(o.status, "completed");
+  assert.equal(o.total, 57720); assert.equal(o.status, "completed");
   const movements = s.getSnapshot().movements.filter(m => m.reference_id === o.id); assert.equal(movements.length, 5);
   for (const m of movements) assert.equal(m.quantity_change, -expected.get(Number(m.ingredient_id.split(":").at(-1)))!);
   const once = s.getSnapshot(); s.run({ type: "order.complete", id: o.id, payment_method: "cash" }); assert.equal(s.getSnapshot(), once);
@@ -213,7 +213,7 @@ test("drafts never deduct; completion/splits/cash change are atomic and idempote
   const after = s.getSnapshot(); s.run({ type: "order.complete", id: o.id, payment_method: "cash" }); assert.equal(s.getSnapshot(), after);
   invalid(s, { type: "payment.create", order_id: o.id }); invalid(s, { type: "order.cancel", id: o.id });
   const cash = s.run({ type: "order.create", ...input(), status: "completed", payment_method: "cash", amount_paid: 60000 }) as DemoOrder;
-  assert.equal(cash.change, 2800); assert.equal(cash.amount_paid, 60000);
+  assert.equal(cash.change, 2280); assert.equal(cash.amount_paid, 60000);
   assertStockLedger(s.getSnapshot());
 });
 
@@ -234,13 +234,13 @@ test("dynamic QRIS success deducts and credits net MDR exactly once; manual neve
   const s = owner(), balance = s.getSnapshot().balance!, beforeCoffee = stock(s, 0), order = create(s, "pending", "qris");
   assert.equal(stock(s, 0), beforeCoffee);
   const payment = s.run({ type: "payment.create", order_id: order.id }) as PaymentIntent;
-  assert.equal(payment.provider, "demo"); assert.match(payment.qr_string!, /NOT-PAYABLE/); assert.equal(payment.amount, 57200);
+  assert.equal(payment.provider, "demo"); assert.match(payment.qr_string!, /NOT-PAYABLE/); assert.equal(payment.amount, 57720);
   const snapshot = s.getSnapshot(); s.run({ type: "payment.create", order_id: order.id }); assert.equal(s.getSnapshot(), snapshot);
   s.run({ type: "payment.transition", id: payment.id, status: "success" });
   assert.equal(stock(s, 0), beforeCoffee - 36); const after = s.getSnapshot();
   assert.equal(after.orders.find(o => o.id === order.id)!.status, "completed");
-  assert.equal(after.balance!.available_balance, balance.available_balance + 57200 - Math.round(57200 * 0.007));
-  assert.equal(after.balance!.total_fees, balance.total_fees + 400);
+  assert.equal(after.balance!.available_balance, balance.available_balance + 57720 - 404);
+  assert.equal(after.balance!.total_fees, balance.total_fees + 404);
   s.run({ type: "payment.transition", id: payment.id, status: "success" }); assert.equal(s.getSnapshot(), after);
   invalid(s, { type: "payment.transition", id: payment.id, status: "failed" });
   create(s, "completed", "qris_manual"); assert.equal(s.getSnapshot().balance!.available_balance, after.balance!.available_balance);

@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createEnvironment } from './isolation.mjs';
+import { PUSAT, TAMAN } from './browser.mjs';
 
 const owner = process.env.DEMO_OWNER_URL || 'http://localhost:3000';
 const pos = process.env.DEMO_POS_URL || 'http://localhost:3001';
@@ -58,7 +59,7 @@ async function navigate(page, label, path) {
 }
 async function pinLogin(page, employee = 'Rani', pin = '111111', outlet = 'Pusat') {
   await page.waitForURL('**/demo/pos/login/select-outlet');
-  await page.getByRole('button', { name: new RegExp(`Rakku Demo Cafe — ${outlet}`) }).click();
+  await page.getByRole('button', { name: new RegExp(outlet === 'Taman' ? TAMAN : PUSAT) }).click();
   await page.waitForURL('**/demo/pos/login/select-user');
   await page.getByRole('button', { name: new RegExp(`^${employee} `) }).click();
   await page.waitForURL('**/demo/pos/login/enter-pin?*');

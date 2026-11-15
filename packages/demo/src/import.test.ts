@@ -84,7 +84,7 @@ test("sample and user-uploaded v1/v2 products confirm with recipe, category cons
   assert.equal(sandbox.getSnapshot().products.find(row => row.code === "USER-001")!.price, 12345.67);
   const decimalProduct=sandbox.getSnapshot().products.find(row=>row.code==="USER-001")!;
   const quoted=sandbox.run({type:"order.quote",outlet_id:P,tier_id:id("tier"),items:[{product_id:decimalProduct.id,quantity:2}]}) as {subtotal:number;total:number};
-  assert.equal(quoted.subtotal,24691.34);assert.equal(quoted.total,27160,"checkout retains cents until final whole-rupiah rounding");
+  assert.equal(quoted.subtotal,24691.34);assert.equal(quoted.total,27407,"checkout retains cents until final whole-rupiah rounding with 11% PPN");
   sandbox.run({type:"product.save",value:{id:decimalProduct.id,description:"Diedit setelah import"}});
   assert.equal(sandbox.getSnapshot().products.find(row=>row.id===decimalProduct.id)?.price,12345.67);
 });
