@@ -37,9 +37,9 @@ test("Business fixture is an explicit frozen shared Subscription with one Jakart
   assert.equal(state.subscription_status, "active"); assert.equal(state.billing_cycle, "monthly"); assert.equal(state.plan_expires_at, state.subscription.current_period_end); assert.equal(state.plan, "business");
   assert.ok(Object.isFrozen(state.subscription)); assert.throws(() => { state.subscription.plan_id = "fixture:plan:free"; });
   assert.equal(sandbox.getSnapshot(), state);
-  assert.deepEqual(state.outlets.map(outlet => [outlet.name, outlet.address]), [["Rakku Demo Cafe — Pusat", "Jl. Contoh Raya No. 10"], ["Rakku Demo Cafe — Taman", "Jl. Contoh Taman No. 25"]]);
+  assert.deepEqual(state.outlets.map(outlet => [outlet.name, outlet.address]), [["Outlet Pusat", "Jl. Utama No. 10"], ["Outlet Dekat Taman", "Jl. Taman No. 25"]]);
   assert.deepEqual(state.products.filter(product => product.outlet_id === P).map(product => product.name), ["Espresso", "Americano", "Cappuccino", "Caffe Latte", "Kopi Susu Gula Aren", "Matcha Latte", "Chocolate Latte", "Lemon Tea", "Butter Croissant", "French Fries"]);
-  assert.deepEqual(state.taxes.filter(tax => tax.outlet_id === P).map(tax => tax.name), ["Pajak Demo", "Service Demo"]);
+  assert.deepEqual(state.taxes.filter(tax => tax.outlet_id === P).map(tax => [tax.name, tax.type, tax.value, tax.is_active]), [["PPN", "percentage", 11, true], ["Service Tax", "fixed", 1000, false]]);
 });
 
 test("same-plan renewal extends future expiry; changing plan starts now; every activation replaces the current record", () => {

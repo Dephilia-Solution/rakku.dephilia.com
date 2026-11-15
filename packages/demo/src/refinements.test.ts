@@ -137,7 +137,7 @@ test("system outbox notifications are correlated, idempotent, private to owner a
   assert.deepEqual(notifications.map(mail => [mail.notification_type, mail.reference_id]), [
     ["withdrawal_rejected", seedPending.id], ["withdrawal_requested", withdrawal.id], ["withdrawal_processing", withdrawal.id], ["withdrawal_completed", withdrawal.id], ["subscription_success", invoice.id],
   ]);
-  for (const mail of notifications) { assert.equal(mail.to, "owner@rakku.invalid"); assert.equal(mail.status, "simulated"); assert.equal(mail.report, null); assert.match(mail.body, /SIMULASI.*tidak dikirim/); assert.ok(Object.isFrozen(mail)); }
+  for (const mail of notifications) { assert.equal(mail.to, "owner@rakku.example"); assert.equal(mail.status, "simulated"); assert.equal(mail.report, null); assert.match(mail.body, /SIMULASI.*tidak dikirim/); assert.ok(Object.isFrozen(mail)); }
   assert.match(notifications.find(mail => mail.notification_type === "withdrawal_rejected")!.body, /Demo rejected/);
   assert.match(notifications.find(mail => mail.notification_type === "withdrawal_completed")!.body, /DEMO-TRANSFER/);
   assert.match(notifications.find(mail => mail.notification_type === "subscription_success")!.body, /Pro/);
@@ -171,15 +171,15 @@ test("quotes apply only the first active date-valid order discount, with product
   sandbox.run({ type: "entity.save", entity: "discounts", value: { id: id("discount", 1), is_active: true } });
   const second = sandbox.run({ type: "entity.save", entity: "discounts", value: { outlet_id: P, name: "Second order promo", type: "fixed", value: 10000, start_date: today, end_date: today, is_active: true } }) as { id: string };
   const quote = sandbox.run({ type: "order.quote", ...orderInput }) as DemoOrder;
-  assert.equal(quote.subtotal, 52000); assert.equal(quote.discount_amount, 5000); assert.equal(quote.tax_amount, 4700); assert.equal(quote.total, 51700); assert.equal(quote.discounts!.length, 1);
+  assert.equal(quote.subtotal, 52000); assert.equal(quote.discount_amount, 5000); assert.equal(quote.tax_amount, 5170); assert.equal(quote.total, 52170); assert.equal(quote.discounts!.length, 1);
   sandbox.run({ type: "entity.save", entity: "discounts", value: { id: id("discount", 1), is_active: false } });
   const next = sandbox.run({ type: "order.quote", ...orderInput }) as DemoOrder;
-  assert.equal(next.discount_amount, 10000); assert.equal(next.total, 46200); assert.equal(next.discounts![0].name, "Second order promo");
+  assert.equal(next.discount_amount, 10000); assert.equal(next.total, 46620); assert.equal(next.discounts![0].name, "Second order promo");
   const matcha = sandbox.run({ type: "order.quote", ...orderInput, items: [{ product_id: id("product", 5), quantity: 2 }] }) as DemoOrder;
-  assert.equal(matcha.subtotal, 57600); assert.equal(matcha.discount_amount, 16400); assert.equal(matcha.tax_amount, 4760); assert.equal(matcha.total, 52360);
+  assert.equal(matcha.subtotal, 57600); assert.equal(matcha.discount_amount, 16400); assert.equal(matcha.tax_amount, 5236); assert.equal(matcha.total, 52836);
   sandbox.run({ type: "entity.save", entity: "discounts", value: { id: second.id, end_date: "2026-10-11", start_date: "2026-10-10" } });
   const expired = sandbox.run({ type: "order.quote", ...orderInput }) as DemoOrder;
-  assert.equal(expired.discount_amount, 0); assert.equal(expired.total, 57200);
+  assert.equal(expired.discount_amount, 0); assert.equal(expired.total, 57720);
 });
 
 test("negative stock caused by sales stays metadata-editable while direct/new negative stock writes remain invalid", () => {

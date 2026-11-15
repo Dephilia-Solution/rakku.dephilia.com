@@ -36,3 +36,24 @@ test("patched braces preserves ordinary glob expansion, compilation and escaped 
   assert.deepEqual(braces.expand("x{1..3}"), ["x1", "x2", "x3"]);
   assert.deepEqual(braces.expand("src/\\{literal\\}.ts"), ["src/{literal}.ts"]);
 });
+
+for (const [name, app, entry] of [
+  ["Neon Auth", "superadmin", "@neondatabase/auth/next/server"],
+  ["Serwist", "pos", "@serwist/next"],
+]) {
+  test(`${name}'s resolved Zod rejects oversized collections before parsing their elements`, async () => {
+    const appRequire = createRequire(resolve(`apps/${app}/package.json`));
+    const dependencyRequire = createRequire(appRequire.resolve(entry));
+    const { z } = dependencyRequire("zod");
+    let parsed = 0;
+    const schema = z.array(z.string().transform(value => { parsed++; return value; })).max(2);
+    const oversized = Array(10000).fill("value");
+    for (const result of [schema.safeParse(oversized), await schema.safeParseAsync(oversized)]) {
+      assert.equal(result.success, false);
+      assert.equal(result.error.issues[0].code, "too_big");
+      assert.equal(parsed, 0, "collection limits must be checked before per-element work");
+    }
+    assert.deepEqual(schema.parse(["value"]), ["value"]);
+    assert.equal(parsed, 1, "ordinary valid collections still parse their elements");
+  });
+}
